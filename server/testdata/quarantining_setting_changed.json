@@ -1,0 +1,45 @@
+{
+    "quarantine_setting_changed": {
+        "actor": {
+            "email": "string",
+            "full_name": "string"
+        },
+        "previous_quarantining_setting": "ALWAYS_QUARANTINE",
+        "reason": "string",
+        "timestamp": "2019-08-24T14:15:22Z",
+        "updated_quarantining_setting": "ALWAYS_QUARANTINE"
+    },
+    "test_case": {
+        "codeowners": [
+            "string"
+        ],
+        "failure_rate_last_7d": 0,
+        "file_path": "string",
+        "html_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "most_common_failures": [
+            {
+                "last_occurrence": "2019-08-24T14:15:22Z",
+                "occurrence_count": 0,
+                "summary": "string"
+            }
+        ],
+        "name": "string",
+        "pull_requests_impacted_last_7d": 0,
+        "quarantined": true,
+        "repository": {
+            "html_url": "http://example.com"
+        },
+        "status": {
+            "reason": "string",
+            "timestamp": "2019-08-24T14:15:22Z",
+            "value": "healthy"
+        },
+        "test_suite": "string",
+        "ticket": {
+            "html_url": "http://example.com"
+        },
+        "variant": "string"
+    },
+    "type": "test_case.quarantining_setting_changed"
+}

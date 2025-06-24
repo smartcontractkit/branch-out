@@ -1,0 +1,43 @@
+version: "2"
+run:
+  timeout: 5m
+  allow-parallel-runners: true
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - decorder
+    - gocritic
+    - gocyclo
+    - gosec
+    - zerologlint
+    - testifylint
+    - paralleltest
+    - copyloopvar
+    - godox
+    - revive
+  settings:
+    godox:
+      keywords:
+      - "DEBUG"
+      - "TODO"
+    gosec:
+      confidence: medium
+      excludes:
+        - G304 # We're writing and reading a lot of files that we are in control of
+        - G204 # We're launching processes that we are in control of
+formatters:
+  enable:
+    - gofmt
+    - goimports
+    - golines
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/smartcontractkit/flakeguard
+    golines:
+      max-len: 120

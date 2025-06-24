@@ -1,0 +1,24 @@
+.vscode/*
+!.vscode/launch.json
+.DS_Store
+.idea/
+
+branch-out.log
+branch-out.log.*
+branch-out
+!branch-out/
+
+# Common debug file
+x.json
+
+# Coverage artifacts
+coverage/
+*.out
+*.html
+coverage.svg
+*_coverage.txt
+
+# goreleaser
+dist/
+.goreleaser.lock
+.goreleaser.yml
