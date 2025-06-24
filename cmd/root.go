@@ -12,16 +12,22 @@ import (
 	"github.com/smartcontractkit/branch-out/server"
 )
 
-// config is the configuration for the CLI.
-var config struct {
-	WebhookURL string
-	Port       int
-}
+var (
+	webhookURL  string
+	port        int
+	githubToken string
+)
 
 // root is the root command for the CLI.
 var root = &cobra.Command{
 	Use:   "branch-out",
 	Short: "Branch Out is a tool to accentuate the capabilities of Trunk.io's flaky test tools",
+	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		if githubToken == "" {
+			githubToken = os.Getenv("GITHUB_TOKEN")
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		logger, err := logging.New()
 		if err != nil {
@@ -30,8 +36,8 @@ var root = &cobra.Command{
 
 		server := server.New(
 			server.WithLogger(logger),
-			server.WithWebhookURL(config.WebhookURL),
-			server.WithPort(config.Port),
+			server.WithWebhookURL(webhookURL),
+			server.WithPort(port),
 		)
 
 		return server.Start(cmd.Context())
@@ -39,8 +45,10 @@ var root = &cobra.Command{
 }
 
 func init() {
-	root.Flags().StringVarP(&config.WebhookURL, "webhook-url", "w", "", "The URL to receive webhooks from Trunk.io")
-	root.Flags().IntVarP(&config.Port, "port", "p", 8080, "The port for the server to listen on")
+	root.Flags().StringVarP(&webhookURL, "webhook-url", "w", "", "The URL to receive webhooks from Trunk.io")
+	root.Flags().IntVarP(&port, "port", "p", 8080, "The port for the server to listen on")
+	root.Flags().
+		StringVarP(&githubToken, "github-token", "t", "", "The GitHub token to use for the GitHub API (reads from GITHUB_TOKEN environment variable if not provided)")
 }
 
 // Execute is the entry point for the CLI.

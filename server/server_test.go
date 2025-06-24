@@ -28,18 +28,24 @@ func TestStart(t *testing.T) {
 	server := New(WithLogger(logger))
 	require.NotNil(t, server)
 
+	ctx, killServer := context.WithCancel(context.Background())
 	errChan := make(chan error, 1)
-	ctx, cancel := context.WithCancel(context.Background())
+
 	go func() {
 		err := server.Start(ctx)
 		errChan <- err
 	}()
 
-	time.Sleep(10 * time.Millisecond)
-	cancel()
+	healthyCtx, healthyCtxCancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	t.Cleanup(healthyCtxCancel)
 
-	err := <-errChan
-	require.NoError(t, err)
+	err := server.WaitHealthy(healthyCtx)
+	require.NoError(t, err, "server did not become healthy")
+
+	killServer()
+
+	err = <-errChan
+	require.NoError(t, err, "server start returned error")
 }
 
 func TestReceiveWebhook_DetermineType(t *testing.T) {

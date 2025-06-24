@@ -1,9 +1,12 @@
 package trunk
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/rs/zerolog"
+
+	"github.com/smartcontractkit/branch-out/github"
 )
 
 // ReceiveWebhook processes a Trunk webhook and returns an error if the webhook is invalid.
@@ -48,10 +51,57 @@ func handleQuarantiningSettingChanged(l zerolog.Logger, event WebhookEvent) erro
 		Bool("quarantined", testCase.Quarantined).
 		Msg("Test case quarantine setting changed")
 
-	// TODO: Implement quarantine logic
-	// - Parse Go test files
-	// - Add/remove t.Skip() calls
-	// - Create PR with changes
+	// Only process if test is being quarantined (not un-quarantined)
+	if !testCase.Quarantined {
+		l.Info().Msg("Test is being un-quarantined, skipping PR creation")
+		return nil
+	}
+
+	// Parse repository URL to get owner and repo
+	owner, repo, err := github.ParseRepoURL(testCase.Repository.HTMLURL)
+	if err != nil {
+		l.Error().Err(err).Str("repo_url", testCase.Repository.HTMLURL).Msg("Failed to parse repository URL")
+		return fmt.Errorf("failed to parse repository URL: %w", err)
+	}
+
+	l.Debug().
+		Str("owner", owner).
+		Str("repo", repo).
+		Msg("Parsed repository information")
+
+	// Create GitHub client
+	githubClient, err := github.NewClient(l, "", nil)
+	if err != nil {
+		l.Error().Err(err).Msg("Failed to create GitHub client")
+		return fmt.Errorf("failed to create GitHub client: %w", err)
+	}
+
+	// Create quarantine request
+	quarantineReq := github.QuarantineTestRequest{
+		Owner:            owner,
+		Repo:             repo,
+		FilePath:         testCase.FilePath,
+		TestFunctionName: testCase.Name,
+		// Let the system generate default branch name, commit message, PR title, and body
+	}
+
+	// Execute quarantine process
+	ctx := context.Background()
+	response, err := githubClient.QuarantineTest(ctx, l, quarantineReq)
+	if err != nil {
+		l.Error().Err(err).Msg("Failed to quarantine test")
+		return fmt.Errorf("failed to quarantine test: %w", err)
+	}
+
+	if response.PRURL != "" {
+		l.Info().
+			Str("branch_name", response.BranchName).
+			Str("commit_sha", response.CommitSHA).
+			Str("pr_url", response.PRURL).
+			Msg("Successfully created quarantine PR")
+	} else {
+		l.Info().Msg("Test was already quarantined, no PR created")
+	}
 
 	return nil
 }
@@ -66,11 +116,13 @@ func handleStatusChanged(l zerolog.Logger, event WebhookEvent) error {
 		Str("test_name", testCase.Name).
 		Str("file_path", testCase.FilePath).
 		Str("status", testCase.Status.Value).
+		Str("reason", testCase.Status.Reason).
 		Msg("Test case status changed")
 
-	// TODO: Implement status change logic
-	// - Maybe create issues for consistently failing tests
-	// - Update monitoring/alerting
+	// For now, we don't automatically quarantine based on status changes
+	// This could be extended in the future to automatically quarantine tests
+	// that become flaky or broken
+	l.Debug().Msg("Status change processed (no action taken)")
 
 	return nil
 }
