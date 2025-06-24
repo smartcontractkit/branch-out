@@ -3,9 +3,11 @@
 .DS_Store
 .idea/
 
+# Build and test artifacts
 branch-out.log
 branch-out.log.*
 *.log.json
+Test*/
 branch-out
 !branch-out/
 

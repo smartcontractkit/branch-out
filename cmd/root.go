@@ -48,7 +48,7 @@ func init() {
 	root.Flags().StringVarP(&webhookURL, "webhook-url", "w", "", "The URL to receive webhooks from Trunk.io")
 	root.Flags().IntVarP(&port, "port", "p", 8080, "The port for the server to listen on")
 	root.Flags().
-		StringVarP(&githubToken, "github-token", "t", "", "The GitHub token to use for the GitHub API (reads from GITHUB_TOKEN environment variable if not provided)")
+		StringVarP(&githubToken, "github-token", "t", "", "The GitHub token to use for the GitHub API (try using 'gh auth token') (reads from GITHUB_TOKEN environment variable if not provided)")
 }
 
 // Execute is the entry point for the CLI.
