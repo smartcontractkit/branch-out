@@ -38,6 +38,6 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/smartcontractkit/flakeguard
+        - github.com/smartcontractkit/branch-out
     golines:
       max-len: 120

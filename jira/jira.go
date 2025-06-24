@@ -3,7 +3,7 @@ package jira
 
 import "fmt"
 
-// CreateJiraTicket creates a new Jira ticket.
-func CreateJiraTicket() error {
+// CreateTicket creates a new Jira ticket.
+func CreateTicket() error {
 	return fmt.Errorf("not implemented")
 }

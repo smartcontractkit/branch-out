@@ -6,9 +6,10 @@ import (
 	"os"
 
 	"github.com/charmbracelet/fang"
+	"github.com/spf13/cobra"
+
 	"github.com/smartcontractkit/branch-out/logging"
 	"github.com/smartcontractkit/branch-out/server"
-	"github.com/spf13/cobra"
 )
 
 // config is the configuration for the CLI.
@@ -21,16 +22,19 @@ var config struct {
 var root = &cobra.Command{
 	Use:   "branch-out",
 	Short: "Branch Out is a tool to accentuate the capabilities of Trunk.io's flaky test tools",
-	RunE: func(_ *cobra.Command, _ []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		logger, err := logging.New()
 		if err != nil {
 			return err
 		}
-		server := server.New(logger, config.WebhookURL, config.Port)
-		if err := server.Start(); err != nil {
-			return err
-		}
-		return nil
+
+		server := server.New(
+			server.WithLogger(logger),
+			server.WithWebhookURL(config.WebhookURL),
+			server.WithPort(config.Port),
+		)
+
+		return server.Start(cmd.Context())
 	},
 }
 

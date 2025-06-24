@@ -4,6 +4,7 @@ package logging
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -22,16 +23,25 @@ type options struct {
 	logFileName        string
 	disableFileLogging bool
 	writers            []io.Writer
+	soleWriter         io.Writer
 }
 
 // Option is a function that sets an option for the logger.
 type Option func(*options)
 
-// WithWriters sets the writers to use for logging.
+// WithWriters sets adds additional writers to use for logging.
 // This is useful for testing logging output.
 func WithWriters(writers ...io.Writer) Option {
 	return func(o *options) {
 		o.writers = writers
+	}
+}
+
+// WithSoleWriter sets the sole writer to use for logging.
+// This is useful for testing logging output.
+func WithSoleWriter(writer io.Writer) Option {
+	return func(o *options) {
+		o.soleWriter = writer
 	}
 }
 
@@ -86,21 +96,29 @@ func New(options ...Option) (zerolog.Logger, error) {
 	)
 
 	writers := opts.writers
-	if !disableFileLogging {
-		err := os.WriteFile(logFileName, []byte{}, 0600)
-		if err != nil {
-			return zerolog.Logger{}, err
+	if opts.soleWriter != nil {
+		writers = []io.Writer{opts.soleWriter}
+	} else {
+		if !disableFileLogging {
+			err := os.MkdirAll(filepath.Dir(logFileName), 0700)
+			if err != nil {
+				return zerolog.Logger{}, err
+			}
+			err = os.WriteFile(logFileName, []byte{}, 0600)
+			if err != nil {
+				return zerolog.Logger{}, err
+			}
+			lumberLogger := &lumberjack.Logger{
+				Filename:   logFileName,
+				MaxSize:    50, // megabytes
+				MaxBackups: 10,
+				MaxAge:     30,
+			}
+			writers = append(writers, lumberLogger)
 		}
-		lumberLogger := &lumberjack.Logger{
-			Filename:   logFileName,
-			MaxSize:    50, // megabytes
-			MaxBackups: 10,
-			MaxAge:     30,
+		if !disableConsoleLog {
+			writers = append(writers, zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: TimeLayout})
 		}
-		writers = append(writers, lumberLogger)
-	}
-	if !disableConsoleLog {
-		writers = append(writers, zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: TimeLayout})
 	}
 
 	logLevel, err := zerolog.ParseLevel(logLevelInput)
@@ -114,4 +132,14 @@ func New(options ...Option) (zerolog.Logger, error) {
 	multiWriter := zerolog.MultiLevelWriter(writers...)
 	logger := zerolog.New(multiWriter).Level(logLevel).With().Timestamp().Logger()
 	return logger, nil
+}
+
+// MustNew initializes a new logger with the specified options.
+// It panics if there is an error.
+func MustNew() zerolog.Logger {
+	logger, err := New()
+	if err != nil {
+		panic(err)
+	}
+	return logger
 }

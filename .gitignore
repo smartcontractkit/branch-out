@@ -5,6 +5,7 @@
 
 branch-out.log
 branch-out.log.*
+*.log.json
 branch-out
 !branch-out/
 

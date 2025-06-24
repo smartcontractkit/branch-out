@@ -1,2 +1,2 @@
-// Package github provides utilities for the GitHub API.
+// Package github provides utilities for manipulating GitHub branches and PRs.
 package github
