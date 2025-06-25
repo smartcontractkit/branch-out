@@ -14,11 +14,13 @@ func TestPassSubTestsStatic(t *testing.T) {
 	t.Run("subtest 1", func(t *testing.T) {
 		t.Parallel()
 
-		testHelper(t)
+		subTestHelper(t)
 	})
 
 	t.Run("subtest 2", func(t *testing.T) {
-		testHelper(t)
+		t.Parallel()
+
+		subTestHelper(t)
 	})
 }
 
@@ -37,7 +39,7 @@ func TestPassSubTestsTableStatic(t *testing.T) {
 		t.Run(subtest.name, func(t *testing.T) {
 			t.Parallel()
 
-			testHelper(t)
+			subTestHelper(t)
 		})
 	}
 }
@@ -58,7 +60,16 @@ func TestSubTestsTableDynamic(t *testing.T) {
 		t.Run(fmt.Sprintf("subtest %d", subtest.num), func(t *testing.T) {
 			t.Parallel()
 
-			testHelper(t)
+			subTestHelper(t)
 		})
 	}
+}
+
+func subTestHelper(t *testing.T) {
+	t.Helper()
+
+	t.Log(
+		"This is a sub test. It will fail unless it's skipped",
+	)
+	t.Fail()
 }

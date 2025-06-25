@@ -1,6 +1,6 @@
 //go:build example_project
 
-package example_project
+package nested_project
 
 import "testing"
 
@@ -25,8 +25,8 @@ func TestStandard3(t *testing.T) {
 func standardTestHelper(t *testing.T) {
 	t.Helper()
 
-	t.Fail()
 	t.Log(
-		"This is a standard test. It will fail unless it's skipped",
+		"This is a standard test inside of a nested Go project. It will fail unless it's skipped",
 	)
+	t.Fail()
 }

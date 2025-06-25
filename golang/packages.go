@@ -3,6 +3,8 @@ package golang
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -24,6 +26,16 @@ type PackagesInfo struct {
 	Packages map[string]PackageInfo
 }
 
+func (p *PackagesInfo) String() string {
+	allPackages := make([]string, 0, len(p.Packages)+1)
+	allPackages = append(allPackages, "All packages:")
+	for _, pkg := range p.Packages {
+		allPackages = append(allPackages, pkg.String())
+	}
+
+	return strings.Join(allPackages, "\n\n")
+}
+
 // Get returns the PackageInfo for the given import path.
 // Note that the import path is the full import path, not just the package name.
 func (p *PackagesInfo) Get(importPath string) (PackageInfo, error) {
@@ -31,7 +43,17 @@ func (p *PackagesInfo) Get(importPath string) (PackageInfo, error) {
 		return pkg, nil
 	}
 
-	return PackageInfo{}, fmt.Errorf("%w: %s", ErrPackageNotFound, importPath)
+	allPackages := make([]string, 0, len(p.Packages))
+	for pkg := range p.Packages {
+		allPackages = append(allPackages, pkg)
+	}
+
+	return PackageInfo{}, fmt.Errorf(
+		"%w: %s\nall packages:\n%s",
+		ErrPackageNotFound,
+		importPath,
+		strings.Join(allPackages, "\n"),
+	)
 }
 
 // PackageInfo contains comprehensive information about a Go package
@@ -46,37 +68,139 @@ type PackageInfo struct {
 	IsCommand    bool     // True if this is a main package
 }
 
-// Packages finds all Go packages in the given directory and subdirectories
-func Packages(l zerolog.Logger, rootDir string) (*PackagesInfo, error) {
+func (p *PackageInfo) String() string {
+	str := strings.Builder{}
+	str.WriteString(p.ImportPath)
+	str.WriteString("\n")
+	str.WriteString(fmt.Sprintf("Name: %s", p.Name))
+	str.WriteString("\n")
+	str.WriteString(fmt.Sprintf("Dir: %s", p.Dir))
+	str.WriteString("\n")
+	if len(p.GoFiles) > 0 {
+		str.WriteString(fmt.Sprintf("GoFiles: %v", p.GoFiles))
+		str.WriteString("\n")
+	}
+	if len(p.TestGoFiles) > 0 {
+		str.WriteString(fmt.Sprintf("TestGoFiles: %v", p.TestGoFiles))
+		str.WriteString("\n")
+	}
+	if len(p.XTestGoFiles) > 0 {
+		str.WriteString(fmt.Sprintf("XTestGoFiles: %v", p.XTestGoFiles))
+	}
+	str.WriteString(fmt.Sprintf("Module: %s", p.Module))
+	str.WriteString("\n")
+	str.WriteString(fmt.Sprintf("IsCommand: %t", p.IsCommand))
+
+	return str.String()
+}
+
+// Packages finds all Go packages in the given Go project directory and subdirectories.
+// This includes packages of nested Go projects by discovering all go.mod files and
+// loading packages from each module root.
+// buildFlags are passed to the go command when loading packages, e.g. []string{"-tags", "build_tag"}
+func Packages(l zerolog.Logger, rootDir string, buildFlags ...string) (*PackagesInfo, error) {
 	absRootDir, err := filepath.Abs(rootDir)
 	if err != nil {
 		return nil, err
 	}
 
-	l = l.With().Str("rootDir", rootDir).Str("absRootDir", absRootDir).Logger()
+	l = l.With().Str("rootDir", rootDir).Str("absRootDir", absRootDir).Strs("buildFlags", buildFlags).Logger()
 	l.Trace().Msg("Loading packages")
 	start := time.Now()
-	config := &packages.Config{
-		Mode:  packages.NeedName | packages.NeedModule | packages.NeedFiles,
-		Dir:   rootDir,
-		Tests: true,
+
+	// Find all go.mod files to identify all Go modules in the directory tree
+	goModDirs, err := findGoModDirectories(absRootDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find go.mod files: %w", err)
 	}
 
-	// Use "./..." pattern to find all packages recursively
-	pkgs, err := packages.Load(config, "./...")
-	if err != nil {
-		return nil, err
+	if len(goModDirs) == 0 {
+		l.Warn().Msg("No go.mod files found in directory tree")
+		return &PackagesInfo{Packages: make(map[string]PackageInfo)}, nil
 	}
+
+	l.Debug().Strs("goModDirs", goModDirs).Msg("Found Go module directories")
 
 	result := &PackagesInfo{
 		Packages: make(map[string]PackageInfo),
 	}
 
+	// Load packages from each Go module
+	for _, modDir := range goModDirs {
+		modulePackages, err := loadPackagesFromModule(modDir, buildFlags...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load packages from module %s: %w", modDir, err)
+		}
+
+		// Merge packages from this module into the result
+		maps.Copy(result.Packages, modulePackages)
+	}
+
+	for _, pkg := range result.Packages {
+		l.Trace().
+			Strs("files", pkg.GoFiles).
+			Strs("testFiles", pkg.TestGoFiles).
+			Strs("xTestFiles", pkg.XTestGoFiles).
+			Str("name", pkg.Name).
+			Str("importPath", pkg.ImportPath).
+			Str("module", pkg.Module).
+			Bool("isCommand", pkg.IsCommand).
+			Str("pkgDir", pkg.Dir).
+			Msg("Found package")
+	}
+
+	l.Trace().Int("count", len(result.Packages)).Str("duration", time.Since(start).String()).Msg("Found packages")
+	return result, nil
+}
+
+// findGoModDirectories recursively finds all directories containing go.mod files
+func findGoModDirectories(rootDir string) ([]string, error) {
+	var goModDirs []string
+
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip hidden directories and vendor directories
+		if info.IsDir() && (strings.HasPrefix(info.Name(), ".") || info.Name() == "vendor") {
+			return filepath.SkipDir
+		}
+
+		if info.Name() == "go.mod" {
+			goModDirs = append(goModDirs, filepath.Dir(path))
+		}
+
+		return nil
+	})
+
+	return goModDirs, err
+}
+
+// loadPackagesFromModule loads all packages from a single Go module
+func loadPackagesFromModule(moduleDir string, buildFlags ...string) (map[string]PackageInfo, error) {
+	config := &packages.Config{
+		Mode:       packages.NeedName | packages.NeedModule | packages.NeedFiles,
+		Dir:        moduleDir,
+		Tests:      true,
+		BuildFlags: buildFlags,
+	}
+
+	pkgs, err := packages.Load(config, "./...")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load packages from module %s: %w", moduleDir, err)
+	}
+
+	result := make(map[string]PackageInfo)
+
 	for _, pkg := range pkgs {
 		if len(pkg.Errors) > 0 {
-			l.Error().Err(pkg.Errors[0]).Msg("Error loading package")
-			// Skip packages with errors, but continue processing others
-			continue
+			pkgErrors := make([]string, 0, len(pkg.Errors))
+			for _, pkgErr := range pkg.Errors {
+				pkgErrors = append(pkgErrors, pkgErr.Msg)
+			}
+			retErr := fmt.Errorf("error loading package %s\nerrors:\n%s", pkg.PkgPath, strings.Join(pkgErrors, "\n"))
+			return nil, retErr
 		}
 
 		info := PackageInfo{
@@ -103,22 +227,8 @@ func Packages(l zerolog.Logger, rootDir string) (*PackagesInfo, error) {
 			info.Dir = filepath.Dir(pkg.GoFiles[0])
 		}
 
-		result.Packages[info.ImportPath] = info
+		result[info.ImportPath] = info
 	}
 
-	for _, pkg := range result.Packages {
-		l.Trace().
-			Strs("files", pkg.GoFiles).
-			Strs("testFiles", pkg.TestGoFiles).
-			Strs("xTestFiles", pkg.XTestGoFiles).
-			Str("name", pkg.Name).
-			Str("importPath", pkg.ImportPath).
-			Str("module", pkg.Module).
-			Bool("isCommand", pkg.IsCommand).
-			Str("pkgDir", pkg.Dir).
-			Msg("Found package")
-	}
-
-	l.Trace().Int("count", len(result.Packages)).Str("duration", time.Since(start).String()).Msg("Found packages")
 	return result, nil
 }

@@ -1,34 +1,46 @@
-package golang_test
+package golang
 
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/smartcontractkit/branch-out/golang"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
-	"github.com/smartcontractkit/branch-out/logging"
 )
 
 const exampleProjectDir = "example_project"
 
-var exampleProjectPackages = []string{
-	"github.com/smartcontractkit/branch-out/golang/example_project",
-	"github.com/smartcontractkit/branch-out/golang/example_project/nested_go_mod",
-	"github.com/smartcontractkit/branch-out/golang/example_project/package_name_doesnt_match_dir_name",
-}
+var (
+	exampleProjectPackages = []string{
+		"github.com/smartcontractkit/branch-out/golang/example_project",
+		"github.com/smartcontractkit/branch-out/golang/example_project/package_name_doesnt_match_dir_name",
+		"github.com/smartcontractkit/branch-out/golang/example_project/testpackage_test",
+		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project",
+		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_package_name_doesnt_match_dir_name",
+		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_test_package",
+	}
+	exampleProjectBuildFlags = []string{"-tags", "example_project"}
+)
 
-func TestPackages(t *testing.T) {
+func TestIntegrationPackages(t *testing.T) {
 	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping integration packages test in short mode")
+	}
 
-	l := testhelpers.Logger(t, logging.WithConsoleLog(true))
-	packages, err := golang.Packages(l, exampleProjectDir)
+	l := testhelpers.Logger(t)
+	packages, err := Packages(l, exampleProjectDir, exampleProjectBuildFlags...)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		if t.Failed() {
+			l.Error().Msg("Test failed, showing all packages found")
+			t.Log(packages.String())
+		}
+	})
 
 	for _, pkg := range exampleProjectPackages {
-		pkgInfo, err := packages.Get(pkg)
-		require.NoError(t, err, "package should be found")
-
-		t.Log(pkgInfo)
+		_, err := packages.Get(pkg)
+		assert.NoError(t, err, "package should be found")
 	}
 }

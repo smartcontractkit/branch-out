@@ -8,6 +8,7 @@ branch-out.log
 branch-out.log.*
 *.log.json
 Test*/
+!test_package/
 branch-out
 !branch-out/
 

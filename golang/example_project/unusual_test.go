@@ -1,3 +1,5 @@
+//go:build example_project
+
 package example_project
 
 import "testing"

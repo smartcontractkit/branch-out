@@ -7,11 +7,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// QuarantineTarget describes a test function to quarantine.
 type QuarantineTarget struct {
 	PackageName string // Name of the Go package
 	TestName    string // Name of the test function to quarantine
 }
 
+// QuarantineResult describes the result of quarantining a test function.
 type QuarantineResult struct {
 	PackageName        string
 	TestName           string
@@ -27,6 +29,7 @@ func QuarantineTests(
 	l zerolog.Logger,
 	repoPath string,
 	quarantineTargets []QuarantineTarget,
+	buildFlags ...string,
 ) ([]QuarantineResult, error) {
 	// TODO: Implement pseudo-code
 	// Loop through quarantine targets
@@ -37,7 +40,7 @@ func QuarantineTests(
 	// If you can't, mark it as unable to quarantine
 	// Return report of which tests were quarantined and which were not
 
-	packages, err := Packages(l, repoPath)
+	packages, err := Packages(l, repoPath, buildFlags...)
 	if err != nil {
 		return nil, err
 	}

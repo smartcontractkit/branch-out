@@ -33,9 +33,10 @@ func Logger(tb testing.TB, options ...logging.Option) zerolog.Logger {
 		append(defaultOptions, options...)...,
 	)
 	require.NoError(tb, err)
+	logger = logger.With().Str("test_name", tb.Name()).Str("log_file", logFile).Logger()
 	tb.Cleanup(func() {
 		if tb.Failed() {
-			logger.Error().Str("log_file", logFile).Msg("Test failed, leaving log file for debugging")
+			logger.Error().Msg("Test failed, leaving log file for debugging")
 		} else {
 			if err := os.Remove(logFile); err != nil {
 				logger.Error().Err(err).Msg("Error removing log file")
