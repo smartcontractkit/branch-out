@@ -59,7 +59,7 @@ func WithLevel(logLevelInput string) Option {
 	}
 }
 
-// DisableConsoleLog disables console logging.
+// WithConsoleLog enables or disables console logging.
 func WithConsoleLog(enabled bool) Option {
 	return func(o *options) {
 		o.enableConsoleLog = enabled
