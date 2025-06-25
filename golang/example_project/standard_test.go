@@ -1,6 +1,6 @@
-//go:build example_tests
+//go:build example_project
 
-package example_tests
+package example_project
 
 import "testing"
 

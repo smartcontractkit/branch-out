@@ -2,10 +2,9 @@ package golang
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -14,12 +13,26 @@ import (
 
 // Absolute path to root directory -> PackageInfo
 var (
-	packagesCache      = map[string][]PackageInfo{}
-	packagesCacheMutex = sync.RWMutex{}
-
 	// ErrTestNotFound is returned when a test is not found in the go code.
 	ErrTestNotFound = errors.New("test not found")
+	// ErrPackageNotFound is returned when a package is not found in the go code.
+	ErrPackageNotFound = errors.New("package not found")
 )
+
+// PackagesInfo contains all the packages found in a Go project.
+type PackagesInfo struct {
+	Packages map[string]PackageInfo
+}
+
+// Get returns the PackageInfo for the given import path.
+// Note that the import path is the full import path, not just the package name.
+func (p *PackagesInfo) Get(importPath string) (PackageInfo, error) {
+	if pkg, ok := p.Packages[importPath]; ok {
+		return pkg, nil
+	}
+
+	return PackageInfo{}, fmt.Errorf("%w: %s", ErrPackageNotFound, importPath)
+}
 
 // PackageInfo contains comprehensive information about a Go package
 type PackageInfo struct {
@@ -34,17 +47,10 @@ type PackageInfo struct {
 }
 
 // Packages finds all Go packages in the given directory and subdirectories
-func Packages(l zerolog.Logger, rootDir string) ([]PackageInfo, error) {
+func Packages(l zerolog.Logger, rootDir string) (*PackagesInfo, error) {
 	absRootDir, err := filepath.Abs(rootDir)
 	if err != nil {
 		return nil, err
-	}
-
-	packagesCacheMutex.RLock()
-	cachedPackages, ok := packagesCache[absRootDir]
-	packagesCacheMutex.RUnlock()
-	if ok {
-		return cachedPackages, nil
 	}
 
 	l = l.With().Str("rootDir", rootDir).Str("absRootDir", absRootDir).Logger()
@@ -62,7 +68,10 @@ func Packages(l zerolog.Logger, rootDir string) ([]PackageInfo, error) {
 		return nil, err
 	}
 
-	var result []PackageInfo
+	result := &PackagesInfo{
+		Packages: make(map[string]PackageInfo),
+	}
+
 	for _, pkg := range pkgs {
 		if len(pkg.Errors) > 0 {
 			l.Error().Err(pkg.Errors[0]).Msg("Error loading package")
@@ -94,18 +103,10 @@ func Packages(l zerolog.Logger, rootDir string) ([]PackageInfo, error) {
 			info.Dir = filepath.Dir(pkg.GoFiles[0])
 		}
 
-		result = append(result, info)
+		result.Packages[info.ImportPath] = info
 	}
 
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].ImportPath < result[j].ImportPath
-	})
-
-	packagesCacheMutex.Lock()
-	packagesCache[absRootDir] = result
-	packagesCacheMutex.Unlock()
-
-	for _, pkg := range result {
+	for _, pkg := range result.Packages {
 		l.Trace().
 			Strs("files", pkg.GoFiles).
 			Strs("testFiles", pkg.TestGoFiles).
@@ -115,9 +116,9 @@ func Packages(l zerolog.Logger, rootDir string) ([]PackageInfo, error) {
 			Str("module", pkg.Module).
 			Bool("isCommand", pkg.IsCommand).
 			Str("pkgDir", pkg.Dir).
-			Msg("Loaded package")
+			Msg("Found package")
 	}
 
-	l.Trace().Str("duration", time.Since(start).String()).Msg("Loaded packages")
+	l.Trace().Int("count", len(result.Packages)).Str("duration", time.Since(start).String()).Msg("Found packages")
 	return result, nil
 }

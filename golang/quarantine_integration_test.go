@@ -13,15 +13,8 @@ import (
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
 )
 
-const exampleTestsDir = "example_tests"
-
 func TestQuarantine(t *testing.T) {
 	t.Parallel()
-
-	packages := []string{
-		"github.com/smartcontractkit/branch-out/golang/example_tests",
-		"github.com/smartcontractkit/branch-out/golang/example_tests/nested_go_mod",
-	}
 
 	testCases := []struct {
 		packageName string
@@ -35,7 +28,7 @@ func TestQuarantine(t *testing.T) {
 		{testName: "TestSubTestsTableDynamic"},
 	}
 
-	for _, pkg := range packages {
+	for _, pkg := range exampleProjectPackages {
 		for _, tc := range testCases {
 			t.Run(fmt.Sprintf("%s/%s", pkg, tc.testName), func(t *testing.T) {
 				t.Parallel()
@@ -52,7 +45,7 @@ func TestQuarantine(t *testing.T) {
 func runExampleTest(tb testing.TB, dir, testName string) error {
 	tb.Helper()
 
-	testCmd := exec.Command("go", "test", "-tags=example_tests", "./...", "-run", testName, "-v", "-count=1")
+	testCmd := exec.Command("go", "test", "-tags=example_project", "./...", "-run", testName, "-v", "-count=1")
 	testCmd.Dir = dir
 
 	output, err := testCmd.CombinedOutput()
@@ -83,7 +76,7 @@ func setupExampleTests(tb testing.TB) string {
 		}
 	})
 
-	err = testhelpers.CopyDir(tb, exampleTestsDir, dirName)
+	err = testhelpers.CopyDir(tb, exampleProjectDir, dirName)
 	require.NoError(tb, err, "failed to copy example tests")
 
 	return dirName

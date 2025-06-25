@@ -18,7 +18,7 @@ var once sync.Once
 
 // options holds the options for the logger.
 type options struct {
-	disableConsoleLog  bool
+	enableConsoleLog   bool
 	logLevelInput      string
 	logFileName        string
 	disableFileLogging bool
@@ -60,9 +60,9 @@ func WithLevel(logLevelInput string) Option {
 }
 
 // DisableConsoleLog disables console logging.
-func DisableConsoleLog() Option {
+func WithConsoleLog(enabled bool) Option {
 	return func(o *options) {
-		o.disableConsoleLog = true
+		o.enableConsoleLog = enabled
 	}
 }
 
@@ -75,9 +75,9 @@ func DisableFileLogging() Option {
 
 func defaultOptions() *options {
 	return &options{
-		disableConsoleLog: false,
-		logLevelInput:     "info",
-		logFileName:       "branch-out.log.json",
+		enableConsoleLog: true,
+		logLevelInput:    "info",
+		logFileName:      "branch-out.log.json",
 	}
 }
 
@@ -91,7 +91,7 @@ func New(options ...Option) (zerolog.Logger, error) {
 	var (
 		logFileName        = opts.logFileName
 		logLevelInput      = opts.logLevelInput
-		disableConsoleLog  = opts.disableConsoleLog
+		enableConsoleLog   = opts.enableConsoleLog
 		disableFileLogging = opts.disableFileLogging
 	)
 
@@ -116,7 +116,7 @@ func New(options ...Option) (zerolog.Logger, error) {
 			}
 			writers = append(writers, lumberLogger)
 		}
-		if !disableConsoleLog {
+		if enableConsoleLog {
 			writers = append(writers, zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: TimeLayout})
 		}
 	}

@@ -3,131 +3,66 @@ package golang
 
 import (
 	"fmt"
-	"go/ast"
-	"go/format"
-	"go/parser"
-	"go/token"
-	"strings"
+
+	"github.com/rs/zerolog"
 )
 
-// QuarantineTest modifies Go source code to quarantine a test by adding t.Skip() at the beginning.
-// It takes the source code as a string and the test function name to quarantine.
-func QuarantineTest(sourceCode, testFunctionName string) (string, error) {
-	if testFunctionName == "" {
-		return sourceCode, fmt.Errorf("test function name cannot be empty")
-	}
+type QuarantineTarget struct {
+	PackageName string // Name of the Go package
+	TestName    string // Name of the test function to quarantine
+}
 
+type QuarantineResult struct {
+	PackageName        string
+	TestName           string
+	Quarantined        bool
+	Error              error
+	ModifiedSourceCode string
+}
+
+// QuarantineTests looks through a Go project to find and quarantine any tests that match the given targets.
+// It returns a list of results for each target, including whether it was able to be quarantined, the modified source code, to quarantine the test, and any errors that occurred.
+// The modified source code is returned so that it can be committed to the repository. You must do something with it, as the code is not edited or committed by this function.
+func QuarantineTests(
+	l zerolog.Logger,
+	repoPath string,
+	quarantineTargets []QuarantineTarget,
+) ([]QuarantineResult, error) {
+	// TODO: Implement pseudo-code
+	// Loop through quarantine targets
+	// For each target, get the source code
 	// Parse the source code
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, "", sourceCode, parser.ParseComments)
-	if err != nil {
-		return sourceCode, fmt.Errorf("failed to parse Go source code: %w", err)
-	}
-
 	// Find and modify the target test function
-	testFound := false
-	ast.Inspect(node, func(n ast.Node) bool {
-		if fn, ok := n.(*ast.FuncDecl); ok {
-			// Check if this is the target test function
-			if fn.Name.Name == testFunctionName && isTestFunction(fn) {
-				testFound = true
-				addSkipToFunction(fn)
-			}
-		}
-		return true
-	})
-
-	if !testFound {
-		return sourceCode, fmt.Errorf("test function '%s' not found", testFunctionName)
-	}
-
-	// Convert the modified AST back to source code
-	var buf strings.Builder
-	if err := format.Node(&buf, fset, node); err != nil {
-		return sourceCode, fmt.Errorf("failed to format modified source code: %w", err)
-	}
-
-	return buf.String(), nil
-}
-
-// isTestFunction checks if a function declaration is a test function
-func isTestFunction(fn *ast.FuncDecl) bool {
-	// Test functions must:
-	// 1. Start with "Test"
-	// 2. Have exactly one parameter of type *testing.T
-	if !strings.HasPrefix(fn.Name.Name, "Test") {
-		return false
-	}
-
-	if fn.Type.Params == nil || len(fn.Type.Params.List) != 1 {
-		return false
-	}
-
-	param := fn.Type.Params.List[0]
-	if starExpr, ok := param.Type.(*ast.StarExpr); ok {
-		if selectorExpr, ok := starExpr.X.(*ast.SelectorExpr); ok {
-			if ident, ok := selectorExpr.X.(*ast.Ident); ok {
-				return ident.Name == "testing" && selectorExpr.Sel.Name == "T"
-			}
-		}
-	}
-
-	return false
-}
-
-// addSkipToFunction adds t.Skip() call at the beginning of the function body
-func addSkipToFunction(fn *ast.FuncDecl) {
-	if fn.Body == nil || len(fn.Body.List) == 0 {
-		// If function has no body, create one with just t.Skip()
-		fn.Body = &ast.BlockStmt{
-			List: []ast.Stmt{createSkipStatement()},
-		}
-		return
-	}
-
-	// Check if t.Skip() is already present at the beginning
-	if hasSkipAtBeginning(fn.Body.List) {
-		return // Already quarantined
-	}
-
 	// Add t.Skip() at the beginning of the function
-	skipStmt := createSkipStatement()
-	fn.Body.List = append([]ast.Stmt{skipStmt}, fn.Body.List...)
-}
+	// If you can't, mark it as unable to quarantine
+	// Return report of which tests were quarantined and which were not
 
-// hasSkipAtBeginning checks if the first statement is already a t.Skip() call
-func hasSkipAtBeginning(stmts []ast.Stmt) bool {
-	if len(stmts) == 0 {
-		return false
+	packages, err := Packages(l, repoPath)
+	if err != nil {
+		return nil, err
 	}
 
-	if exprStmt, ok := stmts[0].(*ast.ExprStmt); ok {
-		if callExpr, ok := exprStmt.X.(*ast.CallExpr); ok {
-			if selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
-				if ident, ok := selectorExpr.X.(*ast.Ident); ok {
-					return ident.Name == "t" && selectorExpr.Sel.Name == "Skip"
-				}
-			}
+	results := make([]QuarantineResult, len(quarantineTargets))
+	for i, target := range quarantineTargets {
+		pkg, err := packages.Get(target.PackageName)
+		if err != nil {
+			return nil, err
+		}
+
+		results[i], err = quarantineTest(l, repoPath, pkg, target)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return false
+	return nil, nil
 }
 
-// createSkipStatement creates an AST node for t.Skip("quarantined by branch-out")
-func createSkipStatement() ast.Stmt {
-	return &ast.ExprStmt{
-		X: &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   &ast.Ident{Name: "t"},
-				Sel: &ast.Ident{Name: "Skip"},
-			},
-			Args: []ast.Expr{
-				&ast.BasicLit{
-					Kind:  token.STRING,
-					Value: `"quarantined by branch-out"`,
-				},
-			},
-		},
-	}
+func quarantineTest(
+	l zerolog.Logger,
+	repoPath string,
+	pkg PackageInfo,
+	target QuarantineTarget,
+) (QuarantineResult, error) {
+	return QuarantineResult{}, fmt.Errorf("not implemented")
 }

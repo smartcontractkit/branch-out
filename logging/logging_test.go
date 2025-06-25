@@ -14,7 +14,7 @@ func TestLogging(t *testing.T) {
 	fileLogger, err := New(
 		WithFileName(logFile),
 		WithLevel("trace"),
-		DisableConsoleLog(),
+		WithConsoleLog(false),
 	)
 	require.NoError(t, err, "error creating logger")
 	require.NotNil(t, fileLogger, "logger should not be nil")
