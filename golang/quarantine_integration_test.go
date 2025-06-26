@@ -39,9 +39,7 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 			err := os.WriteFile(success.File, []byte(success.ModifiedSourceCode), 0644)
 			require.NoError(t, err, "failed to write modified source code to file")
 		}
-		for _, failure := range result.Failures {
-			unableToQuarantine = append(unableToQuarantine, failure)
-		}
+		unableToQuarantine = append(unableToQuarantine, result.Failures...)
 	}
 	t.Logf("able to quarantine %d tests\n%s\n", len(ableToQuarantine), strings.Join(ableToQuarantine, "\n"))
 	t.Logf("unable to quarantine %d tests\n%s\n", len(unableToQuarantine), strings.Join(unableToQuarantine, "\n"))
