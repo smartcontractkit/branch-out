@@ -98,13 +98,13 @@ func (p *PackageInfo) String() string {
 // This includes packages of nested Go projects by discovering all go.mod files and
 // loading packages from each module root.
 // buildFlags are passed to the go command when loading packages, e.g. []string{"-tags", "build_tag"}
-func Packages(l zerolog.Logger, rootDir string, buildFlags ...string) (*PackagesInfo, error) {
+func Packages(l zerolog.Logger, rootDir string) (*PackagesInfo, error) {
 	absRootDir, err := filepath.Abs(rootDir)
 	if err != nil {
 		return nil, err
 	}
 
-	l = l.With().Str("rootDir", rootDir).Str("absRootDir", absRootDir).Strs("buildFlags", buildFlags).Logger()
+	l = l.With().Str("rootDir", rootDir).Str("absRootDir", absRootDir).Logger()
 	l.Trace().Msg("Loading packages")
 	start := time.Now()
 
@@ -119,7 +119,7 @@ func Packages(l zerolog.Logger, rootDir string, buildFlags ...string) (*Packages
 		return &PackagesInfo{Packages: make(map[string]PackageInfo)}, nil
 	}
 
-	l.Debug().Strs("goModDirs", goModDirs).Msg("Found Go module directories")
+	l.Trace().Strs("goModDirs", goModDirs).Msg("Found Go module directories")
 
 	result := &PackagesInfo{
 		Packages: make(map[string]PackageInfo),
@@ -127,7 +127,7 @@ func Packages(l zerolog.Logger, rootDir string, buildFlags ...string) (*Packages
 
 	// Load packages from each Go module
 	for _, modDir := range goModDirs {
-		modulePackages, err := loadPackagesFromModule(modDir, buildFlags...)
+		modulePackages, err := loadPackagesFromModule(modDir)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load packages from module %s: %w", modDir, err)
 		}
@@ -178,12 +178,11 @@ func findGoModDirectories(rootDir string) ([]string, error) {
 }
 
 // loadPackagesFromModule loads all packages from a single Go module
-func loadPackagesFromModule(moduleDir string, buildFlags ...string) (map[string]PackageInfo, error) {
+func loadPackagesFromModule(moduleDir string) (map[string]PackageInfo, error) {
 	config := &packages.Config{
-		Mode:       packages.NeedName | packages.NeedModule | packages.NeedFiles,
-		Dir:        moduleDir,
-		Tests:      true,
-		BuildFlags: buildFlags,
+		Mode:  packages.NeedName | packages.NeedModule | packages.NeedFiles,
+		Dir:   moduleDir,
+		Tests: true,
 	}
 
 	pkgs, err := packages.Load(config, "./...")

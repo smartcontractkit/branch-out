@@ -1,3 +1,9 @@
+.PHONY: lint test test_race test_short test_integration test_example_project
+
+build:
+	@goreleaser check
+	goreleaser build --snapshot --single-target --clean
+
 lint:
 	golangci-lint run ./... --fix
 

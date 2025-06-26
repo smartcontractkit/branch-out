@@ -1,6 +1,6 @@
 //go:build example_project
 
-package test_package_test
+package nested_test_package_test
 
 import (
 	"testing"

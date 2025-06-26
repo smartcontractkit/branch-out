@@ -20,14 +20,13 @@ var (
 		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_oddly_named_package",
 		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_test_package_test",
 	}
-	exampleProjectBuildFlags = []string{"-tags", "example_project"}
 )
 
 func TestPackages_Integration(t *testing.T) {
 	t.Parallel()
 
 	l := testhelpers.Logger(t)
-	packages, err := Packages(l, exampleProjectDir, exampleProjectBuildFlags...)
+	packages, err := Packages(l, exampleProjectDir)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		if t.Failed() {
