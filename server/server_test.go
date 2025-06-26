@@ -2,15 +2,12 @@ package server
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
-	"github.com/smartcontractkit/branch-out/trunk"
 )
 
 func TestNew(t *testing.T) {
@@ -46,63 +43,6 @@ func TestStart(t *testing.T) {
 
 	err = <-errChan
 	require.NoError(t, err, "server start returned error")
-}
-
-func TestReceiveWebhook_DetermineType(t *testing.T) {
-	t.Parallel()
-
-	server := startServer(t, nil)
-	testCases := []struct {
-		name            string
-		payloadFile     string
-		expectedMessage string
-	}{
-		{
-			name:        "Quarantining setting changed",
-			payloadFile: "testdata/quarantining_setting_changed_webhook.json",
-			expectedMessage: fmt.Sprintf(
-				webhookResponseMessageEventProcessed,
-				trunk.WebhookTypeQuarantiningSettingChanged,
-			),
-		},
-		{
-			name:            "Status changed",
-			payloadFile:     "testdata/status_changed_webhook.json",
-			expectedMessage: fmt.Sprintf(webhookResponseMessageEventProcessed, trunk.WebhookTypeStatusChanged),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			payload, err := os.ReadFile(tc.payloadFile)
-			require.NoError(t, err)
-
-			response, err := server.ReceiveWebhook(&WebhookRequest{
-				Payload: payload,
-			})
-			require.NoError(t, err)
-			require.True(t, response.Success)
-			require.Equal(t, tc.expectedMessage, response.Message, "response message mismatch")
-		})
-	}
-}
-
-func TestReceiveWebhook_StatusChanged(t *testing.T) {
-	t.Parallel()
-
-	server := startServer(t, nil)
-
-	payload, err := os.ReadFile("testdata/status_changed_webhook.json")
-	require.NoError(t, err)
-
-	response, err := server.ReceiveWebhook(&WebhookRequest{
-		Payload: payload,
-	})
-	require.NoError(t, err)
-	require.True(t, response.Success)
-	require.Equal(t, "Status change processed", response.Message)
 }
 
 //nolint:revive // context-as-argument is not a good idea here

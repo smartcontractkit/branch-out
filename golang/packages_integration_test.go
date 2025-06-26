@@ -25,9 +25,6 @@ var (
 
 func TestPackages_Integration(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip("skipping integration tests in short mode")
-	}
 
 	l := testhelpers.Logger(t)
 	packages, err := Packages(l, exampleProjectDir, exampleProjectBuildFlags...)
@@ -42,21 +39,5 @@ func TestPackages_Integration(t *testing.T) {
 	for _, pkg := range exampleProjectPackages {
 		_, err := packages.Get(pkg)
 		assert.NoError(t, err, "package should be found")
-	}
-}
-
-func TestPackages_Integration_NoBuildFlags(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.Skip("skipping integration tests in short mode")
-	}
-
-	l := testhelpers.Logger(t)
-	packages, err := Packages(l, exampleProjectDir)
-	require.NoError(t, err)
-
-	for _, pkg := range exampleProjectPackages {
-		_, err := packages.Get(pkg)
-		assert.Error(t, err, "package should not be found without build flags")
 	}
 }

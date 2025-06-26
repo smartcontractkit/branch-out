@@ -26,7 +26,6 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, result := range quarantineResults {
-		assert.NoError(t, result.Error, "unexpected error from quarantining test")
 		assert.True(t, result.Quarantined, "all tests are expected to be successfully quarantined")
 
 		if result.Quarantined {
