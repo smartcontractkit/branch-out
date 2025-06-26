@@ -2,9 +2,14 @@
 
 package test_package_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/smartcontractkit/branch-out/golang/example_project"
+)
 
 func TestTestPackage(t *testing.T) {
-	t.Fail()
-	t.Log("This test lives in a package with the _test suffix. It will fail unless it's skipped")
+	t.Parallel()
+
+	example_project.Helper(t, "This test lives in a package with the _test suffix")
 }

@@ -2,31 +2,26 @@
 
 package nested_project
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/smartcontractkit/branch-out/golang/example_project"
+)
 
 func TestStandard1(t *testing.T) {
 	t.Parallel()
 
-	standardTestHelper(t)
+	example_project.Helper(t, "This is a standard test inside of a nested Go project")
 }
 
 func TestStandard2(t *testing.T) {
 	t.Parallel()
 
-	standardTestHelper(t)
+	example_project.Helper(t, "This is a standard test inside of a nested Go project")
 }
 
 func TestStandard3(t *testing.T) {
 	t.Parallel()
 
-	standardTestHelper(t)
-}
-
-func standardTestHelper(t *testing.T) {
-	t.Helper()
-
-	t.Log(
-		"This is a standard test inside of a nested Go project. It will fail unless it's skipped",
-	)
-	t.Fail()
+	example_project.Helper(t, "This is a standard test inside of a nested Go project")
 }

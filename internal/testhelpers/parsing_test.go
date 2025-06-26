@@ -19,17 +19,18 @@ var (
 		"TestStandard1",
 		"TestStandard2",
 		"TestStandard3",
-		"TestPassSubTestsTableStatic",
+		"TestSubTestsTableStatic",
 		"TestSubTestsTableDynamic",
 		"TestDifferentParam",
-		"TestPassSubTestsStatic",
-		"TestPassSubTestsStatic/subtest_1",
-		"TestPassSubTestsStatic/subtest_2",
+		"TestSubTestsStatic",
+		"TestSubTestsStatic/subtest_1",
+		"TestSubTestsStatic/subtest_2",
 		"TestSubTestsTableDynamic/subtest_1",
 		"TestSubTestsTableDynamic/subtest_2",
-		"TestPassSubTestsTableStatic/subtest_1",
-		"TestPassSubTestsTableStatic/subtest_2",
+		"TestSubTestsTableStatic/subtest_1",
+		"TestSubTestsTableStatic/subtest_2",
 		"FuzzExampleProject",
+		"FuzzExampleProject/seed#0",
 	}
 	oddlyNamedPackageTests = []string{
 		"TestOddlyNamedPackage",
@@ -95,10 +96,36 @@ func TestParseTestOutput(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:        "all skipped",
+			resultsFile: "testdata/all_skipped.output",
+			expected: map[string]*PackageTestResults{
+				exampleProjectPackage: {
+					Found:   exampleProjectTests,
+					Skipped: exampleProjectTests,
+					Passed:  []string{},
+					Failed:  []string{},
+				},
+				oddlyNamedPackage: {
+					Found:   oddlyNamedPackageTests,
+					Skipped: oddlyNamedPackageTests,
+					Passed:  []string{},
+					Failed:  []string{},
+				},
+				testPackage: {
+					Found:   testPackageTests,
+					Skipped: testPackageTests,
+					Passed:  []string{},
+					Failed:  []string{},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			output, err := os.ReadFile(test.resultsFile)
 			require.NoError(t, err, "failed to read json results file")
 

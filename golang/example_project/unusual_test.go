@@ -2,21 +2,27 @@
 
 package example_project
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func BenchmarkExampleProject(b *testing.B) {
-	b.Fail()
-	b.Log("This benchmark will fail unless it's skipped")
+	Helper(b, "This benchmark will fail unless it's skipped")
 }
 
 func FuzzExampleProject(f *testing.F) {
 	f.Add(1)
 
-	f.Fail()
-	f.Log("This fuzz test will fail unless it's skipped")
+	f.Fuzz(func(t *testing.T, i int) {
+		Helper(t, fmt.Sprintf("This is a fuzz test seed #%d", i))
+	})
+
+	Helper(f, "This is a fuzz test")
 }
 
 func TestDifferentParam(x *testing.T) {
-	x.Fail()
-	x.Log("This test will fail unless it's skipped")
+	x.Parallel()
+
+	Helper(x, "This test uses 'x' instead of 't'")
 }

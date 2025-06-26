@@ -7,25 +7,27 @@ import (
 	"testing"
 )
 
-// TestPassSubTestsStatic shows some subtests with static string names.
-func TestPassSubTestsStatic(t *testing.T) {
+// TestSubTestsStatic shows some subtests with static string names.
+func TestSubTestsStatic(t *testing.T) {
 	t.Parallel()
 
 	t.Run("subtest 1", func(t *testing.T) {
 		t.Parallel()
 
-		subTestHelper(t)
+		Helper(t, "This is a static subtest")
 	})
 
 	t.Run("subtest 2", func(t *testing.T) {
 		t.Parallel()
 
-		subTestHelper(t)
+		Helper(t, "This is a static subtest")
 	})
+
+	Helper(t, "This is a parent test of static subtests")
 }
 
-// TestPassSubTestsTableStatic uses table tests with static string names
-func TestPassSubTestsTableStatic(t *testing.T) {
+// TestSubTestsTableStatic uses table tests with static string names
+func TestSubTestsTableStatic(t *testing.T) {
 	t.Parallel()
 
 	subtests := []struct {
@@ -39,9 +41,11 @@ func TestPassSubTestsTableStatic(t *testing.T) {
 		t.Run(subtest.name, func(t *testing.T) {
 			t.Parallel()
 
-			subTestHelper(t)
+			Helper(t, "This is a static table test test")
 		})
 	}
+
+	Helper(t, "This is a parent test of static table tests")
 }
 
 // TestSubTestsTableDynamic uses table tests with dynamic string names
@@ -60,16 +64,9 @@ func TestSubTestsTableDynamic(t *testing.T) {
 		t.Run(fmt.Sprintf("subtest %d", subtest.num), func(t *testing.T) {
 			t.Parallel()
 
-			subTestHelper(t)
+			Helper(t, "This is a dynamic table test")
 		})
 	}
-}
 
-func subTestHelper(t *testing.T) {
-	t.Helper()
-
-	t.Log(
-		"This is a sub test. It will fail unless it's skipped",
-	)
-	t.Fail()
+	Helper(t, "This is a parent test of dynamic table tests")
 }

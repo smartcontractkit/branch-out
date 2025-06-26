@@ -2,31 +2,24 @@
 
 package example_project
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestStandard1(t *testing.T) {
 	t.Parallel()
 
-	standardTestHelper(t)
+	Helper(t, "This is a standard test")
 }
 
 func TestStandard2(t *testing.T) {
 	t.Parallel()
 
-	standardTestHelper(t)
+	Helper(t, "This is a standard test")
 }
 
 func TestStandard3(t *testing.T) {
 	t.Parallel()
 
-	standardTestHelper(t)
-}
-
-func standardTestHelper(t *testing.T) {
-	t.Helper()
-
-	t.Fail()
-	t.Log(
-		"This is a standard test. It will fail unless it's skipped",
-	)
+	Helper(t, "This is a standard test")
 }

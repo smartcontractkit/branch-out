@@ -12,3 +12,6 @@ test_short:
 
 test_integration:
 	go tool gotestsum -- -cover -run Integration ./...
+
+test_example_project:
+	cd golang/example_project && make test
