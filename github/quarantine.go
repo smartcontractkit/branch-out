@@ -23,12 +23,6 @@ func (c *Client) QuarantineTests(
 	owner, repo string,
 	targets []golang.QuarantineTarget,
 ) error {
-	repoPath, err := c.cloneRepo(owner, repo)
-	if err != nil {
-		return fmt.Errorf("failed to clone repository: %w", err)
-	}
-
-	golang.QuarantineTests(l, repoPath, targets)
 
 	return fmt.Errorf("not implemented")
 }

@@ -36,7 +36,7 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 	for _, result := range quarantineResults {
 		for _, success := range result.Successes {
 			ableToQuarantine = append(ableToQuarantine, success.Tests...)
-			err := os.WriteFile(success.File, []byte(success.ModifiedSourceCode), 0644)
+			err := os.WriteFile(success.File, []byte(success.ModifiedSourceCode), 0600)
 			require.NoError(t, err, "failed to write modified source code to file")
 		}
 		unableToQuarantine = append(unableToQuarantine, result.Failures...)
@@ -105,7 +105,7 @@ func setupDir(tb testing.TB) string {
 	tb.Helper()
 
 	targetDir := fmt.Sprintf("%s-copied-code", strings.ReplaceAll(tb.Name(), "/", "_"))
-	err := os.MkdirAll(targetDir, 0755)
+	err := os.MkdirAll(targetDir, 0750)
 	require.NoError(tb, err, "failed to create copied code dir")
 	tb.Cleanup(func() {
 		if tb.Failed() {

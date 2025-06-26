@@ -213,11 +213,19 @@ func quarantinePackage(
 			foundTestNames = append(foundTestNames, test.Name.Name)
 		}
 
-		// Add t.Skip() to quarantine the test
-		modifiedSource, err := quarantineTestsSkip(fset, node, foundTests)
+		var modifiedSource string
+		switch mode {
+		case QuarantineModeCodeSkip:
+			modifiedSource, err = quarantineTestsSkip(fset, node, foundTests)
+		case QuarantineModeComment:
+			modifiedSource, err = quarantineTestsComment(fset, node, foundTests)
+		default:
+			return results, fmt.Errorf("invalid quarantine mode: %s", mode)
+		}
 		if err != nil {
 			return results, fmt.Errorf("failed to quarantine tests in file %s: %w", testFile, err)
 		}
+
 		l.Trace().Strs("quarantined_tests", foundTestNames).Msg("Quarantined tests in file")
 
 		results.Successes = append(results.Successes, QuarantinedFile{
@@ -330,5 +338,29 @@ func quarantineTestsSkip(fset *token.FileSet, node *ast.File, testFuncs []*ast.F
 
 // quarantineTestsComment adds a comment to the test function to indicate that it was quarantined, but does not modify execution.
 func quarantineTestsComment(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (string, error) {
-	return "", fmt.Errorf("not implemented")
+	for _, testFunc := range testFuncs {
+		// Create a comment for quarantine
+		quarantineComment := &ast.Comment{
+			Text: "// Test quarantined by branch-out",
+		}
+
+		// Add to existing doc comments or create new ones
+		if testFunc.Doc != nil {
+			// Prepend to existing comments
+			testFunc.Doc.List = append([]*ast.Comment{quarantineComment}, testFunc.Doc.List...)
+		} else {
+			// Create new doc comments
+			testFunc.Doc = &ast.CommentGroup{
+				List: []*ast.Comment{quarantineComment},
+			}
+		}
+	}
+
+	var modifiedNode bytes.Buffer
+	// Convert the modified AST back to source code
+	if err := format.Node(&modifiedNode, fset, node); err != nil {
+		return "", fmt.Errorf("failed to format modified source: %w", err)
+	}
+
+	return modifiedNode.String(), nil
 }

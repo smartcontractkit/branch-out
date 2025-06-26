@@ -53,7 +53,7 @@ func init() {
 
 // Execute is the entry point for the CLI.
 func Execute() {
-	if err := fang.Execute(context.Background(), root); err != nil {
+	if err := fang.Execute(context.Background(), root, fang.WithVersion(versionString)); err != nil {
 		os.Exit(1)
 	}
 }
