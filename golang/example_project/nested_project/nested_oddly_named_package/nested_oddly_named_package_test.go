@@ -1,6 +1,6 @@
 //go:build example_project
 
-package nested_package_name_doesnt_match_dir_name
+package package_name_doesnt_match_dir_name
 
 import "testing"
 

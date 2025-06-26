@@ -14,19 +14,19 @@ const exampleProjectDir = "example_project"
 var (
 	exampleProjectPackages = []string{
 		"github.com/smartcontractkit/branch-out/golang/example_project",
-		"github.com/smartcontractkit/branch-out/golang/example_project/package_name_doesnt_match_dir_name",
-		"github.com/smartcontractkit/branch-out/golang/example_project/testpackage_test",
+		"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package",
+		"github.com/smartcontractkit/branch-out/golang/example_project/test_package_test",
 		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project",
-		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_package_name_doesnt_match_dir_name",
-		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_test_package",
+		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_oddly_named_package",
+		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_test_package_test",
 	}
 	exampleProjectBuildFlags = []string{"-tags", "example_project"}
 )
 
-func TestIntegrationPackages(t *testing.T) {
+func TestPackages_Integration(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
-		t.Skip("skipping integration packages test in short mode")
+		t.Skip("skipping integration tests in short mode")
 	}
 
 	l := testhelpers.Logger(t)
@@ -42,5 +42,21 @@ func TestIntegrationPackages(t *testing.T) {
 	for _, pkg := range exampleProjectPackages {
 		_, err := packages.Get(pkg)
 		assert.NoError(t, err, "package should be found")
+	}
+}
+
+func TestPackages_Integration_NoBuildFlags(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping integration tests in short mode")
+	}
+
+	l := testhelpers.Logger(t)
+	packages, err := Packages(l, exampleProjectDir)
+	require.NoError(t, err)
+
+	for _, pkg := range exampleProjectPackages {
+		_, err := packages.Get(pkg)
+		assert.Error(t, err, "package should not be found without build flags")
 	}
 }

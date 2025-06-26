@@ -9,6 +9,8 @@ branch-out.log.*
 *.log.json
 Test*/
 !test_package/
+!testhelpers/
+!testdata/
 branch-out
 !branch-out/
 

@@ -18,8 +18,9 @@ type QuarantineResult struct {
 	PackageName        string
 	TestName           string
 	Quarantined        bool
-	Error              error
+	File               string
 	ModifiedSourceCode string
+	Error              error
 }
 
 // QuarantineTests looks through a Go project to find and quarantine any tests that match the given targets.

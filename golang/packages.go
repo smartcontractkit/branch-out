@@ -222,7 +222,6 @@ func loadPackagesFromModule(moduleDir string, buildFlags ...string) (map[string]
 			}
 		}
 
-		// Get directory from first file
 		if len(pkg.GoFiles) > 0 {
 			info.Dir = filepath.Dir(pkg.GoFiles[0])
 		}
