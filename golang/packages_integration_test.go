@@ -26,7 +26,7 @@ func TestPackages_Integration(t *testing.T) {
 	t.Parallel()
 
 	l := testhelpers.Logger(t)
-	packages, err := Packages(l, exampleProjectDir)
+	packages, err := Packages(l, exampleProjectDir, exampleProjectBuildFlags)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		if t.Failed() {

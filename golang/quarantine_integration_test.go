@@ -26,25 +26,17 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 	l := testhelpers.Logger(t)
 	dir := setupDir(t)
 
-	quarantineResults, err := QuarantineTests(l, dir, allQuarantineTargets)
+	quarantineResults, err := QuarantineTests(l, dir, allQuarantineTargets, exampleProjectBuildFlags)
 	require.NoError(t, err, "failed to quarantine tests")
 
-	var (
-		ableToQuarantine   []string
-		unableToQuarantine []string
-	)
 	for _, result := range quarantineResults {
-		for _, success := range result.Successes {
-			ableToQuarantine = append(ableToQuarantine, success.Tests...)
-			err := os.WriteFile(success.File, []byte(success.ModifiedSourceCode), 0600)
-			require.NoError(t, err, "failed to write modified source code to file")
-		}
-		unableToQuarantine = append(unableToQuarantine, result.Failures...)
+		require.Empty(t, result.Failures, "failed to quarantine these tests in package %s", result.Package)
 	}
-	t.Logf("able to quarantine %d tests\n%s\n", len(ableToQuarantine), strings.Join(ableToQuarantine, "\n"))
-	t.Logf("unable to quarantine %d tests\n%s\n", len(unableToQuarantine), strings.Join(unableToQuarantine, "\n"))
 
-	testResults := runExampleTests(t, dir, false)
+	testOutput, err := runExampleTests(t, dir)
+	assert.NoError(t, err, "error while running example tests")
+	testResults, err := testhelpers.ParseTestOutput(testOutput)
+	require.NoError(t, err, "failed to parse test output")
 
 	for _, target := range allQuarantineTargets {
 		pkgResults, ok := testResults[target.Package]
@@ -54,26 +46,26 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 				t,
 				pkgResults.Found,
 				test,
-				"test should be found in package %s", target.Package,
+				"%s was not found in package %s", test, target.Package,
 			)
 			assert.Contains(
 				t,
 				pkgResults.Skipped,
 				test,
-				"test should be skipped in package %s", target.Package,
+				"%s was not skipped in package %s", test, target.Package,
 			)
 		}
 	}
 }
 
 // runExampleTests runs go test for the example_project and returns the test results.
+// It returns the test output and any error that occurred while running the tests.
 // It can optionally run only a subset of tests by passing in the test names.
 func runExampleTests(
 	tb testing.TB,
 	dir string,
-	expectRunError bool,
 	specificTests ...string,
-) map[string]*testhelpers.PackageTestResults {
+) (testOutput []byte, runError error) {
 	tb.Helper()
 
 	command := []string{"test"}
@@ -88,17 +80,7 @@ func runExampleTests(
 	testCmd := exec.Command("go", command...)
 	testCmd.Dir = dir
 
-	combinedOutput, err := testCmd.CombinedOutput()
-	if expectRunError {
-		assert.Error(tb, err, "expected error while running example tests")
-	} else {
-		assert.NoError(tb, err, "expected no error while running example tests")
-	}
-
-	testResults, err := testhelpers.ParseTestOutput(combinedOutput)
-	require.NoError(tb, err, "failed to parse test output")
-
-	return testResults
+	return testCmd.CombinedOutput()
 }
 
 func setupDir(tb testing.TB) string {
@@ -109,7 +91,7 @@ func setupDir(tb testing.TB) string {
 	require.NoError(tb, err, "failed to create copied code dir")
 	tb.Cleanup(func() {
 		if tb.Failed() {
-			tb.Logf("leaving copied code dir %s for debugging", targetDir)
+			tb.Logf("leaving dir %s for debugging", targetDir)
 		} else {
 			err := os.RemoveAll(targetDir)
 			require.NoError(tb, err, "failed to remove copied code")
@@ -123,45 +105,54 @@ func setupDir(tb testing.TB) string {
 }
 
 var (
+	baseTests = []string{
+		"TestStandard1",
+		"TestStandard2",
+		"TestStandard3",
+		"TestSubTestsStatic/subtest_1",
+		"TestSubTestsStatic/subtest_2",
+		"TestSubTestsTableStatic/subtest_1",
+		"TestSubTestsTableStatic/subtest_2",
+		"TestSubTestsTableDynamic/subtest_1",
+		"TestSubTestsTableDynamic/subtest_2",
+		"BenchmarkExampleProject",
+		"FuzzExampleProject",
+		"TestDifferentParam",
+	}
+	testPackageTests = []string{
+		"TestTestPackage",
+	}
+	oddlyNamedPackageTests = []string{
+		"TestOddlyNamedPackage",
+	}
+
 	baseProjectQuarantineTargets = []QuarantineTarget{
 		{
 			Package: "github.com/smartcontractkit/branch-out/golang/example_project",
-			Tests: []string{
-				"TestStandard1",
-				"TestStandard2",
-				"TestStandard3",
-				"TestPassSubTestsStatic/subtest_1",
-				"TestPassSubTestsStatic/subtest_2",
-				"TestPassSubTestsTableStatic/subtest_1",
-				"TestPassSubTestsTableStatic/subtest_2",
-				"TestSubTestsTableDynamic/subtest_1",
-				"TestSubTestsTableDynamic/subtest_2",
-				"BenchmarkExampleProject",
-				"FuzzExampleProject",
-				"TestDifferentParam",
-			},
+			Tests:   baseTests,
+		},
+		{
+			Package: "github.com/smartcontractkit/branch-out/golang/example_project/test_package",
+			Tests:   testPackageTests,
+		},
+		{
+			Package: "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_oddly_named_package",
+			Tests:   oddlyNamedPackageTests,
 		},
 	}
 
 	nestedProjectQuarantineTargets = []QuarantineTarget{
 		{
 			Package: "github.com/smartcontractkit/branch-out/golang/example_project/nested_project",
-			Tests: []string{
-				"TestStandard1",
-				"TestStandard2",
-				"TestStandard3",
-				"TestPassSubTestsStatic/subtest_1",
-				"TestPassSubTestsStatic/subtest_2",
-				"TestPassSubTestsTableStatic/subtest_1",
-			},
+			Tests:   baseTests,
 		},
 		{
-			Package: "github.com/smartcontractkit/branch-out/golang/example_project/nested_project",
-			Tests: []string{
-				"TestDifferentParam",
-				"TestTestPackage",
-				"TestOddlyNamedPackage",
-			},
+			Package: "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_test_package",
+			Tests:   testPackageTests,
+		},
+		{
+			Package: "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_oddly_named_package",
+			Tests:   oddlyNamedPackageTests,
 		},
 	}
 

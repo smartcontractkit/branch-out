@@ -73,6 +73,7 @@ func QuarantineTests(
 	l zerolog.Logger,
 	repoPath string,
 	quarantineTargets []QuarantineTarget,
+	buildFlags []string, // Passed to go command when loading packages
 	options ...QuarantineOption,
 ) (QuarantineResults, error) {
 	quarantineOptions := &quarantineOptions{
@@ -83,7 +84,7 @@ func QuarantineTests(
 	}
 	l = l.With().Str("repo_path", repoPath).Str("mode", string(quarantineOptions.mode)).Logger()
 
-	packages, err := Packages(l, repoPath)
+	packages, err := Packages(l, repoPath, buildFlags)
 	if err != nil {
 		return nil, err
 	}

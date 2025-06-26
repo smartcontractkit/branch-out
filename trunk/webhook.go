@@ -48,9 +48,7 @@ func handleQuarantiningSettingChanged(l zerolog.Logger, event WebhookEvent) erro
 		Bool("quarantined", testCase.Quarantined).
 		Msg("Test case quarantine setting changed")
 
-	// TODO: Decide what to do with this
-
-	return nil
+	return fmt.Errorf("not implemented")
 }
 
 // handleStatusChanged processes status change events
@@ -66,8 +64,5 @@ func handleStatusChanged(l zerolog.Logger, event WebhookEvent) error {
 		Str("reason", testCase.Status.Reason).
 		Msg("Test case status changed")
 
-	// TODO: Decide what to do with this
-	l.Debug().Msg("Status change processed (no action taken)")
-
-	return nil
+	return fmt.Errorf("not implemented")
 }

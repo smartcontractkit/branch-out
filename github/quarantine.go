@@ -23,7 +23,6 @@ func (c *Client) QuarantineTests(
 	owner, repo string,
 	targets []golang.QuarantineTarget,
 ) error {
-
 	return fmt.Errorf("not implemented")
 }
 
