@@ -1,0 +1,54 @@
+name: Lint and Test
+on:
+    push:
+        branches:
+          - main
+        tags:
+          - '*'
+    pull_request:
+        branches:
+          - main
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install Dependencies
+        run: go mod download
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
+
+  test:
+    name: ${{ matrix.race && 'Test (race)' || 'Test' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        race: [false, true]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install Dependencies
+        run: go mod download
+      - name: Build Run Command
+        id: build-run-command
+        run: |
+          run_command="go tool gotestsum -- -cover ./..."
+          if [ "$race" = "true" ]; then
+            run_command="$run_command -race"
+          fi
+          echo "run_command=$run_command" >> $GITHUB_OUTPUT
+      - name: Test
+        run: ${{ steps.build-run-command.outputs.run_command }}
