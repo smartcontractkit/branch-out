@@ -1,7 +1,6 @@
 package golang
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -45,13 +44,13 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 			t,
 			pkgResults.Found,
 			target.TestName,
-			fmt.Sprintf("test should be found in package %s", target.PackageName),
+			"test should be found in package %s", target.PackageName,
 		)
 		assert.Contains(
 			t,
 			pkgResults.Skipped,
 			target.TestName,
-			fmt.Sprintf("test should be skipped in package %s", target.PackageName),
+			"test should be skipped in package %s", target.PackageName,
 		)
 	}
 }

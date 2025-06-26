@@ -105,7 +105,7 @@ func TestParseTestOutput(t *testing.T) {
 			results, err := ParseTestOutput(output)
 			require.NoError(t, err, "failed to parse test output")
 
-			require.Equal(t, len(test.expected), len(results), "number of packages should match")
+			require.Len(t, results, len(test.expected), "number of packages should match")
 			for pkg, expectedResults := range test.expected {
 				actualResults, ok := results[pkg]
 				require.True(t, ok, "package %s should be present in results", pkg)
