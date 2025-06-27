@@ -16,7 +16,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/google/go-github/v73/github"
 	"github.com/rs/zerolog"
-	"github.com/shurcooL/githubv4"
+	gh_graphql "github.com/shurcooL/githubv4"
 
 	"github.com/smartcontractkit/branch-out/golang"
 )
@@ -27,7 +27,7 @@ func (c *Client) QuarantineTests(
 	l zerolog.Logger,
 	owner, repo string,
 	targets []golang.QuarantineTarget,
-	buildFlags []string, // Any build flags to pass to the go command (e.g. -tags=integration)
+	buildFlags []string, // Any build flags to pass to the go command (e.g. ["-tags", "integration"])
 ) error {
 	start := time.Now()
 
@@ -150,15 +150,15 @@ func (c *Client) updateFiles(
 	files map[string]string,
 ) (string, error) {
 	// process added / modified files:
-	additions := make([]githubv4.FileAddition, 0, len(files))
+	additions := make([]gh_graphql.FileAddition, 0, len(files))
 	for file, contents := range files {
 		enc, err := base64EncodeFile(contents)
 		if err != nil {
 			return "", fmt.Errorf("failed to encode file %s: %w", file, err)
 		}
-		additions = append(additions, githubv4.FileAddition{
-			Path:     githubv4.String(file),
-			Contents: githubv4.Base64String(enc),
+		additions = append(additions, gh_graphql.FileAddition{
+			Path:     gh_graphql.String(file),
+			Contents: gh_graphql.Base64String(enc),
 		})
 	}
 	// the actual mutation request
@@ -173,19 +173,19 @@ func (c *Client) updateFiles(
 	headline, body := parseCommitMessage(commitMessage)
 
 	// create the $input struct for the graphQL createCommitOnBranch mutation request:
-	input := githubv4.CreateCommitOnBranchInput{
-		Branch: githubv4.CommittableBranch{
-			RepositoryNameWithOwner: githubv4.NewString(githubv4.String(fmt.Sprintf("%s/%s", owner, repo))),
-			BranchName:              githubv4.NewString(githubv4.String(branchName)),
+	input := gh_graphql.CreateCommitOnBranchInput{
+		Branch: gh_graphql.CommittableBranch{
+			RepositoryNameWithOwner: gh_graphql.NewString(gh_graphql.String(fmt.Sprintf("%s/%s", owner, repo))),
+			BranchName:              gh_graphql.NewString(gh_graphql.String(branchName)),
 		},
-		Message: githubv4.CommitMessage{
-			Headline: githubv4.String(headline),
-			Body:     githubv4.NewString(githubv4.String(body)),
+		Message: gh_graphql.CommitMessage{
+			Headline: gh_graphql.String(headline),
+			Body:     gh_graphql.NewString(gh_graphql.String(body)),
 		},
-		FileChanges: &githubv4.FileChanges{
+		FileChanges: &gh_graphql.FileChanges{
 			Additions: &additions,
 		},
-		ExpectedHeadOid: githubv4.GitObjectID(expectedHeadOid),
+		ExpectedHeadOid: gh_graphql.GitObjectID(expectedHeadOid),
 	}
 
 	err := c.GraphQL.Mutate(ctx, &m, input, nil)
