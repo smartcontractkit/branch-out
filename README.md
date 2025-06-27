@@ -4,7 +4,7 @@ A tool to accentuate the capabilities of [Trunk.io](https://trunk.io/)'s [flaky 
 
 ## Design
 
-### Flow
+### Desired Flow
 
 1. Tests are run on develop
 2. Results uploaded to Trunk
@@ -14,6 +14,28 @@ A tool to accentuate the capabilities of [Trunk.io](https://trunk.io/)'s [flaky 
    1. Jira Ticket to assign someone to fix the test and link it with Trunk's system
    2. GitHub PR to modify the code with `t.Skip("Quarantined test due to flakiness <Jira Ticket>")` calls.
    4. (bonus) GitHub Issue to fix the flaky test. Ask GitHub Copilot for a PR attempt.
+
+```mermaid
+sequenceDiagram
+  participant g as Go Project on GitHub
+  participant t as Trunk.io
+  participant bo as branch-out
+  participant j as Jira
+
+  g->>g: Run tests on default branch
+  activate t
+  g->>t: Send test results
+  t->>t: Identify flaky tests
+  t-->>g: Remove flakes from results
+  activate bo
+  t->>bo: Send Webhook identifying flaky tests
+  deactivate t
+  bo->>j: Make tickets to fix new flakes
+  j-->>bo: Ticket IDs
+  bo->>g: Make PR to skip tests
+  deactivate bo
+```
+
 
 ## // TODO:
 
