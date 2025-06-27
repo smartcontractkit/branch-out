@@ -11,9 +11,9 @@ A tool to accentuate the capabilities of [Trunk.io](https://trunk.io/)'s [flaky 
 3. Trunk detects some flaky tests, marks them as quarantined and skips them with CI magic.
 4. Trunk tells us they skipped a test
 5. We branch out and create:
-   1. GitHub PR to modify the code with `t.Skip()` calls.
-   2. Jira Ticket to assign someone to fix the test and link it with Trunk's system
-   3. (bonus) GitHub Issue to fix the flaky test. Ask GitHub Copilot for a PR attempt.
+   1. Jira Ticket to assign someone to fix the test and link it with Trunk's system
+   2. GitHub PR to modify the code with `t.Skip("Quarantined test due to flakiness <Jira Ticket>")` calls.
+   4. (bonus) GitHub Issue to fix the flaky test. Ask GitHub Copilot for a PR attempt.
 
 ## // TODO:
 
@@ -36,8 +36,7 @@ A tool to accentuate the capabilities of [Trunk.io](https://trunk.io/)'s [flaky 
 
 ### `package github`
 
-* Make PR based on quarantine results
-* Sign commits
+* Test out current approach
 
 ### `package jira`
 

@@ -268,7 +268,7 @@ func isTestFunction(funcDecl *ast.FuncDecl) bool {
 		return false
 	}
 
-	if !strings.HasPrefix(funcDecl.Name.Name, "Test") {
+	if !strings.HasPrefix(funcDecl.Name.Name, "Test") && !strings.HasPrefix(funcDecl.Name.Name, "Fuzz") {
 		return false
 	}
 
@@ -279,11 +279,11 @@ func isTestFunction(funcDecl *ast.FuncDecl) bool {
 
 	param := funcDecl.Type.Params.List[0]
 
-	// Check if parameter is *testing.T
+	// Check if parameter is *testing.T or *testing.F
 	if starExpr, ok := param.Type.(*ast.StarExpr); ok {
 		if selectorExpr, ok := starExpr.X.(*ast.SelectorExpr); ok {
 			if ident, ok := selectorExpr.X.(*ast.Ident); ok {
-				return ident.Name == "testing" && selectorExpr.Sel.Name == "T"
+				return (ident.Name == "testing" && (selectorExpr.Sel.Name == "T" || selectorExpr.Sel.Name == "F"))
 			}
 		}
 	}
@@ -312,7 +312,7 @@ func quarantineTestsSkip(fset *token.FileSet, node *ast.File, testFuncs []*ast.F
 				Args: []ast.Expr{
 					&ast.BasicLit{
 						Kind:  token.STRING,
-						Value: `"Test quarantined by branch-out"`,
+						Value: `"Flaky test quarantined\nDone automatically by branch-out (https://github.com/smartcontractkit/branch-out)"`,
 					},
 				},
 			},
@@ -342,7 +342,7 @@ func quarantineTestsComment(fset *token.FileSet, node *ast.File, testFuncs []*as
 	for _, testFunc := range testFuncs {
 		// Create a comment for quarantine
 		quarantineComment := &ast.Comment{
-			Text: "// Test quarantined by branch-out",
+			Text: "// This test has been identified as flaky and quarantined in CI\n// Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)",
 		}
 
 		// Add to existing doc comments or create new ones

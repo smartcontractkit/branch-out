@@ -1,4 +1,4 @@
-package golang
+package golang_test
 
 import (
 	"testing"
@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/smartcontractkit/branch-out/golang"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
 )
 
@@ -26,7 +27,7 @@ func TestPackages_Integration(t *testing.T) {
 	t.Parallel()
 
 	l := testhelpers.Logger(t)
-	packages, err := Packages(l, exampleProjectDir, exampleProjectBuildFlags)
+	packages, err := golang.Packages(l, exampleProjectDir, exampleProjectBuildFlags)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		if t.Failed() {

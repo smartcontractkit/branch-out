@@ -1,4 +1,5 @@
-package golang
+// Package golang_test contains integration tests for the golang package. Tests that require the example_project to be present.
+package golang_test
 
 import (
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/smartcontractkit/branch-out/golang"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
 )
 
@@ -26,7 +28,7 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 	l := testhelpers.Logger(t)
 	dir := setupDir(t)
 
-	quarantineResults, err := QuarantineTests(l, dir, allQuarantineTargets, exampleProjectBuildFlags)
+	quarantineResults, err := golang.QuarantineTests(l, dir, allQuarantineTargets, exampleProjectBuildFlags)
 	require.NoError(t, err, "failed to quarantine tests")
 
 	for _, result := range quarantineResults {
@@ -39,6 +41,7 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 		err,
 		"error while running example tests",
 	)
+
 	testResults, err := testhelpers.ParseTestOutput(testOutput)
 	require.NoError(t, err, "failed to parse test output")
 
@@ -50,7 +53,7 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 				t,
 				pkgResults.Found,
 				test,
-				"%s was not found in package %s", test, target.Package,
+				"%s wasn't run in package %s", test, target.Package,
 			)
 			assert.Contains(
 				t,
@@ -130,7 +133,7 @@ var (
 		"TestOddlyNamedPackage",
 	}
 
-	baseProjectQuarantineTargets = []QuarantineTarget{
+	baseProjectQuarantineTargets = []golang.QuarantineTarget{
 		{
 			Package: "github.com/smartcontractkit/branch-out/golang/example_project",
 			Tests:   baseTests,
@@ -145,7 +148,7 @@ var (
 		},
 	}
 
-	nestedProjectQuarantineTargets = []QuarantineTarget{
+	nestedProjectQuarantineTargets = []golang.QuarantineTarget{
 		{
 			Package: "github.com/smartcontractkit/branch-out/golang/example_project/nested_project",
 			Tests:   baseTests,
