@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -30,35 +31,63 @@ const (
 
 // Client is a wrapper around the GitHub REST and GraphQL API clients
 type Client struct {
-	Rest    *github.Client
+	// Rest is the GitHub REST API client.
+	Rest *github.Client
+	// GraphQL is the GitHub GraphQL API client.
 	GraphQL *gh_graphql.Client
-	token   string
+	// BaseURL is the base URL of the GitHub API. Defaults to the public GitHub API.
+	BaseURL *url.URL
+	// token is the GitHub token used to authenticate requests.
+	token string
+	// next is the next HTTP round tripper.
+	next http.RoundTripper
+}
+
+// Option is a function that can be used to configure the GitHub client.
+type Option func(*Client)
+
+// WithBaseURL sets the base URL of the GitHub API.
+func WithBaseURL(baseURL *url.URL) Option {
+	return func(c *Client) {
+		if baseURL != nil {
+			c.BaseURL = baseURL
+		}
+	}
+}
+
+// WithToken sets the GitHub token used to authenticate requests.
+func WithToken(token string) Option {
+	return func(c *Client) {
+		c.token = token
+	}
+}
+
+// WithNext sets the next HTTP round tripper. Helpful for testing.
+func WithNext(next http.RoundTripper) Option {
+	return func(c *Client) {
+		c.next = next
+	}
 }
 
 // NewClient creates a new GitHub REST and GraphQL API client with the provided token and logger.
 // If optionalNext is provided, it will be used as the base client for both REST and GraphQL, handy for testing.
 func NewClient(
 	l zerolog.Logger,
-	githubToken string,
-	optionalNext http.RoundTripper,
+	opts ...Option,
 ) (*Client, error) {
+	client := &Client{}
+	for _, opt := range opts {
+		opt(client)
+	}
+
 	switch {
-	case githubToken != "":
+	case client.token != "":
 		l.Debug().Msg("Using GitHub token from flag")
 	case os.Getenv(TokenEnvVar) != "":
-		githubToken = os.Getenv(TokenEnvVar)
+		client.token = os.Getenv(TokenEnvVar)
 		l.Debug().Msg("Using GitHub token from environment variable")
 	default:
 		l.Warn().Msg("GitHub token not provided, some features will be disabled and rate limits might be hit!")
-	}
-
-	var (
-		next   http.RoundTripper
-		client = &Client{}
-	)
-
-	if optionalNext != nil {
-		next = optionalNext
 	}
 
 	onPrimaryRateLimitHit := func(ctx *github_primary_ratelimit.CallbackContext) {
@@ -96,23 +125,27 @@ func NewClient(
 	}
 
 	rateLimiter := github_ratelimit.NewClient(
-		clientRoundTripper("REST", l, next),
+		clientRoundTripper("REST", l, client.next),
 		github_primary_ratelimit.WithLimitDetectedCallback(onPrimaryRateLimitHit),
 		github_secondary_ratelimit.WithLimitDetectedCallback(onSecondaryRateLimitHit),
 	)
 
 	client.Rest = github.NewClient(rateLimiter)
-	if githubToken != "" {
-		client.Rest = client.Rest.WithAuthToken(githubToken)
-		client.token = githubToken
+	if client.token != "" {
+		client.Rest = client.Rest.WithAuthToken(client.token)
 	}
 
 	src := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: githubToken},
+		&oauth2.Token{AccessToken: client.token},
 	)
 	graphqlClient := oauth2.NewClient(context.Background(), src)
 	graphqlClient.Transport = clientRoundTripper("GraphQL", l, graphqlClient.Transport)
-	client.GraphQL = gh_graphql.NewClient(graphqlClient)
+
+	if client.BaseURL != nil {
+		client.GraphQL = gh_graphql.NewEnterpriseClient(client.BaseURL.String(), graphqlClient)
+	} else {
+		client.GraphQL = gh_graphql.NewClient(graphqlClient)
+	}
 
 	return client, nil
 }

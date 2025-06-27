@@ -50,7 +50,7 @@ func TestNewClient(t *testing.T) {
 			// Uses t.Setenv, so we can't run it in parallel.
 			t.Setenv(TokenEnvVar, tt.envToken)
 			l := testhelpers.Logger(t)
-			client, err := NewClient(l, tt.token, nil)
+			client, err := NewClient(l, WithToken(tt.token))
 
 			if tt.expectError {
 				require.Error(t, err, "expected error")
@@ -181,7 +181,7 @@ func TestRateLimit(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			client, err := NewClient(l, "", nil)
+			client, err := NewClient(l)
 			require.NoError(t, err)
 			require.NotNil(t, client)
 
@@ -283,7 +283,7 @@ func TestRateLimitHeaders(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			client, err := NewClient(l, "", nil)
+			client, err := NewClient(l)
 			require.NoError(t, err)
 			require.NotNil(t, client)
 
@@ -313,7 +313,7 @@ func TestCustomRoundTripper(t *testing.T) {
 		body:       `{"login": "testuser"}`,
 	}
 
-	client, err := NewClient(mockRT.logger, "", mockRT)
+	client, err := NewClient(mockRT.logger, WithNext(mockRT))
 	require.NoError(t, err)
 	require.NotNil(t, client)
 

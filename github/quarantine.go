@@ -4,14 +4,19 @@ package github
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/google/go-github/v73/github"
 	"github.com/rs/zerolog"
+	"github.com/shurcooL/githubv4"
 
 	"github.com/smartcontractkit/branch-out/golang"
 )
@@ -22,16 +27,86 @@ func (c *Client) QuarantineTests(
 	l zerolog.Logger,
 	owner, repo string,
 	targets []golang.QuarantineTarget,
+	buildFlags []string, // Any build flags to pass to the go command (e.g. -tags=integration)
 ) error {
-	return fmt.Errorf("not implemented")
+	start := time.Now()
+
+	repoPath, err := c.cloneRepo(owner, repo)
+	if err != nil {
+		return fmt.Errorf("failed to clone repository: %w", err)
+	}
+	defer os.RemoveAll(repoPath)
+
+	results, err := golang.QuarantineTests(l, repoPath, targets, buildFlags)
+	if err != nil {
+		return fmt.Errorf("failed to quarantine tests: %w", err)
+	}
+
+	defaultBranch, err := c.getDefaultBranch(ctx, l, owner, repo)
+	if err != nil {
+		return fmt.Errorf("failed to get default branch: %w", err)
+	}
+
+	branchName := fmt.Sprintf("branch-out/quarantine-tests-%s", time.Now().Format("20060102150405"))
+	newBranchHeadSHA, err := c.createBranch(ctx, l, owner, repo, branchName, defaultBranch)
+	if err != nil {
+		return fmt.Errorf("failed to create branch: %w", err)
+	}
+	prDescription := strings.Builder{}
+	prDescription.WriteString("# Branch-out Quarantine Report\n\n")
+
+	allFileUpdates := make(map[string]string)
+	for _, result := range results {
+		// Process successes
+		prDescription.WriteString(fmt.Sprintf("## %s\n\n", result.Package))
+		prDescription.WriteString(fmt.Sprintf("### Successfully Quarantined %d tests\n\n", len(result.Successes)))
+		prDescription.WriteString("| File | Tests |\n")
+		prDescription.WriteString("|------|-------|\n")
+		for _, file := range result.Successes {
+			prDescription.WriteString(fmt.Sprintf("| %s | %s |\n", file.File, strings.Join(file.Tests, ", ")))
+			allFileUpdates[file.File] = file.ModifiedSourceCode
+		}
+		prDescription.WriteString("\n")
+
+		// Process failures
+		if len(result.Failures) > 0 {
+			prDescription.WriteString(fmt.Sprintf("### Failed to Quarantine %d tests\n\n", len(result.Failures)))
+			for _, test := range result.Failures {
+				prDescription.WriteString(fmt.Sprintf("- %s\n", test))
+			}
+			prDescription.WriteString("\n")
+		}
+	}
+	prDescription.WriteString("\n\n")
+	prDescription.WriteString(
+		"This PR was created automatically by [branch-out](https://github.com/smartcontractkit/branch-out).",
+	)
+	title := fmt.Sprintf("[Auto] Quarantine Flaky Tests: %s", time.Now().Format("2006-01-02"))
+
+	sha, err := c.updateFiles(ctx, l, owner, repo, branchName, title, newBranchHeadSHA, allFileUpdates)
+	if err != nil {
+		return fmt.Errorf("failed to update files: %w", err)
+	}
+
+	prURL, err := c.createPullRequest(ctx, l, owner, repo, branchName, defaultBranch, title, prDescription.String())
+	if err != nil {
+		return fmt.Errorf("failed to create pull request: %w", err)
+	}
+
+	l.Info().Str("pr_url", prURL).Str("commit_sha", sha).Dur("duration", time.Since(start)).Msg("Created pull request")
+	return nil
 }
 
-// createBranch creates a new branch from the default branch
-func (c *Client) createBranch(ctx context.Context, l zerolog.Logger, owner, repo, branchName, baseBranch string) error {
+// createBranch creates a new branch from the default branch and returns the head SHA
+func (c *Client) createBranch(
+	ctx context.Context,
+	l zerolog.Logger,
+	owner, repo, branchName, baseBranch string,
+) (string, error) {
 	// Get the base branch reference
 	baseRef, _, err := c.Rest.Git.GetRef(ctx, owner, repo, "refs/heads/"+baseBranch)
 	if err != nil {
-		return fmt.Errorf("failed to get base branch reference: %w", err)
+		return "", fmt.Errorf("failed to get base branch reference: %w", err)
 	}
 
 	// Create new branch reference
@@ -46,36 +121,81 @@ func (c *Client) createBranch(ctx context.Context, l zerolog.Logger, owner, repo
 	if err != nil {
 		// If branch already exists, that's okay
 		if !strings.Contains(err.Error(), "already exists") {
-			return fmt.Errorf("failed to create branch: %w", err)
+			return "", fmt.Errorf("failed to create branch: %w", err)
 		}
 		l.Debug().Msg("Branch already exists, continuing")
 	} else {
 		l.Debug().Msg("Created new branch")
 	}
 
-	return nil
+	return baseRef.Object.GetSHA(), nil
 }
 
-// updateFile updates a file in the repository
-func (c *Client) updateFile(
+// updateFiles updates multiple files in the repository in a single, signed commit.
+// Inspired by https://github.com/planetscale/ghcommit
+func (c *Client) updateFiles(
 	ctx context.Context,
 	l zerolog.Logger,
-	owner, repo, filePath, branchName, content, commitMessage, sha string,
+	owner, repo, branchName, commitMessage, expectedHeadOid string,
+	files map[string]string,
 ) (string, error) {
-	updateOptions := &github.RepositoryContentFileOptions{
-		Message: github.Ptr(commitMessage),
-		Content: []byte(content),
-		SHA:     github.Ptr(sha),
-		Branch:  github.Ptr(branchName),
+	// process added / modified files:
+	additions := make([]githubv4.FileAddition, 0, len(files))
+	for file, contents := range files {
+		enc, err := base64EncodeFile(contents)
+		if err != nil {
+			return "", fmt.Errorf("failed to encode file %s: %w", file, err)
+		}
+		additions = append(additions, githubv4.FileAddition{
+			Path:     githubv4.String(file),
+			Contents: githubv4.Base64String(enc),
+		})
+	}
+	// the actual mutation request
+	var m struct {
+		CreateCommitOnBranch struct {
+			Commit struct {
+				URL string
+			}
+		} `graphql:"createCommitOnBranch(input:$input)"`
 	}
 
-	contentResponse, _, err := c.Rest.Repositories.UpdateFile(ctx, owner, repo, filePath, updateOptions)
+	headline, body := parseCommitMessage(commitMessage)
+
+	// create the $input struct for the graphQL createCommitOnBranch mutation request:
+	input := githubv4.CreateCommitOnBranchInput{
+		Branch: githubv4.CommittableBranch{
+			RepositoryNameWithOwner: githubv4.NewString(githubv4.String(fmt.Sprintf("%s/%s", owner, repo))),
+			BranchName:              githubv4.NewString(githubv4.String(branchName)),
+		},
+		Message: githubv4.CommitMessage{
+			Headline: githubv4.String(headline),
+			Body:     githubv4.NewString(githubv4.String(body)),
+		},
+		FileChanges: &githubv4.FileChanges{
+			Additions: &additions,
+		},
+		ExpectedHeadOid: githubv4.GitObjectID(expectedHeadOid),
+	}
+
+	err := c.GraphQL.Mutate(ctx, &m, input, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to update file: %w", err)
+		return "", fmt.Errorf("failed to create commit: %w", err)
 	}
 
-	l.Debug().Str("commit_sha", contentResponse.Commit.GetSHA()).Msg("Updated file")
-	return contentResponse.GetSHA(), nil
+	return m.CreateCommitOnBranch.Commit.URL, nil
+}
+
+// getDefaultBranch gets the default branch of a repository
+func (c *Client) getDefaultBranch(ctx context.Context, l zerolog.Logger, owner, repo string) (string, error) {
+	ghRepo, resp, err := c.Rest.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		return "", fmt.Errorf("failed to get repository: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to get repository: %s", resp.Status)
+	}
+	return ghRepo.GetDefaultBranch(), nil
 }
 
 // createPullRequest creates a pull request from the branch to the base branch
@@ -137,8 +257,16 @@ func (c *Client) cloneRepo(owner, repo string) (string, error) {
 		return "", fmt.Errorf("failed to create temporary directory: %w", err)
 	}
 	progress := bytes.NewBuffer(nil)
+
+	// Use url.JoinPath for safe URL construction
+	repoURL, err := url.JoinPath(c.Rest.BaseURL.String(), owner, repo)
+	if err != nil {
+		return "", fmt.Errorf("failed to construct repository URL: %w", err)
+	}
+	repoURL += ".git"
+
 	_, err = git.PlainClone(repoPath, false, &git.CloneOptions{
-		URL:      fmt.Sprintf("https://github.com/%s/%s.git", owner, repo),
+		URL:      repoURL,
 		Progress: progress,
 	})
 	if err != nil {
@@ -146,4 +274,27 @@ func (c *Client) cloneRepo(owner, repo string) (string, error) {
 	}
 
 	return repoPath, nil
+}
+
+// base64EncodeFile encodes a file's contents to base64
+func base64EncodeFile(contents string) (string, error) {
+	buf := bytes.Buffer{}
+	encoder := base64.NewEncoder(base64.StdEncoding, &buf)
+
+	if _, err := io.Copy(encoder, strings.NewReader(contents)); err != nil {
+		return "", err
+	}
+	if err := encoder.Close(); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// parseCommitMessage parses a commit message into a headline and body
+func parseCommitMessage(msg string) (string, string) {
+	parts := strings.SplitN(msg, "\n", 2)
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+	return parts[0], parts[1]
 }
