@@ -37,7 +37,7 @@ A tool to accentuate the capabilities of [Trunk.io](https://trunk.io/)'s [flaky 
 ### `package github`
 
 * Make PR based on quarantine results
-*
+* Sign commits
 
 ### `package jira`
 
