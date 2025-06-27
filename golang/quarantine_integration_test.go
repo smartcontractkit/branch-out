@@ -28,7 +28,12 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 	l := testhelpers.Logger(t)
 	dir := setupDir(t)
 
-	quarantineResults, err := golang.QuarantineTests(l, dir, allQuarantineTargets, exampleProjectBuildFlags)
+	quarantineResults, err := golang.QuarantineTests(
+		l,
+		dir,
+		allQuarantineTargets,
+		golang.WithBuildFlags(exampleProjectBuildFlags),
+	)
 	require.NoError(t, err, "failed to quarantine tests")
 
 	// Build a list of all the tests we successfully quarantined to check in our runs later
@@ -54,20 +59,11 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 		t,
 		dir,
 	)
-	t.Cleanup(func() {
-		if t.Failed() {
-			sanitizedName := strings.ReplaceAll(t.Name(), "/", "_")
-			testOutputFile := fmt.Sprintf("%s_test_output.log.json", sanitizedName)
-			l.Error().Str("test_output_file", testOutputFile).Msg("Leaving test output for debugging")
-			if err := os.WriteFile(testOutputFile, testOutput, 0600); err != nil {
-				t.Logf("failed to write test output to file: %s", err)
-			}
-		}
-	})
 
 	testResults, err := testhelpers.ParseTestOutput(testOutput)
 	require.NoError(t, err, "failed to parse test output")
 
+	// Check that the tests we marked as successfully quarantined were actually skipped after running the tests
 	for _, successfullyQuarantinedTarget := range successfullyQuarantinedTests {
 		pkgResults, ok := testResults[successfullyQuarantinedTarget.Package]
 		require.True(t, ok, "package %s not found in test results", successfullyQuarantinedTarget.Package)

@@ -182,7 +182,7 @@ func (s *Server) Start(ctx context.Context) error {
 	return s.shutdown()
 }
 
-// WaitHealthy waits for the server to be healthy.
+// WaitHealthy blocks until the server is healthy or the context is done.
 func (s *Server) WaitHealthy(ctx context.Context) error {
 	for {
 		select {
@@ -200,7 +200,7 @@ func (s *Server) WaitHealthy(ctx context.Context) error {
 	}
 }
 
-// shutdown gracefully shuts down the server with a timeout.
+// shutdown gracefully shuts down the server.
 func (s *Server) shutdown() error {
 	s.logger.Info().Msg("Initiating graceful shutdown")
 
@@ -238,13 +238,13 @@ type HealthResponse struct {
 }
 
 // Health checks the health of the server and returns health status.
-func (s *Server) Health() (*HealthResponse, error) {
+func (s *Server) Health() (HealthResponse, error) {
 	s.logger.Debug().Msg("Health check requested")
 
 	// You can add additional health checks here
 	// For example: database connectivity, external service status, etc.
 
-	response := &HealthResponse{
+	response := HealthResponse{
 		Status:    "healthy",
 		Timestamp: time.Now(),
 	}

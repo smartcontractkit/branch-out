@@ -45,7 +45,7 @@ func (c *Client) QuarantineTests(
 	l = l.With().Str("repo_path", repoPath).Logger()
 	l.Debug().Msg("Cloned repository")
 
-	results, err := golang.QuarantineTests(l, repoPath, targets, buildFlags)
+	results, err := golang.QuarantineTests(l, repoPath, targets, golang.WithBuildFlags(buildFlags))
 	if err != nil {
 		return fmt.Errorf("failed to quarantine tests: %w", err)
 	}

@@ -56,7 +56,8 @@ type QuarantineOption func(*quarantineOptions)
 
 // quarantineOptions describes the options for the quarantine process.
 type quarantineOptions struct {
-	mode QuarantineMode
+	mode       QuarantineMode
+	buildFlags []string
 }
 
 // WithQuarantineMode sets the mode of quarantine to use.
@@ -66,25 +67,33 @@ func WithQuarantineMode(mode QuarantineMode) QuarantineOption {
 	}
 }
 
+// WithBuildFlags sets the build flags to use when loading packages.
+func WithBuildFlags(buildFlags []string) QuarantineOption {
+	return func(options *quarantineOptions) {
+		options.buildFlags = buildFlags
+	}
+}
+
 // QuarantineTests looks through a Go project to find and quarantine any tests that match the given targets.
 // It returns a list of results for each target, including whether it was able to be quarantined, and the modified source code to quarantine the test.
-// The modified source code is returned so that it can be committed to the repository. You must do something with it, as the code is not edited or committed by this function.
+// The modified source code is returned so that it can be committed to the repository.
+// You must do something with it, as the code is not edited or committed by this function.
 func QuarantineTests(
 	l zerolog.Logger,
 	repoPath string,
 	quarantineTargets []QuarantineTarget,
-	buildFlags []string, // Passed to go command when loading packages
 	options ...QuarantineOption,
 ) (QuarantineResults, error) {
 	quarantineOptions := &quarantineOptions{
-		mode: QuarantineModeCodeSkip,
+		mode:       QuarantineModeCodeSkip,
+		buildFlags: []string{},
 	}
 	for _, option := range options {
 		option(quarantineOptions)
 	}
 	l = l.With().Str("repo_path", repoPath).Str("mode", string(quarantineOptions.mode)).Logger()
 
-	packages, err := Packages(l, repoPath, buildFlags)
+	packages, err := Packages(l, repoPath, quarantineOptions.buildFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +321,7 @@ func quarantineTestsSkip(fset *token.FileSet, node *ast.File, testFuncs []*ast.F
 				Args: []ast.Expr{
 					&ast.BasicLit{
 						Kind:  token.STRING,
-						Value: `"Flaky test quarantined. Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)"`,
+						Value: `"Flaky test quarantined. Ticket <Jira ticket>. Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)"`,
 					},
 				},
 			},
@@ -342,7 +351,7 @@ func quarantineTestsComment(fset *token.FileSet, node *ast.File, testFuncs []*as
 	for _, testFunc := range testFuncs {
 		// Create a comment for quarantine
 		quarantineComment := &ast.Comment{
-			Text: "// This test has been identified as flaky and quarantined in CI\n// Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)",
+			Text: "// This test has been identified as flaky and quarantined in CI. Ticket <Jira ticket>. Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)",
 		}
 
 		// Add to existing doc comments or create new ones
