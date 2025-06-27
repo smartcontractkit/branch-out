@@ -79,6 +79,7 @@ func NewClient(
 	for _, opt := range opts {
 		opt(client)
 	}
+	l = l.With().Str("base_url", client.BaseURL.String()).Logger()
 
 	switch {
 	case client.token != "":

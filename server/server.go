@@ -262,14 +262,6 @@ const (
 	WebhookEndpointTrunk WebhookEndpoint = "trunk"
 )
 
-const (
-	webhookResponseMessageInvalidPayload    = "Invalid webhook payload"
-	webhookResponseMessageUnknownEvent      = "Unknown event type '%s'"
-	webhookResponseMessageFailedParse       = "Failed to parse webhook event"
-	webhookResponseMessageEventAcknowledged = "Event type '%s' acknowledged but not processed"
-	webhookResponseMessageEventProcessed    = "Event type '%s' processed"
-)
-
 // WebhookResponse represents the response from webhook processing
 type WebhookResponse struct {
 	Success bool   `json:"success"`

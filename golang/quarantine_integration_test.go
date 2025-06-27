@@ -34,7 +34,11 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 	}
 
 	testOutput, err := runExampleTests(t, dir)
-	assert.NoError(t, err, "error while running example tests")
+	assert.NoError( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
+		t,
+		err,
+		"error while running example tests",
+	)
 	testResults, err := testhelpers.ParseTestOutput(testOutput)
 	require.NoError(t, err, "failed to parse test output")
 

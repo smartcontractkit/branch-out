@@ -31,21 +31,30 @@ func (c *Client) QuarantineTests(
 ) error {
 	start := time.Now()
 
+	l = l.With().Str("owner", owner).Str("repo", repo).Logger()
+
 	repoPath, err := c.cloneRepo(owner, repo)
 	if err != nil {
 		return fmt.Errorf("failed to clone repository: %w", err)
 	}
-	defer os.RemoveAll(repoPath)
+	defer func() {
+		if err := os.RemoveAll(repoPath); err != nil {
+			l.Error().Str("repo_path", repoPath).Err(err).Msg("Failed to remove temporary repository directory")
+		}
+	}()
+	l = l.With().Str("repo_path", repoPath).Logger()
+	l.Debug().Msg("Cloned repository")
 
 	results, err := golang.QuarantineTests(l, repoPath, targets, buildFlags)
 	if err != nil {
 		return fmt.Errorf("failed to quarantine tests: %w", err)
 	}
 
-	defaultBranch, err := c.getDefaultBranch(ctx, l, owner, repo)
+	defaultBranch, err := c.getDefaultBranch(ctx, owner, repo)
 	if err != nil {
 		return fmt.Errorf("failed to get default branch: %w", err)
 	}
+	l.Debug().Str("default_branch", defaultBranch).Msg("Got default branch")
 
 	branchName := fmt.Sprintf("branch-out/quarantine-tests-%s", time.Now().Format("20060102150405"))
 	newBranchHeadSHA, err := c.createBranch(ctx, l, owner, repo, branchName, defaultBranch)
@@ -83,12 +92,14 @@ func (c *Client) QuarantineTests(
 	)
 	title := fmt.Sprintf("[Auto] Quarantine Flaky Tests: %s", time.Now().Format("2006-01-02"))
 
-	sha, err := c.updateFiles(ctx, l, owner, repo, branchName, title, newBranchHeadSHA, allFileUpdates)
+	sha, err := c.updateFiles(ctx, owner, repo, branchName, title, newBranchHeadSHA, allFileUpdates)
 	if err != nil {
 		return fmt.Errorf("failed to update files: %w", err)
 	}
+	l = l.With().Str("commit_sha", sha).Logger()
+	l.Debug().Int("files_updated", len(allFileUpdates)).Msg("Updated files")
 
-	prURL, err := c.createPullRequest(ctx, l, owner, repo, branchName, defaultBranch, title, prDescription.String())
+	prURL, err := c.createPullRequest(ctx, owner, repo, branchName, defaultBranch, title, prDescription.String())
 	if err != nil {
 		return fmt.Errorf("failed to create pull request: %w", err)
 	}
@@ -135,7 +146,6 @@ func (c *Client) createBranch(
 // Inspired by https://github.com/planetscale/ghcommit
 func (c *Client) updateFiles(
 	ctx context.Context,
-	l zerolog.Logger,
 	owner, repo, branchName, commitMessage, expectedHeadOid string,
 	files map[string]string,
 ) (string, error) {
@@ -187,7 +197,7 @@ func (c *Client) updateFiles(
 }
 
 // getDefaultBranch gets the default branch of a repository
-func (c *Client) getDefaultBranch(ctx context.Context, l zerolog.Logger, owner, repo string) (string, error) {
+func (c *Client) getDefaultBranch(ctx context.Context, owner, repo string) (string, error) {
 	ghRepo, resp, err := c.Rest.Repositories.Get(ctx, owner, repo)
 	if err != nil {
 		return "", fmt.Errorf("failed to get repository: %w", err)
@@ -201,7 +211,6 @@ func (c *Client) getDefaultBranch(ctx context.Context, l zerolog.Logger, owner, 
 // createPullRequest creates a pull request from the branch to the base branch
 func (c *Client) createPullRequest(
 	ctx context.Context,
-	l zerolog.Logger,
 	owner, repo, headBranch, baseBranch, title, body string,
 ) (string, error) {
 	pr := &github.NewPullRequest{
@@ -217,7 +226,6 @@ func (c *Client) createPullRequest(
 	}
 
 	prURL := createdPR.GetHTMLURL()
-	l.Debug().Str("pr_url", prURL).Msg("Created pull request")
 	return prURL, nil
 }
 

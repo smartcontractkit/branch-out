@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	// ErrTestBuildFailed is returned when the build failed during the go test run.
 	ErrTestBuildFailed = errors.New("test build failed")
 
 	timeoutRe = regexp.MustCompile(`^panic: test timed out after (.*)`)
