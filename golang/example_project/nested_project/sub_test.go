@@ -5,6 +5,8 @@ package nested_project
 import (
 	"fmt"
 	"testing"
+
+	"github.com/smartcontractkit/branch-out/golang/example_project"
 )
 
 // TestPassSubTestsStatic shows some subtests with static string names.
@@ -14,14 +16,16 @@ func TestPassSubTestsStatic(t *testing.T) {
 	t.Run("subtest 1", func(t *testing.T) {
 		t.Parallel()
 
-		subTestHelper(t)
+		example_project.Helper(t, "This is a static sub test inside of a nested Go project")
 	})
 
 	t.Run("subtest 2", func(t *testing.T) {
 		t.Parallel()
 
-		subTestHelper(t)
+		example_project.Helper(t, "This is a static sub test inside of a nested Go project")
 	})
+
+	example_project.Helper(t, "This is a parent test of static sub tests")
 }
 
 // TestPassSubTestsTableStatic uses table tests with static string names
@@ -39,9 +43,11 @@ func TestPassSubTestsTableStatic(t *testing.T) {
 		t.Run(subtest.name, func(t *testing.T) {
 			t.Parallel()
 
-			subTestHelper(t)
+			example_project.Helper(t, "This is a static table sub test inside of a nested Go project")
 		})
 	}
+
+	example_project.Helper(t, "This is a parent test of static table sub tests")
 }
 
 // TestSubTestsTableDynamic uses table tests with dynamic string names
@@ -60,16 +66,34 @@ func TestSubTestsTableDynamic(t *testing.T) {
 		t.Run(fmt.Sprintf("subtest %d", subtest.num), func(t *testing.T) {
 			t.Parallel()
 
-			subTestHelper(t)
+			example_project.Helper(
+				t,
+				"This is a dynamic sub test inside of a nested Go project",
+			)
 		})
 	}
+
+	example_project.Helper(t, "This is a parent test of dynamic sub tests")
 }
 
-func subTestHelper(t *testing.T) {
-	t.Helper()
+func TestSubSubTestsStatic(t *testing.T) {
+	t.Parallel()
 
-	t.Log(
-		"This is a sub test inside of a nested Go project. It will fail unless it's skipped",
-	)
-	t.Fail()
+	t.Run("parent subtest", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("sub-subtest 1", func(t *testing.T) {
+			t.Parallel()
+
+			example_project.Helper(t, "This is a static sub-subtest")
+		})
+
+		t.Run("sub-subtest 2", func(t *testing.T) {
+			t.Parallel()
+
+			example_project.Helper(t, "This is a static sub-subtest")
+		})
+	})
+
+	example_project.Helper(t, "This is a parent test of static sub-subtests")
 }

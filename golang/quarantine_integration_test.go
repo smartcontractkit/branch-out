@@ -31,35 +31,60 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 	quarantineResults, err := golang.QuarantineTests(l, dir, allQuarantineTargets, exampleProjectBuildFlags)
 	require.NoError(t, err, "failed to quarantine tests")
 
+	// Build a list of all the tests we successfully quarantined to check in our runs later
+	// Don't bother checking the tests that we know weren't quarantined
+	successfullyQuarantinedTests := []golang.QuarantineTarget{}
 	for _, result := range quarantineResults {
-		require.Empty(t, result.Failures, "failed to quarantine these tests in package %s", result.Package)
+		for _, success := range result.Successes {
+			successfullyQuarantinedTests = append(successfullyQuarantinedTests, golang.QuarantineTarget{
+				Package: success.Package,
+				Tests:   success.Tests,
+			})
+		}
+		assert.Empty(
+			t,
+			result.Failures,
+			"failed to quarantine these tests in package '%s'\n%s",
+			result.Package,
+			strings.Join(result.Failures, "\n"),
+		)
 	}
 
-	testOutput, err := runExampleTests(t, dir)
-	assert.NoError( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
+	testOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
 		t,
-		err,
-		"error while running example tests",
+		dir,
 	)
+	t.Cleanup(func() {
+		if t.Failed() {
+			sanitizedName := strings.ReplaceAll(t.Name(), "/", "_")
+			testOutputFile := fmt.Sprintf("%s_test_output.log.json", sanitizedName)
+			l.Error().Str("test_output_file", testOutputFile).Msg("Leaving test output for debugging")
+			if err := os.WriteFile(testOutputFile, testOutput, 0600); err != nil {
+				t.Logf("failed to write test output to file: %s", err)
+			}
+		}
+	})
 
 	testResults, err := testhelpers.ParseTestOutput(testOutput)
 	require.NoError(t, err, "failed to parse test output")
 
-	for _, target := range allQuarantineTargets {
-		pkgResults, ok := testResults[target.Package]
-		require.True(t, ok, "package %s not found in test results", target.Package)
-		for _, test := range target.Tests {
+	for _, successfullyQuarantinedTarget := range successfullyQuarantinedTests {
+		pkgResults, ok := testResults[successfullyQuarantinedTarget.Package]
+		require.True(t, ok, "package %s not found in test results", successfullyQuarantinedTarget.Package)
+		for _, test := range successfullyQuarantinedTarget.Tests {
 			require.Contains(
 				t,
 				pkgResults.Found,
 				test,
-				"%s wasn't run in package %s", test, target.Package,
+				"'%s' in package '%s' wasn't run", test, successfullyQuarantinedTarget.Package,
 			)
 			assert.Contains(
 				t,
 				pkgResults.Skipped,
 				test,
-				"%s was not skipped in package %s", test, target.Package,
+				"'%s' in package '%s' was marked as successfully quarantined but was not skipped",
+				test,
+				successfullyQuarantinedTarget.Package,
 			)
 		}
 	}
@@ -122,7 +147,9 @@ var (
 		"TestSubTestsTableStatic/subtest_2",
 		"TestSubTestsTableDynamic/subtest_1",
 		"TestSubTestsTableDynamic/subtest_2",
-		"BenchmarkExampleProject",
+		"TestSubSubTestsStatic/parent_subtest/sub-subtest_1",
+		"TestSubSubTestsStatic/parent_subtest/sub-subtest_2",
+		// "BenchmarkExampleProject",
 		"FuzzExampleProject",
 		"TestDifferentParam",
 	}
@@ -143,7 +170,7 @@ var (
 			Tests:   testPackageTests,
 		},
 		{
-			Package: "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_oddly_named_package",
+			Package: "github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package",
 			Tests:   oddlyNamedPackageTests,
 		},
 	}

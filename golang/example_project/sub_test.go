@@ -70,3 +70,25 @@ func TestSubTestsTableDynamic(t *testing.T) {
 
 	Helper(t, "This is a parent test of dynamic table tests")
 }
+
+func TestSubSubTestsStatic(t *testing.T) {
+	t.Parallel()
+
+	t.Run("parent subtest", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("sub-subtest 1", func(t *testing.T) {
+			t.Parallel()
+
+			Helper(t, "This is a static sub-subtest")
+		})
+
+		t.Run("sub-subtest 2", func(t *testing.T) {
+			t.Parallel()
+
+			Helper(t, "This is a static sub-subtest")
+		})
+	})
+
+	Helper(t, "This is a parent test of static sub-subtests")
+}

@@ -2,23 +2,31 @@
 
 package nested_project
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/smartcontractkit/branch-out/golang/example_project"
+)
 
 func BenchmarkExampleProject(b *testing.B) {
-	b.Fail()
-	b.Log("This benchmark is in a nested project and will fail unless it's skipped")
+	example_project.Helper(b, "This benchmark is in a nested project and will fail unless it's skipped")
 }
 
 func FuzzExampleProject(f *testing.F) {
 	f.Add(1)
 
-	f.Fail()
-	f.Log("This fuzz test is in a nested project and will fail unless it's skipped")
+	f.Fuzz(func(t *testing.T, i int) {
+		example_project.Helper(
+			t,
+			fmt.Sprintf("This fuzz test is in a nested project and will fail unless it's skipped #%d", i),
+		)
+	})
 }
 
 func TestDifferentParam(x *testing.T) {
-	x.Fail()
-	x.Log(
+	example_project.Helper(
+		x,
 		"This test with a different param name for testing.T is in a nested project and will fail unless it's skipped",
 	)
 }

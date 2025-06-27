@@ -9,5 +9,7 @@ import (
 )
 
 func TestTestPackage(t *testing.T) {
+	t.Parallel()
+
 	example_project.Helper(t, "This test lives in a package with the _test suffix in a nested project")
 }

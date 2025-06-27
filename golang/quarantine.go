@@ -312,7 +312,7 @@ func quarantineTestsSkip(fset *token.FileSet, node *ast.File, testFuncs []*ast.F
 				Args: []ast.Expr{
 					&ast.BasicLit{
 						Kind:  token.STRING,
-						Value: `"Flaky test quarantined\nDone automatically by branch-out (https://github.com/smartcontractkit/branch-out)"`,
+						Value: `"Flaky test quarantined. Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)"`,
 					},
 				},
 			},
