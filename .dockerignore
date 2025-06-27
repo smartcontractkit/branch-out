@@ -1,0 +1,10 @@
+.github/*
+
+Dockerfile
+LICENSE
+README.md
+
+.gitignore
+.golangci.yaml
+.goreleaser.yaml
+.pre-commit-config.yaml
