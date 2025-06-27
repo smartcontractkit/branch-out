@@ -75,7 +75,12 @@ func NewClient(
 	l zerolog.Logger,
 	opts ...Option,
 ) (*Client, error) {
-	client := &Client{}
+	client := &Client{
+		BaseURL: &url.URL{
+			Scheme: "https",
+			Host:   "api.github.com",
+		},
+	}
 	for _, opt := range opts {
 		opt(client)
 	}
