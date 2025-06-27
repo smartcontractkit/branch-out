@@ -231,8 +231,6 @@ func (s *Server) Stop() error {
 	return s.shutdown()
 }
 
-// TODO: Setup a Error() method that returns the error from the server.
-
 // HealthResponse represents the health check response
 type HealthResponse struct {
 	Status    string    `json:"status"`
@@ -286,7 +284,7 @@ func (s *Server) ReceiveWebhook(req *WebhookRequest) (*WebhookResponse, error) {
 
 	switch req.Endpoint {
 	case WebhookEndpointTrunk:
-		return nil, trunk.ReceiveWebhook(l, req.Payload) // TODO: Handle return value
+		return nil, trunk.ReceiveWebhook(l, req.Payload)
 	default:
 		return nil, fmt.Errorf("unknown webhook endpoint: %s", req.Endpoint)
 	}
