@@ -9,10 +9,6 @@ import (
 	"github.com/smartcontractkit/branch-out/golang/example_project"
 )
 
-func BenchmarkExampleProject(b *testing.B) {
-	example_project.Helper(b, "This benchmark is in a nested project and will fail unless it's skipped")
-}
-
 func FuzzExampleProject(f *testing.F) {
 	f.Add(1)
 

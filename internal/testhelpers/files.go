@@ -60,11 +60,6 @@ func CopyDir(tb testing.TB, src, dst string) error {
 			return err
 		}
 
-		if filepath.Ext(srcFile.Name()) == ".go" {
-			if _, err := dstFile.WriteString("// This file was copied as a test case for branch-out. DO NOT EDIT.\n"); err != nil {
-				return err
-			}
-		}
 		return nil
 	})
 }

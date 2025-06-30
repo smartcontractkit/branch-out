@@ -7,10 +7,6 @@ import (
 	"testing"
 )
 
-// func BenchmarkExampleProject(b *testing.B) {
-// 	Helper(b, "This benchmark will fail unless it's skipped")
-// }
-
 func FuzzExampleProject(f *testing.F) {
 	f.Add(1)
 

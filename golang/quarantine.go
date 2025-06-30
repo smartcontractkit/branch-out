@@ -8,6 +8,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -15,6 +16,9 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 )
+
+// RunQuarantinedTestsEnvVar is the environment variable that controls whether quarantined tests are run.
+const RunQuarantinedTestsEnvVar = "RUN_QUARANTINED_TESTS"
 
 // QuarantineTarget describes a package and a list of test functions to quarantine.
 type QuarantineTarget struct {
@@ -122,9 +126,13 @@ func QuarantineTests(
 	for result := range packageResultsChan {
 		results[result.Package] = result
 		for _, success := range result.Successes {
-			successfullyQuarantined = append(successfullyQuarantined, success.Tests...)
+			for _, test := range success.Tests {
+				successfullyQuarantined = append(successfullyQuarantined, fmt.Sprintf("%s/%s", success.Package, test))
+			}
 		}
-		failedToQuarantine = append(failedToQuarantine, result.Failures...)
+		for _, failure := range result.Failures {
+			failedToQuarantine = append(failedToQuarantine, fmt.Sprintf("%s/%s", result.Package, failure))
+		}
 	}
 
 	l.Info().
@@ -134,6 +142,23 @@ func QuarantineTests(
 		Msg("Quarantine results")
 
 	return results, nil
+}
+
+// WriteQuarantineResultsToFiles writes successfully quarantined tests to the file system.
+func WriteQuarantineResultsToFiles(l zerolog.Logger, results QuarantineResults) error {
+	for _, result := range results {
+		for _, success := range result.Successes {
+			if err := os.WriteFile(success.File, []byte(success.ModifiedSourceCode), 0600); err != nil {
+				return fmt.Errorf("failed to write quarantine results to %s: %w", success.File, err)
+			}
+			l.Trace().
+				Str("file", success.File).
+				Str("package", success.Package).
+				Strs("quarantined_tests", success.Tests).
+				Msg("Wrote quarantine results")
+		}
+	}
+	return nil
 }
 
 // sanitizeQuarantineTargets condenses the quarantine targets and removes duplicates.
@@ -170,8 +195,9 @@ func quarantinePackage(
 	l = l.With().
 		Str("package", pkg.ImportPath).
 		Strs("tests_to_quarantine", testsToQuarantine).
+		Strs("test_files", pkg.TestGoFiles).
 		Logger()
-	l.Trace().Msg("Quarantining tests")
+	l.Debug().Msg("Quarantining tests in package")
 
 	var (
 		haveQuarantined = make(map[string]bool) // Track which tests we've already quarantined for quick lookup
@@ -184,7 +210,7 @@ func quarantinePackage(
 
 	// Look through each test file in the package to see if we can find any of our target tests to quarantine.
 	for _, testFile := range pkg.TestGoFiles {
-		l = l.With().Str("test_file", testFile).Logger()
+		l := l.With().Str("test_file", testFile).Logger()
 
 		// Parse the Go file using AST
 		fset := token.NewFileSet()
@@ -210,7 +236,7 @@ func quarantinePackage(
 			return results, fmt.Errorf("failed to quarantine tests in file %s: %w", testFile, err)
 		}
 
-		l.Trace().Strs("quarantined_tests", foundTestNames).Msg("Quarantined tests in file")
+		l.Debug().Strs("newly_quarantined_tests", foundTestNames).Msg("Successfully quarantined tests in file")
 
 		results.Successes = append(results.Successes, QuarantinedFile{
 			Package:            pkg.ImportPath,
@@ -275,7 +301,18 @@ func isTestFunction(funcDecl *ast.FuncDecl) bool {
 }
 
 // skipTests adds conditional quarantine logic to the beginning of the test function
+//
+//	if os.Getenv("RUN_QUARANTINED_TESTS") != "true" {
+//	    t.Skip("Flaky test quarantined. Ticket <Jira ticket>. Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)")
+//	} else {
+//	    t.Logf("'RUN_QUARANTINED_TESTS' set to '%s', running quarantined test", os.Getenv("RUN_QUARANTINED_TESTS"))
+//	}
 func skipTests(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (string, error) {
+	// Ensure "os" package is imported for the conditional logic
+	if len(testFuncs) > 0 && !hasImport(node, "os") {
+		addImport(node, "os")
+	}
+
 	for _, testFunc := range testFuncs {
 		paramName := "t" // default fallback
 		if testFunc.Type.Params != nil && len(testFunc.Type.Params.List) > 0 {
@@ -286,11 +323,7 @@ func skipTests(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (
 		}
 
 		// Create the conditional quarantine block
-		// if os.Getenv("RUN_QUARANTINED_TESTS") != "true" {
-		//     t.Skip("Flaky tests quarantined")
-		// } else {
-		//     t.Logf("'RUN_QUARANTINED_TESTS' set to '%s', running quarantined test", os.Getenv("RUN_QUARANTINED_TESTS"))
-		// }
+
 		conditionalStmt := &ast.IfStmt{
 			Cond: &ast.BinaryExpr{
 				X: &ast.CallExpr{
@@ -301,7 +334,7 @@ func skipTests(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (
 					Args: []ast.Expr{
 						&ast.BasicLit{
 							Kind:  token.STRING,
-							Value: `"RUN_QUARANTINED_TESTS"`,
+							Value: fmt.Sprintf(`"%s"`, RunQuarantinedTestsEnvVar),
 						},
 					},
 				},
@@ -340,7 +373,7 @@ func skipTests(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (
 							Args: []ast.Expr{
 								&ast.BasicLit{
 									Kind:  token.STRING,
-									Value: `"'RUN_QUARANTINED_TESTS' set to '%s', running quarantined test"`,
+									Value: `"'` + RunQuarantinedTestsEnvVar + `' set to '%s', running quarantined test"`,
 								},
 								&ast.CallExpr{
 									Fun: &ast.SelectorExpr{
@@ -350,7 +383,7 @@ func skipTests(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (
 									Args: []ast.Expr{
 										&ast.BasicLit{
 											Kind:  token.STRING,
-											Value: `"RUN_QUARANTINED_TESTS"`,
+											Value: fmt.Sprintf(`"%s"`, RunQuarantinedTestsEnvVar),
 										},
 									},
 								},
@@ -378,4 +411,69 @@ func skipTests(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (
 	}
 
 	return modifiedNode.String(), nil
+}
+
+// hasImport checks if the given import path is already imported in the file
+func hasImport(node *ast.File, importPath string) bool {
+	for _, imp := range node.Imports {
+		if imp.Path != nil && strings.Trim(imp.Path.Value, `"`) == importPath {
+			return true
+		}
+	}
+	return false
+}
+
+// addImport adds an import to the file's import list
+func addImport(node *ast.File, importPath string) {
+	// Create the import spec
+	importSpec := &ast.ImportSpec{
+		Path: &ast.BasicLit{
+			Kind:  token.STRING,
+			Value: `"` + importPath + `"`,
+		},
+	}
+
+	// If there are no imports yet, create a new import declaration
+	if len(node.Decls) == 0 || node.Imports == nil {
+		importDecl := &ast.GenDecl{
+			Tok:   token.IMPORT,
+			Specs: []ast.Spec{importSpec},
+		}
+		node.Decls = append([]ast.Decl{importDecl}, node.Decls...)
+		node.Imports = []*ast.ImportSpec{importSpec}
+		return
+	}
+
+	// Find the first import declaration and add to it
+	for i, decl := range node.Decls {
+		if genDecl, ok := decl.(*ast.GenDecl); ok && genDecl.Tok == token.IMPORT {
+			genDecl.Specs = append(genDecl.Specs, importSpec)
+			node.Imports = append(node.Imports, importSpec)
+			return
+		}
+		// If we hit a non-import declaration, insert a new import declaration before it
+		if i == 0 || (i == 1 && isPackageDeclaration(node.Decls[0])) {
+			importDecl := &ast.GenDecl{
+				Tok:   token.IMPORT,
+				Specs: []ast.Spec{importSpec},
+			}
+			node.Decls = append(node.Decls[:i], append([]ast.Decl{importDecl}, node.Decls[i:]...)...)
+			node.Imports = append(node.Imports, importSpec)
+			return
+		}
+	}
+
+	// Fallback: add at the beginning
+	importDecl := &ast.GenDecl{
+		Tok:   token.IMPORT,
+		Specs: []ast.Spec{importSpec},
+	}
+	node.Decls = append([]ast.Decl{importDecl}, node.Decls...)
+	node.Imports = append(node.Imports, importSpec)
+}
+
+// isPackageDeclaration checks if a declaration is a package declaration
+func isPackageDeclaration(decl ast.Decl) bool {
+	_, ok := decl.(*ast.GenDecl)
+	return !ok // Package declarations are not GenDecl
 }

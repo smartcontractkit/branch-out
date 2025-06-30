@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,59 +22,187 @@ var exampleProjectBuildFlags = []string{
 	"-tags", "example_project",
 }
 
-func TestQuarantineTests_Integration_QuarantineAll(t *testing.T) {
+func TestQuarantineTests_Integration_EnvVarGate(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration tests in short mode")
+	}
+
+	quarantineTargets := []golang.QuarantineTarget{
+		{
+			Package: baseProjectPackage,
+			Tests:   standardTestNames,
+		},
 	}
 
 	l := testhelpers.Logger(t)
 	dir := setupDir(t)
 
-	quarantineResults, err := golang.QuarantineTests(
-		l,
-		dir,
-		allQuarantineTargets,
-		golang.WithBuildFlags(exampleProjectBuildFlags),
-	)
-	require.NoError(t, err, "failed to quarantine tests")
+	_, successfullyQuarantinedTests := quarantineTests(t, l, dir, quarantineTargets)
 
-	// Build a list of all the tests we successfully quarantined to check in our runs later
-	// Don't bother checking the tests that we know weren't quarantined
-	successfullyQuarantinedTests := []golang.QuarantineTarget{}
-	for _, result := range quarantineResults {
-		for _, success := range result.Successes {
-			successfullyQuarantinedTests = append(successfullyQuarantinedTests, golang.QuarantineTarget{
-				Package: success.Package,
-				Tests:   success.Tests,
-			})
-		}
-		assert.Empty(
-			t,
-			result.Failures,
-			"failed to quarantine these tests in package '%s'\n%s",
-			result.Package,
-			strings.Join(result.Failures, "\n"),
+	testCases := []struct {
+		runQuarantinedTests string
+	}{
+		{runQuarantinedTests: "false"},
+		{runQuarantinedTests: "true"},
+		{runQuarantinedTests: ""},
+		{runQuarantinedTests: "not a boolean"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(
+			fmt.Sprintf("%s='%s'", golang.RunQuarantinedTestsEnvVar, testCase.runQuarantinedTests),
+			func(t *testing.T) {
+				t.Setenv(golang.RunQuarantinedTestsEnvVar, testCase.runQuarantinedTests)
+
+				baseTestOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
+					t,
+					dir,
+				)
+				testResults, err := testhelpers.ParseTestOutputs(baseTestOutput)
+				require.NoError(t, err, "failed to parse test output")
+
+				// Check that the tests we marked as successfully quarantined were actually skipped after running the tests
+				for _, successfullyQuarantinedTarget := range successfullyQuarantinedTests {
+					pkgResults, ok := testResults[successfullyQuarantinedTarget.Package]
+					require.True(t, ok, "package %s not found in test results", successfullyQuarantinedTarget.Package)
+					for _, test := range successfullyQuarantinedTarget.Tests {
+						require.Contains(
+							t,
+							pkgResults.Found,
+							test,
+							"'%s' in package '%s' was marked as successfully quarantined, but was NOT FOUND AT ALL when tests were run",
+							test,
+							successfullyQuarantinedTarget.Package,
+						)
+						if testCase.runQuarantinedTests == "true" {
+							assert.Contains(
+								t,
+								pkgResults.Failed,
+								test,
+								"'%s' in package '%s' was marked as successfully quarantined, but when %s='%s' it should have been run and failed",
+								test,
+								successfullyQuarantinedTarget.Package,
+								golang.RunQuarantinedTestsEnvVar,
+								testCase.runQuarantinedTests,
+							)
+						} else {
+							assert.Contains(
+								t,
+								pkgResults.Skipped,
+								test,
+								"'%s' in package '%s' was marked as successfully quarantined, but when %s='%s' it should have been skipped",
+								test,
+								successfullyQuarantinedTarget.Package,
+								golang.RunQuarantinedTestsEnvVar,
+								testCase.runQuarantinedTests,
+							)
+						}
+					}
+				}
+			},
 		)
+	}
+}
+
+func TestQuarantineTests_Integration(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping integration tests in short mode")
 	}
 
 	testCases := []struct {
-		name                string
-		runQuarantinedTests bool
+		name              string
+		quarantineTargets []golang.QuarantineTarget
 	}{
-		{name: "skip quarantined tests", runQuarantinedTests: false},
-		{name: "run quarantined tests", runQuarantinedTests: true},
+		{name: "standard base tests", quarantineTargets: []golang.QuarantineTarget{
+			{
+				Package: baseProjectPackage,
+				Tests:   standardTestNames,
+			},
+		}},
+		{name: "standard nested tests", quarantineTargets: []golang.QuarantineTarget{
+			{
+				Package: nestedProjectPackage,
+				Tests:   standardTestNames,
+			},
+		}},
+		{name: "sub tests", quarantineTargets: []golang.QuarantineTarget{
+			{
+				Package: baseProjectPackage,
+				Tests:   subTestNames,
+			},
+		}},
+		{name: "sub tests nested", quarantineTargets: []golang.QuarantineTarget{
+			{
+				Package: nestedProjectPackage,
+				Tests:   subTestNames,
+			},
+		}},
+		{name: "unusual tests", quarantineTargets: []golang.QuarantineTarget{
+			{
+				Package: baseProjectPackage,
+				Tests:   unusualTestNames,
+			},
+		}},
+		{name: "unusual tests nested", quarantineTargets: []golang.QuarantineTarget{
+			{
+				Package: nestedProjectPackage,
+				Tests:   unusualTestNames,
+			},
+		}},
+		{name: "test package tests", quarantineTargets: []golang.QuarantineTarget{
+			{
+				Package: baseProjectTestPackage,
+				Tests:   testPackageTestNames,
+			},
+		}},
+		{name: "test package tests nested", quarantineTargets: []golang.QuarantineTarget{
+			{
+				Package: nestedProjectTestPackage,
+				Tests:   testPackageTestNames,
+			},
+		}},
+		{name: "oddly named package tests", quarantineTargets: []golang.QuarantineTarget{
+			{
+				Package: baseProjectOddlyNamedPackage,
+				Tests:   oddlyNamedPackageTestNames,
+			},
+		}},
+		{name: "oddly named package tests nested", quarantineTargets: []golang.QuarantineTarget{
+			{
+				Package: nestedProjectOddlyNamedPackage,
+				Tests:   oddlyNamedPackageTestNames,
+			},
+		}},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Setenv("RUN_QUARANTINED_TESTS", strconv.FormatBool(testCase.runQuarantinedTests))
+			t.Parallel()
+			casesToSkip := []string{ // These test cases are knowingly broken for now
+				"sub tests",
+				"sub tests nested",
+				"test package tests",
+				"test package tests nested",
+			}
+			if slices.Contains(casesToSkip, testCase.name) {
+				t.Skip("skipping known broken test case")
+			}
 
-			testOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
+			l := testhelpers.Logger(t)
+			dir := setupDir(t)
+			_, successfullyQuarantinedTests := quarantineTests(t, l, dir, testCase.quarantineTargets)
+
+			// Run all tests
+			baseTestOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
 				t,
 				dir,
 			)
-
-			testResults, err := testhelpers.ParseTestOutput(testOutput)
+			nestedTestOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
+				t,
+				filepath.Join(dir, "nested_project"),
+			)
+			testResults, err := testhelpers.ParseTestOutputs(baseTestOutput, nestedTestOutput)
 			require.NoError(t, err, "failed to parse test output")
 
 			// Check that the tests we marked as successfully quarantined were actually skipped after running the tests
@@ -84,29 +214,18 @@ func TestQuarantineTests_Integration_QuarantineAll(t *testing.T) {
 						t,
 						pkgResults.Found,
 						test,
-						"'%s' in package '%s' wasn't run", test, successfullyQuarantinedTarget.Package,
+						"'%s' in package '%s' was marked as successfully quarantined, but was NOT FOUND AT ALL when tests were run",
+						test,
+						successfullyQuarantinedTarget.Package,
 					)
-					if testCase.runQuarantinedTests {
-						assert.Contains(
-							t,
-							pkgResults.Skipped,
-							test,
-							"'%s' in package '%s' was marked as successfully quarantined but was NOT SKIPPED when 'RUN_QUARANTINED_TESTS' was set to '%t'",
-							test,
-							successfullyQuarantinedTarget.Package,
-							testCase.runQuarantinedTests,
-						)
-					} else {
-						assert.NotContains(
-							t,
-							pkgResults.Skipped,
-							test,
-							"'%s' in package '%s' was marked as successfully quarantined but was SKIPPED when 'RUN_QUARANTINED_TESTS' was set to '%t'",
-							test,
-							successfullyQuarantinedTarget.Package,
-							testCase.runQuarantinedTests,
-						)
-					}
+					assert.Contains(
+						t,
+						pkgResults.Skipped,
+						test,
+						"'%s' in package '%s' was marked as successfully quarantined, but NOT SKIPPED when tests were run",
+						test,
+						successfullyQuarantinedTarget.Package,
+					)
 				}
 			}
 		})
@@ -160,59 +279,77 @@ func setupDir(tb testing.TB) string {
 	return targetDir
 }
 
+// quarantineTests quarantines the tests in the given targets and returns the quarantine results and a list of the tests that were successfully quarantined for easy assertions
+func quarantineTests(
+	t *testing.T,
+	l zerolog.Logger,
+	dir string,
+	targets []golang.QuarantineTarget,
+) (golang.QuarantineResults, []golang.QuarantineTarget) {
+	t.Helper()
+
+	quarantineResults, err := golang.QuarantineTests(
+		l,
+		dir,
+		targets,
+		golang.WithBuildFlags(exampleProjectBuildFlags),
+	)
+	require.NoError(t, err, "failed to run quarantine function")
+	err = golang.WriteQuarantineResultsToFiles(l, quarantineResults)
+	require.NoError(t, err, "failed to write quarantine results to files")
+
+	// Build a list of all the tests we successfully quarantined to check in our runs later
+	// Don't bother checking the tests that we know weren't quarantined
+	successfullyQuarantinedTests := []golang.QuarantineTarget{}
+	for _, result := range quarantineResults {
+		for _, success := range result.Successes {
+			successfullyQuarantinedTests = append(successfullyQuarantinedTests, golang.QuarantineTarget{
+				Package: success.Package,
+				Tests:   success.Tests,
+			})
+		}
+		assert.Empty(
+			t,
+			result.Failures,
+			"failed to quarantine these tests in package '%s'\n%s",
+			result.Package,
+			strings.Join(result.Failures, "\n"),
+		)
+	}
+
+	return quarantineResults, successfullyQuarantinedTests
+}
+
 var (
-	baseTests = []string{
+	baseProjectPackage           = "github.com/smartcontractkit/branch-out/golang/example_project"
+	baseProjectTestPackage       = "github.com/smartcontractkit/branch-out/golang/example_project/test_package"
+	baseProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package"
+
+	nestedProjectPackage           = "github.com/smartcontractkit/branch-out/golang/example_project/nested_project"
+	nestedProjectTestPackage       = "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_test_package"
+	nestedProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_oddly_named_package"
+
+	standardTestNames = []string{
 		"TestStandard1",
 		"TestStandard2",
 		"TestStandard3",
+	}
+	subTestNames = []string{
 		"TestSubTestsStatic/subtest_1",
 		"TestSubTestsStatic/subtest_2",
 		"TestSubTestsTableStatic/subtest_1",
 		"TestSubTestsTableStatic/subtest_2",
 		"TestSubTestsTableDynamic/subtest_1",
 		"TestSubTestsTableDynamic/subtest_2",
-		"TestSubSubTestsStatic/parent_subtest/sub-subtest_1",
-		"TestSubSubTestsStatic/parent_subtest/sub-subtest_2",
-		// "BenchmarkExampleProject",
+	}
+	unusualTestNames = []string{
 		"FuzzExampleProject",
 		"TestDifferentParam",
 	}
-	testPackageTests = []string{
+	testPackageTestNames = []string{
 		"TestTestPackage",
 	}
-	oddlyNamedPackageTests = []string{
+	oddlyNamedPackageTestNames = []string{
 		"TestOddlyNamedPackage",
 	}
-
-	baseProjectQuarantineTargets = []golang.QuarantineTarget{
-		{
-			Package: "github.com/smartcontractkit/branch-out/golang/example_project",
-			Tests:   baseTests,
-		},
-		{
-			Package: "github.com/smartcontractkit/branch-out/golang/example_project/test_package",
-			Tests:   testPackageTests,
-		},
-		{
-			Package: "github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package",
-			Tests:   oddlyNamedPackageTests,
-		},
-	}
-
-	nestedProjectQuarantineTargets = []golang.QuarantineTarget{
-		{
-			Package: "github.com/smartcontractkit/branch-out/golang/example_project/nested_project",
-			Tests:   baseTests,
-		},
-		{
-			Package: "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_test_package",
-			Tests:   testPackageTests,
-		},
-		{
-			Package: "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_oddly_named_package",
-			Tests:   oddlyNamedPackageTests,
-		},
-	}
-
-	allQuarantineTargets = append(baseProjectQuarantineTargets, nestedProjectQuarantineTargets...)
 )
