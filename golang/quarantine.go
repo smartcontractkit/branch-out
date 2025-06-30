@@ -41,30 +41,12 @@ type QuarantinedFile struct {
 	ModifiedSourceCode string   // Modified source code to quarantine the tests (if any)
 }
 
-// QuarantineMode describes the mode of quarantine to use.
-type QuarantineMode string
-
-const (
-	// QuarantineModeCodeSkip adds t.Skip() to the test function.
-	QuarantineModeCodeSkip QuarantineMode = "code_skip"
-	// QuarantineModeComment only adds a comment to the test function to indicate that it was quarantined, but does not modify execution.
-	QuarantineModeComment QuarantineMode = "comment"
-)
-
 // QuarantineOption is a function that can be used to configure the quarantine process.
 type QuarantineOption func(*quarantineOptions)
 
 // quarantineOptions describes the options for the quarantine process.
 type quarantineOptions struct {
-	mode       QuarantineMode
 	buildFlags []string
-}
-
-// WithQuarantineMode sets the mode of quarantine to use.
-func WithQuarantineMode(mode QuarantineMode) QuarantineOption {
-	return func(options *quarantineOptions) {
-		options.mode = mode
-	}
 }
 
 // WithBuildFlags sets the build flags to use when loading packages.
@@ -78,6 +60,8 @@ func WithBuildFlags(buildFlags []string) QuarantineOption {
 // It returns a list of results for each target, including whether it was able to be quarantined, and the modified source code to quarantine the test.
 // The modified source code is returned so that it can be committed to the repository.
 // You must do something with it, as the code is not edited or committed by this function.
+//
+// Tests quarantined by this process will use t.Skip() to skip the test, unless the environment variable RUN_QUARANTINED_TESTS is set to "true".
 func QuarantineTests(
 	l zerolog.Logger,
 	repoPath string,
@@ -85,13 +69,12 @@ func QuarantineTests(
 	options ...QuarantineOption,
 ) (QuarantineResults, error) {
 	quarantineOptions := &quarantineOptions{
-		mode:       QuarantineModeCodeSkip,
 		buildFlags: []string{},
 	}
 	for _, option := range options {
 		option(quarantineOptions)
 	}
-	l = l.With().Str("repo_path", repoPath).Str("mode", string(quarantineOptions.mode)).Logger()
+	l = l.With().Str("repo_path", repoPath).Logger()
 
 	packages, err := Packages(l, repoPath, quarantineOptions.buildFlags)
 	if err != nil {
@@ -119,7 +102,7 @@ func QuarantineTests(
 			if err != nil {
 				return fmt.Errorf("failed to get package %s: %w", target.Package, err)
 			}
-			results, err := quarantinePackage(l, pkg, target.Tests, quarantineOptions.mode)
+			results, err := quarantinePackage(l, pkg, target.Tests)
 			packageResultsChan <- results
 			return err
 		})
@@ -183,7 +166,6 @@ func quarantinePackage(
 	l zerolog.Logger,
 	pkg PackageInfo,
 	testsToQuarantine []string,
-	mode QuarantineMode,
 ) (QuarantinePackageResults, error) {
 	l = l.With().
 		Str("package", pkg.ImportPath).
@@ -223,15 +205,7 @@ func quarantinePackage(
 			foundTestNames = append(foundTestNames, test.Name.Name)
 		}
 
-		var modifiedSource string
-		switch mode {
-		case QuarantineModeCodeSkip:
-			modifiedSource, err = quarantineTestsSkip(fset, node, foundTests)
-		case QuarantineModeComment:
-			modifiedSource, err = quarantineTestsComment(fset, node, foundTests)
-		default:
-			return results, fmt.Errorf("invalid quarantine mode: %s", mode)
-		}
+		modifiedSource, err := skipTests(fset, node, foundTests)
 		if err != nil {
 			return results, fmt.Errorf("failed to quarantine tests in file %s: %w", testFile, err)
 		}
@@ -300,8 +274,8 @@ func isTestFunction(funcDecl *ast.FuncDecl) bool {
 	return false
 }
 
-// quarantineTestsSkip adds t.Skip() to the beginning of the test function
-func quarantineTestsSkip(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (string, error) {
+// skipTests adds conditional quarantine logic to the beginning of the test function
+func skipTests(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (string, error) {
 	for _, testFunc := range testFuncs {
 		paramName := "t" // default fallback
 		if testFunc.Type.Params != nil && len(testFunc.Type.Params.List) > 0 {
@@ -311,58 +285,89 @@ func quarantineTestsSkip(fset *token.FileSet, node *ast.File, testFuncs []*ast.F
 			}
 		}
 
-		// Create the paramName.Skip() statement
-		skipCall := &ast.ExprStmt{
-			X: &ast.CallExpr{
-				Fun: &ast.SelectorExpr{
-					X:   &ast.Ident{Name: paramName},
-					Sel: &ast.Ident{Name: "Skip"},
+		// Create the conditional quarantine block
+		// if os.Getenv("RUN_QUARANTINED_TESTS") != "true" {
+		//     t.Skip("Flaky tests quarantined")
+		// } else {
+		//     t.Logf("'RUN_QUARANTINED_TESTS' set to '%s', running quarantined test", os.Getenv("RUN_QUARANTINED_TESTS"))
+		// }
+		conditionalStmt := &ast.IfStmt{
+			Cond: &ast.BinaryExpr{
+				X: &ast.CallExpr{
+					Fun: &ast.SelectorExpr{
+						X:   &ast.Ident{Name: "os"},
+						Sel: &ast.Ident{Name: "Getenv"},
+					},
+					Args: []ast.Expr{
+						&ast.BasicLit{
+							Kind:  token.STRING,
+							Value: `"RUN_QUARANTINED_TESTS"`,
+						},
+					},
 				},
-				Args: []ast.Expr{
-					&ast.BasicLit{
-						Kind:  token.STRING,
-						Value: `"Flaky test quarantined. Ticket <Jira ticket>. Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)"`,
+				Op: token.NEQ,
+				Y: &ast.BasicLit{
+					Kind:  token.STRING,
+					Value: `"true"`,
+				},
+			},
+			Body: &ast.BlockStmt{
+				List: []ast.Stmt{
+					&ast.ExprStmt{
+						X: &ast.CallExpr{
+							Fun: &ast.SelectorExpr{
+								X:   &ast.Ident{Name: paramName},
+								Sel: &ast.Ident{Name: "Skip"},
+							},
+							Args: []ast.Expr{
+								&ast.BasicLit{
+									Kind:  token.STRING,
+									Value: `"Flaky test quarantined. Ticket <Jira ticket>. Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)"`,
+								},
+							},
+						},
+					},
+				},
+			},
+			Else: &ast.BlockStmt{
+				List: []ast.Stmt{
+					&ast.ExprStmt{
+						X: &ast.CallExpr{
+							Fun: &ast.SelectorExpr{
+								X:   &ast.Ident{Name: paramName},
+								Sel: &ast.Ident{Name: "Logf"},
+							},
+							Args: []ast.Expr{
+								&ast.BasicLit{
+									Kind:  token.STRING,
+									Value: `"'RUN_QUARANTINED_TESTS' set to '%s', running quarantined test"`,
+								},
+								&ast.CallExpr{
+									Fun: &ast.SelectorExpr{
+										X:   &ast.Ident{Name: "os"},
+										Sel: &ast.Ident{Name: "Getenv"},
+									},
+									Args: []ast.Expr{
+										&ast.BasicLit{
+											Kind:  token.STRING,
+											Value: `"RUN_QUARANTINED_TESTS"`,
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
 		}
 
-		// Insert t.Skip() at the beginning of the function body
+		// Insert the conditional statement at the beginning of the function body
 		if testFunc.Body != nil && len(testFunc.Body.List) > 0 {
 			// Insert at the beginning
-			testFunc.Body.List = append([]ast.Stmt{skipCall}, testFunc.Body.List...)
+			testFunc.Body.List = append([]ast.Stmt{conditionalStmt}, testFunc.Body.List...)
 		} else if testFunc.Body != nil {
 			// Empty function body
-			testFunc.Body.List = []ast.Stmt{skipCall}
-		}
-	}
-
-	var modifiedNode bytes.Buffer
-	// Convert the modified AST back to source code
-	if err := format.Node(&modifiedNode, fset, node); err != nil {
-		return "", fmt.Errorf("failed to format modified source: %w", err)
-	}
-
-	return modifiedNode.String(), nil
-}
-
-// quarantineTestsComment adds a comment to the test function to indicate that it was quarantined, but does not modify execution.
-func quarantineTestsComment(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (string, error) {
-	for _, testFunc := range testFuncs {
-		// Create a comment for quarantine
-		quarantineComment := &ast.Comment{
-			Text: "// This test has been identified as flaky and quarantined in CI. Ticket <Jira ticket>. Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)",
-		}
-
-		// Add to existing doc comments or create new ones
-		if testFunc.Doc != nil {
-			// Prepend to existing comments
-			testFunc.Doc.List = append([]*ast.Comment{quarantineComment}, testFunc.Doc.List...)
-		} else {
-			// Create new doc comments
-			testFunc.Doc = &ast.CommentGroup{
-				List: []*ast.Comment{quarantineComment},
-			}
+			testFunc.Body.List = []ast.Stmt{conditionalStmt}
 		}
 	}
 

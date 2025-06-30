@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -19,8 +20,7 @@ var exampleProjectBuildFlags = []string{
 	"-tags", "example_project",
 }
 
-func TestQuarantineTests_Integration_All(t *testing.T) {
-	t.Parallel()
+func TestQuarantineTests_Integration_QuarantineAll(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration tests in short mode")
 	}
@@ -55,35 +55,63 @@ func TestQuarantineTests_Integration_All(t *testing.T) {
 		)
 	}
 
-	testOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
-		t,
-		dir,
-	)
-
-	testResults, err := testhelpers.ParseTestOutput(testOutput)
-	require.NoError(t, err, "failed to parse test output")
-
-	// Check that the tests we marked as successfully quarantined were actually skipped after running the tests
-	for _, successfullyQuarantinedTarget := range successfullyQuarantinedTests {
-		pkgResults, ok := testResults[successfullyQuarantinedTarget.Package]
-		require.True(t, ok, "package %s not found in test results", successfullyQuarantinedTarget.Package)
-		for _, test := range successfullyQuarantinedTarget.Tests {
-			require.Contains(
-				t,
-				pkgResults.Found,
-				test,
-				"'%s' in package '%s' wasn't run", test, successfullyQuarantinedTarget.Package,
-			)
-			assert.Contains(
-				t,
-				pkgResults.Skipped,
-				test,
-				"'%s' in package '%s' was marked as successfully quarantined but was not skipped",
-				test,
-				successfullyQuarantinedTarget.Package,
-			)
-		}
+	testCases := []struct {
+		name                string
+		runQuarantinedTests bool
+	}{
+		{name: "skip quarantined tests", runQuarantinedTests: false},
+		{name: "run quarantined tests", runQuarantinedTests: true},
 	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Setenv("RUN_QUARANTINED_TESTS", strconv.FormatBool(testCase.runQuarantinedTests))
+
+			testOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
+				t,
+				dir,
+			)
+
+			testResults, err := testhelpers.ParseTestOutput(testOutput)
+			require.NoError(t, err, "failed to parse test output")
+
+			// Check that the tests we marked as successfully quarantined were actually skipped after running the tests
+			for _, successfullyQuarantinedTarget := range successfullyQuarantinedTests {
+				pkgResults, ok := testResults[successfullyQuarantinedTarget.Package]
+				require.True(t, ok, "package %s not found in test results", successfullyQuarantinedTarget.Package)
+				for _, test := range successfullyQuarantinedTarget.Tests {
+					require.Contains(
+						t,
+						pkgResults.Found,
+						test,
+						"'%s' in package '%s' wasn't run", test, successfullyQuarantinedTarget.Package,
+					)
+					if testCase.runQuarantinedTests {
+						assert.Contains(
+							t,
+							pkgResults.Skipped,
+							test,
+							"'%s' in package '%s' was marked as successfully quarantined but was NOT SKIPPED when 'RUN_QUARANTINED_TESTS' was set to '%t'",
+							test,
+							successfullyQuarantinedTarget.Package,
+							testCase.runQuarantinedTests,
+						)
+					} else {
+						assert.NotContains(
+							t,
+							pkgResults.Skipped,
+							test,
+							"'%s' in package '%s' was marked as successfully quarantined but was SKIPPED when 'RUN_QUARANTINED_TESTS' was set to '%t'",
+							test,
+							successfullyQuarantinedTarget.Package,
+							testCase.runQuarantinedTests,
+						)
+					}
+				}
+			}
+		})
+	}
+
 }
 
 // runExampleTests runs go test for the example_project and returns the test results.

@@ -25,6 +25,8 @@ func FuzzExampleProject(f *testing.F) {
 }
 
 func TestDifferentParam(x *testing.T) {
+	x.Parallel()
+
 	example_project.Helper(
 		x,
 		"This test with a different param name for testing.T is in a nested project and will fail unless it's skipped",
