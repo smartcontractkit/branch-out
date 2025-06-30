@@ -1,8 +1,10 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -43,11 +45,11 @@ type Client struct {
 	next http.RoundTripper
 }
 
-// Option is a function that can be used to configure the GitHub client.
-type Option func(*Client)
+// ClientOption is a function that can be used to configure the GitHub client.
+type ClientOption func(*Client)
 
 // WithBaseURL sets the base URL of the GitHub API.
-func WithBaseURL(baseURL *url.URL) Option {
+func WithBaseURL(baseURL *url.URL) ClientOption {
 	return func(c *Client) {
 		if baseURL != nil {
 			c.BaseURL = baseURL
@@ -56,14 +58,14 @@ func WithBaseURL(baseURL *url.URL) Option {
 }
 
 // WithToken sets the GitHub token used to authenticate requests.
-func WithToken(token string) Option {
+func WithToken(token string) ClientOption {
 	return func(c *Client) {
 		c.token = token
 	}
 }
 
 // WithNext sets the next HTTP round tripper. Helpful for testing.
-func WithNext(next http.RoundTripper) Option {
+func WithNext(next http.RoundTripper) ClientOption {
 	return func(c *Client) {
 		c.next = next
 	}
@@ -73,18 +75,12 @@ func WithNext(next http.RoundTripper) Option {
 // If optionalNext is provided, it will be used as the base client for both REST and GraphQL, handy for testing.
 func NewClient(
 	l zerolog.Logger,
-	opts ...Option,
+	opts ...ClientOption,
 ) (*Client, error) {
-	client := &Client{
-		BaseURL: &url.URL{
-			Scheme: "https",
-			Host:   "api.github.com",
-		},
-	}
+	client := &Client{}
 	for _, opt := range opts {
 		opt(client)
 	}
-	l = l.With().Str("base_url", client.BaseURL.String()).Logger()
 
 	switch {
 	case client.token != "":
@@ -141,6 +137,8 @@ func NewClient(
 		client.Rest = client.Rest.WithAuthToken(client.token)
 	}
 
+	l = l.With().Str("base_url", client.Rest.BaseURL.String()).Logger()
+
 	src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: client.token},
 	)
@@ -179,7 +177,11 @@ type loggingTransport struct {
 
 // RoundTrip logs the request and response details.
 func (lt *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	start := time.Now()
+	var (
+		reqBody []byte
+		err     error
+		start   = time.Now()
+	)
 
 	l := lt.logger.With().
 		Str("client_type", lt.clientType).
@@ -188,18 +190,39 @@ func (lt *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		Str("user_agent", req.Header.Get("User-Agent")).
 		Logger()
 
+	if req.Body != nil {
+		reqBody, err = io.ReadAll(req.Body)
+		if err != nil {
+			l.Error().Err(err).Msg("Failed to read request body")
+		}
+	}
+	if reqBody != nil {
+		req.Body = io.NopCloser(bytes.NewBuffer(reqBody))
+	}
+	l.Trace().Bytes("request_body", reqBody).Msg("GitHub API request started")
+
 	resp, err := lt.transport.RoundTrip(req)
+	if err != nil {
+		// Probably a rate limit error, let the rate limit library handle it
+		return resp, err
+	}
+
 	duration := time.Since(start)
 
+	var respBody []byte
+	if resp.Body != nil {
+		respBody, err = io.ReadAll(resp.Body)
+		if err != nil {
+			l.Error().Err(err).Msg("Failed to read response body")
+		}
+	}
+	if respBody != nil {
+		resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
+	}
 	l = l.With().
 		Int("status", resp.StatusCode).
 		Str("duration", duration.String()).
 		Logger()
-
-	if err != nil || resp.StatusCode != http.StatusOK {
-		// Probably a rate limit error, let the rate limit library handle it
-		return resp, err
-	}
 
 	// Process rate limit headers
 	callsRemainingStr := resp.Header.Get("X-RateLimit-Remaining")
@@ -251,6 +274,6 @@ func (lt *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		l.Warn().Msg(RateLimitWarningMsg)
 	}
 
-	l.Trace().Msg("GitHub API request completed")
+	l.Trace().Bytes("response_body", respBody).Msg("GitHub API request completed")
 	return resp, nil
 }
