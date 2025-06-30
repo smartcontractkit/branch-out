@@ -30,6 +30,33 @@ type QuarantineTarget struct {
 // The key is the import path of the package, and the value is the result of quarantining that package.
 type QuarantineResults map[string]QuarantinePackageResults
 
+func (q QuarantineResults) String() string {
+	var b strings.Builder
+	for _, result := range q {
+		b.WriteString(result.Package)
+		b.WriteString("\n")
+		b.WriteString("--------------------------------\n")
+		if len(result.Successes) > 0 {
+			b.WriteString("Successes\n\n")
+			for _, success := range result.Successes {
+				b.WriteString(fmt.Sprintf("%s: %s\n", success.File, strings.Join(success.Tests, ", ")))
+			}
+		} else {
+			b.WriteString("\nNo successes!\n")
+		}
+
+		if len(result.Failures) > 0 {
+			b.WriteString("\nFailures\n\n")
+			for _, failure := range result.Failures {
+				b.WriteString(fmt.Sprintf("%s\n", failure))
+			}
+		} else {
+			b.WriteString("\nNo failures!\n")
+		}
+	}
+	return b.String()
+}
+
 // QuarantinePackageResults describes the result of quarantining a list of tests in a package.
 type QuarantinePackageResults struct {
 	Package   string            // Import path of the Go package (redundant, but kept for handy access)
@@ -78,7 +105,6 @@ func QuarantineTests(
 	for _, option := range options {
 		option(quarantineOptions)
 	}
-	l = l.With().Str("repo_path", repoPath).Logger()
 
 	packages, err := Packages(l, repoPath, quarantineOptions.buildFlags)
 	if err != nil {
@@ -127,13 +153,15 @@ func QuarantineTests(
 		results[result.Package] = result
 		for _, success := range result.Successes {
 			for _, test := range success.Tests {
-				successfullyQuarantined = append(successfullyQuarantined, fmt.Sprintf("%s/%s", success.Package, test))
+				successfullyQuarantined = append(successfullyQuarantined, fmt.Sprintf("%s.%s", success.Package, test))
 			}
 		}
 		for _, failure := range result.Failures {
 			failedToQuarantine = append(failedToQuarantine, fmt.Sprintf("%s/%s", result.Package, failure))
 		}
 	}
+	fmt.Println("Quarantine Results\n========================")
+	fmt.Println(results)
 
 	l.Info().
 		Strs("successfully_quarantined", successfullyQuarantined).
