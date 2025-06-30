@@ -56,7 +56,11 @@ func CopyDir(tb testing.TB, src, dst string) error {
 		}()
 
 		_, err = srcFile.WriteTo(dstFile)
-		return err
+		if err != nil {
+			return err
+		}
+
+		return nil
 	})
 }
 

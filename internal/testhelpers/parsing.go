@@ -39,20 +39,24 @@ type testOutputLine struct {
 	Output  string  `json:"Output,omitempty"`
 }
 
-// ParseTestOutput parses the output of go test -json and returns basic test result summary.
+// ParseTestOutputs parses the output of go test -json and returns basic test result summary.
 // It is not a highly rigorous test result parser, but it is enough to get the basic test results.
 // There will probably be some odd behavior around races, panics, and other edge cases.
 // Meant only for use in integration tests where we're reasonably sure about what we're expecting.
-func ParseTestOutput(jsonOutput []byte) (map[string]*PackageTestResults, error) {
-	decoder := json.NewDecoder(bytes.NewReader(jsonOutput))
+func ParseTestOutputs(jsonOutputs ...[]byte) (map[string]*PackageTestResults, error) {
+	allOutputs := append([][]byte{}, jsonOutputs...)
 
-	lines := []testOutputLine{}
-	for decoder.More() {
-		var line testOutputLine
-		if err := decoder.Decode(&line); err != nil {
-			return nil, fmt.Errorf("error unmarshalling go test -json output: %w", err)
+	lines := make([]testOutputLine, 0, len(allOutputs))
+	for _, jsonOutput := range allOutputs {
+		decoder := json.NewDecoder(bytes.NewReader(jsonOutput))
+
+		for decoder.More() {
+			var line testOutputLine
+			if err := decoder.Decode(&line); err != nil {
+				return nil, fmt.Errorf("error unmarshalling go test -json output: %w", err)
+			}
+			lines = append(lines, line)
 		}
-		lines = append(lines, line)
 	}
 
 	return analyzeLines(lines)
@@ -64,7 +68,7 @@ func analyzeLines(lines []testOutputLine) (map[string]*PackageTestResults, error
 
 	for _, line := range lines {
 		if line.Action == "build-fail" {
-			return nil, fmt.Errorf("%w: %s", ErrTestBuildFailed, line.Output)
+			return nil, ErrTestBuildFailed
 		}
 		if line.Package != "" {
 			if _, ok := allResults[line.Package]; !ok {
@@ -104,7 +108,7 @@ func analyzeLines(lines []testOutputLine) (map[string]*PackageTestResults, error
 
 		switch line.Action {
 		case "build-fail":
-			return nil, fmt.Errorf("%w: %s", ErrTestBuildFailed, line.Output)
+			return nil, ErrTestBuildFailed
 		case "pass":
 			if line.Test != "" && !slices.Contains(allResults[line.Package].Passed, line.Test) {
 				allResults[line.Package].Passed = append(
