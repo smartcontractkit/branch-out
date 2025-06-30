@@ -305,7 +305,7 @@ func quarantineTests(
 		for _, success := range result.Successes {
 			successfullyQuarantinedTests = append(successfullyQuarantinedTests, golang.QuarantineTarget{
 				Package: success.Package,
-				Tests:   success.Tests,
+				Tests:   success.TestNames(),
 			})
 		}
 		assert.Empty(

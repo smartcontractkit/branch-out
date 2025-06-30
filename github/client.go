@@ -77,16 +77,10 @@ func NewClient(
 	l zerolog.Logger,
 	opts ...ClientOption,
 ) (*Client, error) {
-	client := &Client{
-		BaseURL: &url.URL{
-			Scheme: "https",
-			Host:   "api.github.com",
-		},
-	}
+	client := &Client{}
 	for _, opt := range opts {
 		opt(client)
 	}
-	l = l.With().Str("base_url", client.BaseURL.String()).Logger()
 
 	switch {
 	case client.token != "":
@@ -142,6 +136,8 @@ func NewClient(
 	if client.token != "" {
 		client.Rest = client.Rest.WithAuthToken(client.token)
 	}
+
+	l = l.With().Str("base_url", client.Rest.BaseURL.String()).Logger()
 
 	src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: client.token},

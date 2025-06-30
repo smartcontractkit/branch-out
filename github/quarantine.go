@@ -83,46 +83,31 @@ func (c *Client) QuarantineTests(
 	}
 
 	// Build PR description
-	prDescription := strings.Builder{}
-	prDescription.WriteString("# Branch-out Quarantine Report\n\n")
+	var (
+		commitMessage = strings.Builder{}
+	)
+
+	commitMessage.WriteString("branch-out quarantine tests\n")
 
 	allFileUpdates := make(map[string]string)
 	for _, result := range results {
 		// Process successes
-		prDescription.WriteString(fmt.Sprintf("## %s\n\n", result.Package))
-		prDescription.WriteString(fmt.Sprintf("### Successfully Quarantined %d tests\n\n", len(result.Successes)))
-		prDescription.WriteString("| File | Tests |\n")
-		prDescription.WriteString("|------|-------|\n")
 		for _, file := range result.Successes {
-			prDescription.WriteString(fmt.Sprintf("| %s | %s |\n", file.File, strings.Join(file.Tests, ", ")))
+			commitMessage.WriteString(fmt.Sprintf("%s: %s\n", file.File, strings.Join(file.TestNames(), ", ")))
 			allFileUpdates[file.File] = file.ModifiedSourceCode
 		}
-		prDescription.WriteString("\n")
-
-		// Process failures
-		if len(result.Failures) > 0 {
-			prDescription.WriteString(fmt.Sprintf("### Failed to Quarantine %d tests\n\n", len(result.Failures)))
-			for _, test := range result.Failures {
-				prDescription.WriteString(fmt.Sprintf("- %s\n", test))
-			}
-			prDescription.WriteString("\n")
-		}
 	}
-	prDescription.WriteString("\n\n")
-	prDescription.WriteString(
-		"This PR was created automatically by [branch-out](https://github.com/smartcontractkit/branch-out).",
-	)
 	title := fmt.Sprintf("[Auto] Quarantine Flaky Tests: %s", time.Now().Format("2006-01-02"))
 
 	// Update files
-	sha, err := c.updateFiles(ctx, owner, repo, branchName, prDescription.String(), newBranchHeadSHA, allFileUpdates)
+	sha, err := c.updateFiles(ctx, owner, repo, branchName, commitMessage.String(), newBranchHeadSHA, allFileUpdates)
 	if err != nil {
 		return fmt.Errorf("failed to update files: %w", err)
 	}
 	l = l.With().Str("commit_sha", sha).Logger()
 	l.Debug().Int("files_updated", len(allFileUpdates)).Msg("Updated files")
 
-	prURL, err := c.createPullRequest(ctx, owner, repo, branchName, defaultBranch, title, prDescription.String())
+	prURL, err := c.createPullRequest(ctx, owner, repo, branchName, defaultBranch, title, results.Markdown())
 	if err != nil {
 		return fmt.Errorf("failed to create pull request: %w", err)
 	}

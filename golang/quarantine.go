@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -30,6 +31,8 @@ type QuarantineTarget struct {
 // The key is the import path of the package, and the value is the result of quarantining that package.
 type QuarantineResults map[string]QuarantinePackageResults
 
+// String returns a string representation of the quarantine results.
+// Good for debugging and logging.
 func (q QuarantineResults) String() string {
 	var b strings.Builder
 	for _, result := range q {
@@ -39,7 +42,11 @@ func (q QuarantineResults) String() string {
 		if len(result.Successes) > 0 {
 			b.WriteString("Successes\n\n")
 			for _, success := range result.Successes {
-				b.WriteString(fmt.Sprintf("%s: %s\n", success.File, strings.Join(success.Tests, ", ")))
+				if len(success.TestNames()) > 0 {
+					b.WriteString(fmt.Sprintf("%s: %s\n", success.File, strings.Join(success.TestNames(), ", ")))
+				} else {
+					b.WriteString(fmt.Sprintf("%s: No tests quarantined\n", success.File))
+				}
 			}
 		} else {
 			b.WriteString("\nNo successes!\n")
@@ -57,6 +64,51 @@ func (q QuarantineResults) String() string {
 	return b.String()
 }
 
+// Markdown returns a Markdown representation of the quarantine results.
+// Good for a PR description.
+func (q QuarantineResults) Markdown() string {
+	var md strings.Builder
+	md.WriteString("# Quarantined Flaky Tests using branch-out\n\n")
+
+	allFileUpdates := make(map[string]string)
+	for _, result := range q {
+		emoji := "🟢"
+		if len(result.Failures) > 0 {
+			emoji = "🔴"
+		}
+		md.WriteString(fmt.Sprintf("## `%s` %s\n\n", result.Package, emoji))
+		// Process successes
+		if len(result.Successes) > 0 {
+			md.WriteString(fmt.Sprintf("### Successfully Quarantined %d tests\n\n", result.SuccessfulTestsCount()))
+			md.WriteString("| File | Tests |\n")
+			md.WriteString("|------|-------|\n")
+			for _, file := range result.Successes {
+				md.WriteString(
+					fmt.Sprintf("| [%s](%s) | %s |\n", file.File, file.File, strings.Join(file.TestNames(), ", ")),
+				)
+				allFileUpdates[file.File] = file.ModifiedSourceCode
+			}
+			md.WriteString("\n")
+		}
+
+		// Process failures
+		if len(result.Failures) > 0 {
+			md.WriteString(
+				fmt.Sprintf("### Failed to Quarantine %d tests. Need manual intervention!\n\n", len(result.Failures)),
+			)
+			for _, test := range result.Failures {
+				md.WriteString(fmt.Sprintf("- %s\n", test))
+			}
+			md.WriteString("\n")
+		}
+	}
+	md.WriteString("\n\n---\n\n")
+	md.WriteString(
+		"Created automatically by [branch-out](https://github.com/smartcontractkit/branch-out).",
+	)
+	return md.String()
+}
+
 // QuarantinePackageResults describes the result of quarantining a list of tests in a package.
 type QuarantinePackageResults struct {
 	Package   string            // Import path of the Go package (redundant, but kept for handy access)
@@ -64,12 +116,38 @@ type QuarantinePackageResults struct {
 	Failures  []string          // Names of the test functions that were not able to be quarantined
 }
 
+// SuccessfulTestsCount returns the number of tests that were successfully quarantined.
+func (q QuarantinePackageResults) SuccessfulTestsCount() int {
+	count := 0
+	for _, success := range q.Successes {
+		count += len(success.TestNames())
+	}
+	return count
+}
+
 // QuarantinedFile describes the outputs of successfully quarantining a list of tests in a package in a single file.
 type QuarantinedFile struct {
-	Package            string   // Import path of the Go package (redundant, but kept for handy access)
-	File               string   // File where the tests were found and quarantined (if any)
-	Tests              []string // Names of all the test functions successfully quarantined in this file
-	ModifiedSourceCode string   // Modified source code to quarantine the tests (if any)
+	Package            string            // Import path of the Go package (redundant, but kept for handy access)
+	File               string            // Relative path to the file where the tests were found and quarantined (if any)
+	FileAbs            string            // Absolute path to the file where the tests were found and quarantined on the local filesystem (if any)
+	Tests              []QuarantinedTest // All the test functions successfully quarantined in this file
+	ModifiedSourceCode string            // Modified source code to quarantine the tests (if any)
+}
+
+// TestNames returns the names of the test functions that were quarantined in this file.
+func (q QuarantinedFile) TestNames() []string {
+	names := make([]string, len(q.Tests))
+	for i, test := range q.Tests {
+		names[i] = test.Name
+	}
+	return names
+}
+
+// QuarantinedTest describes a test function that was quarantined.
+type QuarantinedTest struct {
+	Name         string // Name of the test function that was quarantined
+	OriginalLine int    // Line number of the test function that was quarantined
+	ModifiedLine int    // Line number of the test function that was quarantined after modification of the file
 }
 
 // QuarantineOption is a function that can be used to configure the quarantine process.
@@ -120,7 +198,7 @@ func QuarantineTests(
 	}
 
 	start := time.Now()
-	l.Info().Int("quarantine_targets", len(sanitizedTargets)).Msg("Quarantining tests")
+	l.Info().Msg("Quarantining tests")
 	var (
 		packageResultsChan = make(chan QuarantinePackageResults, len(sanitizedTargets))
 		eg                 = errgroup.Group{}
@@ -132,7 +210,7 @@ func QuarantineTests(
 			if err != nil {
 				return fmt.Errorf("failed to get package %s: %w", target.Package, err)
 			}
-			results, err := quarantinePackage(l, pkg, target.Tests)
+			results, err := quarantinePackage(l, repoPath, pkg, target.Tests)
 			packageResultsChan <- results
 			return err
 		})
@@ -152,7 +230,7 @@ func QuarantineTests(
 	for result := range packageResultsChan {
 		results[result.Package] = result
 		for _, success := range result.Successes {
-			for _, test := range success.Tests {
+			for _, test := range success.TestNames() {
 				successfullyQuarantined = append(successfullyQuarantined, fmt.Sprintf("%s.%s", success.Package, test))
 			}
 		}
@@ -160,8 +238,8 @@ func QuarantineTests(
 			failedToQuarantine = append(failedToQuarantine, fmt.Sprintf("%s/%s", result.Package, failure))
 		}
 	}
-	fmt.Println("Quarantine Results\n========================")
-	fmt.Println(results)
+	fmt.Println("Quarantine Results\n==========================")
+	fmt.Println(results.String())
 
 	l.Info().
 		Strs("successfully_quarantined", successfullyQuarantined).
@@ -176,13 +254,13 @@ func QuarantineTests(
 func WriteQuarantineResultsToFiles(l zerolog.Logger, results QuarantineResults) error {
 	for _, result := range results {
 		for _, success := range result.Successes {
-			if err := os.WriteFile(success.File, []byte(success.ModifiedSourceCode), 0600); err != nil {
-				return fmt.Errorf("failed to write quarantine results to %s: %w", success.File, err)
+			if err := os.WriteFile(success.FileAbs, []byte(success.ModifiedSourceCode), 0600); err != nil {
+				return fmt.Errorf("failed to write quarantine results to %s: %w", success.FileAbs, err)
 			}
 			l.Trace().
-				Str("file", success.File).
+				Str("file", success.FileAbs).
 				Str("package", success.Package).
-				Strs("quarantined_tests", success.Tests).
+				Strs("quarantined_tests", success.TestNames()).
 				Msg("Wrote quarantine results")
 		}
 	}
@@ -217,6 +295,7 @@ func sanitizeQuarantineTargets(quarantineTargets []QuarantineTarget) []Quarantin
 // quarantinePackage looks for test functions in all test files in a package and quarantines them.
 func quarantinePackage(
 	l zerolog.Logger,
+	repoPath string,
 	pkg PackageInfo,
 	testsToQuarantine []string,
 ) (QuarantinePackageResults, error) {
@@ -259,17 +338,24 @@ func quarantinePackage(
 			foundTestNames = append(foundTestNames, test.Name.Name)
 		}
 
-		modifiedSource, err := skipTests(fset, node, foundTests)
+		modifiedSource, quarantinedTests, err := skipTests(fset, node, foundTests)
 		if err != nil {
 			return results, fmt.Errorf("failed to quarantine tests in file %s: %w", testFile, err)
 		}
 
 		l.Debug().Strs("newly_quarantined_tests", foundTestNames).Msg("Successfully quarantined tests in file")
 
+		absRepoPath, err := filepath.Abs(repoPath)
+		if err != nil {
+			return results, fmt.Errorf("failed to get absolute path of repo %s: %w", repoPath, err)
+		}
+		relativeFilePath := strings.TrimPrefix(testFile, absRepoPath)
+		relativeFilePath = strings.TrimPrefix(relativeFilePath, string(filepath.Separator))
 		results.Successes = append(results.Successes, QuarantinedFile{
 			Package:            pkg.ImportPath,
-			File:               testFile,
-			Tests:              foundTestNames,
+			File:               relativeFilePath,
+			FileAbs:            testFile,
+			Tests:              quarantinedTests,
 			ModifiedSourceCode: modifiedSource,
 		})
 	}
@@ -335,12 +421,23 @@ func isTestFunction(funcDecl *ast.FuncDecl) bool {
 //	} else {
 //	    t.Logf("'RUN_QUARANTINED_TESTS' set to '%s', running quarantined test", os.Getenv("RUN_QUARANTINED_TESTS"))
 //	}
-func skipTests(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (string, error) {
+func skipTests(
+	fset *token.FileSet,
+	node *ast.File,
+	testFuncs []*ast.FuncDecl,
+) (string, []QuarantinedTest, error) {
 	// Ensure "os" package is imported for the conditional logic
 	if len(testFuncs) > 0 && !hasImport(node, "os") {
 		addImport(node, "os")
 	}
 
+	// Store original line numbers and test names
+	originalPositions := make(map[string]int)
+	for _, testFunc := range testFuncs {
+		originalPositions[testFunc.Name.Name] = fset.Position(testFunc.Pos()).Line
+	}
+
+	// Apply modifications (same as existing implementation)
 	for _, testFunc := range testFuncs {
 		paramName := "t" // default fallback
 		if testFunc.Type.Params != nil && len(testFunc.Type.Params.List) > 0 {
@@ -349,8 +446,6 @@ func skipTests(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (
 				paramName = param.Names[0].Name
 			}
 		}
-
-		// Create the conditional quarantine block
 
 		conditionalStmt := &ast.IfStmt{
 			Cond: &ast.BinaryExpr{
@@ -422,23 +517,44 @@ func skipTests(fset *token.FileSet, node *ast.File, testFuncs []*ast.FuncDecl) (
 			},
 		}
 
-		// Insert the conditional statement at the beginning of the function body
 		if testFunc.Body != nil && len(testFunc.Body.List) > 0 {
-			// Insert at the beginning
 			testFunc.Body.List = append([]ast.Stmt{conditionalStmt}, testFunc.Body.List...)
 		} else if testFunc.Body != nil {
-			// Empty function body
 			testFunc.Body.List = []ast.Stmt{conditionalStmt}
 		}
 	}
 
+	// Format the modified AST
 	var modifiedNode bytes.Buffer
-	// Convert the modified AST back to source code
 	if err := format.Node(&modifiedNode, fset, node); err != nil {
-		return "", fmt.Errorf("failed to format modified source: %w", err)
+		return "", nil, fmt.Errorf("failed to format modified source: %w", err)
 	}
 
-	return modifiedNode.String(), nil
+	// Parse the formatted result to get exact line numbers
+	modifiedSource := modifiedNode.String()
+	newFset := token.NewFileSet()
+	newNode, err := parser.ParseFile(newFset, "", modifiedSource, parser.ParseComments)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to parse modified source: %w", err)
+	}
+
+	// Find the modified line numbers
+	quarantinedTests := make([]QuarantinedTest, 0, len(testFuncs))
+	for _, decl := range newNode.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+			if isTestFunction(funcDecl) {
+				if originalLine, exists := originalPositions[funcDecl.Name.Name]; exists {
+					quarantinedTests = append(quarantinedTests, QuarantinedTest{
+						Name:         funcDecl.Name.Name,
+						OriginalLine: originalLine,
+						ModifiedLine: newFset.Position(funcDecl.Pos()).Line,
+					})
+				}
+			}
+		}
+	}
+
+	return modifiedSource, quarantinedTests, nil
 }
 
 // hasImport checks if the given import path is already imported in the file
