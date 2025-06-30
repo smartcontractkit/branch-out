@@ -30,4 +30,9 @@ dist/
 .goreleaser.lock
 .goreleaser.yml
 
+# env
 .env
+.envrc
+
+# secrets
+*.pem
