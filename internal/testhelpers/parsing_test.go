@@ -129,7 +129,7 @@ func TestParseTestOutput(t *testing.T) {
 			output, err := os.ReadFile(test.resultsFile)
 			require.NoError(t, err, "failed to read json results file")
 
-			results, err := ParseTestOutput(output)
+			results, err := ParseTestOutputs(output)
 			require.NoError(t, err, "failed to parse test output")
 
 			require.Len(t, results, len(test.expected), "number of packages should match")

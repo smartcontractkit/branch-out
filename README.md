@@ -22,7 +22,7 @@ sequenceDiagram
   participant bo as branch-out
   participant j as Jira
 
-  g->>g: Run tests on default branch
+  g->>g: Run tests
   activate t
   g->>t: Send test results
   t->>t: Identify flaky tests

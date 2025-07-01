@@ -21,14 +21,34 @@ import (
 	"github.com/smartcontractkit/branch-out/golang"
 )
 
+// QuarantineTestsOptions describes the options for the QuarantineTests function.
+type quarantineTestsOptions struct {
+	buildFlags []string // Any build flags to pass to the go command (e.g. ["-tags", "integration"])
+}
+
+// QuarantineOption is a function that can be used to configure the QuarantineTests function.
+type QuarantineOption func(*quarantineTestsOptions)
+
+// WithBuildFlags sets the build flags to use when loading packages.
+func WithBuildFlags(buildFlags []string) QuarantineOption {
+	return func(options *quarantineTestsOptions) {
+		options.buildFlags = buildFlags
+	}
+}
+
 // QuarantineTests quarantines multiple Go tests by adding t.Skip() to the test functions and making a PR to the default branch.
 func (c *Client) QuarantineTests(
 	ctx context.Context,
 	l zerolog.Logger,
 	owner, repo string,
 	targets []golang.QuarantineTarget,
-	buildFlags []string, // Any build flags to pass to the go command (e.g. ["-tags", "integration"])
+	options ...QuarantineOption,
 ) error {
+	opts := &quarantineTestsOptions{}
+	for _, opt := range options {
+		opt(opts)
+	}
+
 	start := time.Now()
 
 	l = l.With().Str("owner", owner).Str("repo", repo).Logger()
@@ -39,13 +59,13 @@ func (c *Client) QuarantineTests(
 	}
 	defer func() {
 		if err := os.RemoveAll(repoPath); err != nil {
-			l.Error().Str("repo_path", repoPath).Err(err).Msg("Failed to remove temporary repository directory")
+			l.Error().Err(err).Msg("Failed to remove temporary repository directory")
 		}
 	}()
 	l = l.With().Str("repo_path", repoPath).Logger()
 	l.Debug().Msg("Cloned repository")
 
-	results, err := golang.QuarantineTests(l, repoPath, targets, golang.WithBuildFlags(buildFlags))
+	results, err := golang.QuarantineTests(l, repoPath, targets, golang.WithBuildFlags(opts.buildFlags))
 	if err != nil {
 		return fmt.Errorf("failed to quarantine tests: %w", err)
 	}
@@ -61,45 +81,33 @@ func (c *Client) QuarantineTests(
 	if err != nil {
 		return fmt.Errorf("failed to create branch: %w", err)
 	}
-	prDescription := strings.Builder{}
-	prDescription.WriteString("# Branch-out Quarantine Report\n\n")
+
+	// Build PR description
+	var (
+		commitMessage = strings.Builder{}
+	)
+
+	commitMessage.WriteString("branch-out quarantine tests\n")
 
 	allFileUpdates := make(map[string]string)
 	for _, result := range results {
 		// Process successes
-		prDescription.WriteString(fmt.Sprintf("## %s\n\n", result.Package))
-		prDescription.WriteString(fmt.Sprintf("### Successfully Quarantined %d tests\n\n", len(result.Successes)))
-		prDescription.WriteString("| File | Tests |\n")
-		prDescription.WriteString("|------|-------|\n")
 		for _, file := range result.Successes {
-			prDescription.WriteString(fmt.Sprintf("| %s | %s |\n", file.File, strings.Join(file.Tests, ", ")))
+			commitMessage.WriteString(fmt.Sprintf("%s: %s\n", file.File, strings.Join(file.TestNames(), ", ")))
 			allFileUpdates[file.File] = file.ModifiedSourceCode
 		}
-		prDescription.WriteString("\n")
-
-		// Process failures
-		if len(result.Failures) > 0 {
-			prDescription.WriteString(fmt.Sprintf("### Failed to Quarantine %d tests\n\n", len(result.Failures)))
-			for _, test := range result.Failures {
-				prDescription.WriteString(fmt.Sprintf("- %s\n", test))
-			}
-			prDescription.WriteString("\n")
-		}
 	}
-	prDescription.WriteString("\n\n")
-	prDescription.WriteString(
-		"This PR was created automatically by [branch-out](https://github.com/smartcontractkit/branch-out).",
-	)
 	title := fmt.Sprintf("[Auto] Quarantine Flaky Tests: %s", time.Now().Format("2006-01-02"))
 
-	sha, err := c.updateFiles(ctx, owner, repo, branchName, title, newBranchHeadSHA, allFileUpdates)
+	// Update files
+	sha, err := c.updateFiles(ctx, owner, repo, branchName, commitMessage.String(), newBranchHeadSHA, allFileUpdates)
 	if err != nil {
 		return fmt.Errorf("failed to update files: %w", err)
 	}
 	l = l.With().Str("commit_sha", sha).Logger()
 	l.Debug().Int("files_updated", len(allFileUpdates)).Msg("Updated files")
 
-	prURL, err := c.createPullRequest(ctx, owner, repo, branchName, defaultBranch, title, prDescription.String())
+	prURL, err := c.createPullRequest(ctx, owner, repo, branchName, defaultBranch, title, results.Markdown())
 	if err != nil {
 		return fmt.Errorf("failed to create pull request: %w", err)
 	}
@@ -115,6 +123,7 @@ func (c *Client) createBranch(
 	owner, repo, branchName, baseBranch string,
 ) (string, error) {
 	// Get the base branch reference
+	l = l.With().Str("base_branch", baseBranch).Str("branch", branchName).Logger()
 	baseRef, _, err := c.Rest.Git.GetRef(ctx, owner, repo, "refs/heads/"+baseBranch)
 	if err != nil {
 		return "", fmt.Errorf("failed to get base branch reference: %w", err)
@@ -128,18 +137,18 @@ func (c *Client) createBranch(
 		},
 	}
 
-	_, _, err = c.Rest.Git.CreateRef(ctx, owner, repo, newRef)
+	ref, _, err := c.Rest.Git.CreateRef(ctx, owner, repo, newRef)
 	if err != nil {
 		// If branch already exists, that's okay
 		if !strings.Contains(err.Error(), "already exists") {
 			return "", fmt.Errorf("failed to create branch: %w", err)
 		}
-		l.Debug().Msg("Branch already exists, continuing")
+		l.Debug().Str("ref", ref.GetRef()).Msg("Branch already exists, continuing")
 	} else {
-		l.Debug().Msg("Created new branch")
+		l.Debug().Str("ref", ref.GetRef()).Msg("Created new branch")
 	}
 
-	return baseRef.Object.GetSHA(), nil
+	return ref.GetObject().GetSHA(), nil
 }
 
 // updateFiles updates multiple files in the repository in a single, signed commit.
@@ -260,7 +269,7 @@ func ParseRepoURL(repoURL string) (owner, repo string, err error) {
 
 // cloneRepo clones a repo to a temp directory and returns the path to it
 func (c *Client) cloneRepo(owner, repo string) (string, error) {
-	repoPath, err := os.MkdirTemp("", fmt.Sprintf("%s-%s-*", owner, repo))
+	repoPath, err := os.MkdirTemp("./", fmt.Sprintf("%s-%s-*", owner, repo))
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -271,6 +280,7 @@ func (c *Client) cloneRepo(owner, repo string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to construct repository URL: %w", err)
 	}
+	repoURL = strings.Replace(repoURL, "api.github.com", "github.com", 1)
 	repoURL += ".git"
 
 	_, err = git.PlainClone(repoPath, false, &git.CloneOptions{
@@ -278,7 +288,7 @@ func (c *Client) cloneRepo(owner, repo string) (string, error) {
 		Progress: progress,
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to clone repository: %w, %s", err, progress.String())
+		return "", fmt.Errorf("failed to clone repository at %s: %w, %s", repoURL, err, progress.String())
 	}
 
 	return repoPath, nil

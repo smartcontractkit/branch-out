@@ -127,7 +127,7 @@ func Packages(l zerolog.Logger, rootDir string, buildFlags []string) (*PackagesI
 
 	// Load packages from each Go module
 	for _, modDir := range goModDirs {
-		modulePackages, err := loadPackagesFromModule(modDir, buildFlags)
+		modulePackages, err := loadPackagesFromModule(l, modDir, buildFlags)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load packages from module %s: %w", modDir, err)
 		}
@@ -178,7 +178,7 @@ func findGoModDirectories(rootDir string) ([]string, error) {
 }
 
 // loadPackagesFromModule loads all packages from a single Go module
-func loadPackagesFromModule(moduleDir string, buildFlags []string) (map[string]PackageInfo, error) {
+func loadPackagesFromModule(l zerolog.Logger, moduleDir string, buildFlags []string) (map[string]PackageInfo, error) {
 	config := &packages.Config{
 		Mode:       packages.NeedName | packages.NeedModule | packages.NeedFiles,
 		Dir:        moduleDir,
@@ -195,12 +195,12 @@ func loadPackagesFromModule(moduleDir string, buildFlags []string) (map[string]P
 
 	for _, pkg := range pkgs {
 		if len(pkg.Errors) > 0 {
-			pkgErrors := make([]string, 0, len(pkg.Errors))
 			for _, pkgErr := range pkg.Errors {
-				pkgErrors = append(pkgErrors, pkgErr.Msg)
+				l.Error().
+					Str("package", pkg.PkgPath).
+					Str("error", pkgErr.Msg).
+					Msg("Error loading package")
 			}
-			retErr := fmt.Errorf("error loading package %s\nerrors:\n%s", pkg.PkgPath, strings.Join(pkgErrors, "\n"))
-			return nil, retErr
 		}
 
 		info := PackageInfo{
