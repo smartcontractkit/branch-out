@@ -2,7 +2,6 @@ package github
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -39,8 +38,8 @@ type Client struct {
 	GraphQL *gh_graphql.Client
 	// BaseURL is the base URL of the GitHub API. Defaults to the public GitHub API.
 	BaseURL *url.URL
-	// token is the GitHub token used to authenticate requests.
-	token string
+	// tokenSource is the GitHub tokenSource used to authenticate requests.
+	tokenSource oauth2.TokenSource
 	// next is the next HTTP round tripper.
 	next http.RoundTripper
 }
@@ -60,7 +59,9 @@ func WithBaseURL(baseURL *url.URL) ClientOption {
 // WithToken sets the GitHub token used to authenticate requests.
 func WithToken(token string) ClientOption {
 	return func(c *Client) {
-		c.token = token
+		if token != "" {
+			c.tokenSource = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+		}
 	}
 }
 
@@ -69,6 +70,42 @@ func WithNext(next http.RoundTripper) ClientOption {
 	return func(c *Client) {
 		c.next = next
 	}
+}
+
+// setupToken configures the authentication mechanism for the GitHub client.
+// It tries authentication methods in the following order:
+// 1. GitHub token from flag (if provided via WithToken)
+// 2. GitHub App authentication (automatically uses installation tokens if available)
+// 3. GitHub token from environment variable
+func setupToken(client *Client, l zerolog.Logger) error {
+	// Priority 1: Token from flag (already set via WithToken)
+	if client.tokenSource != nil {
+		l.Debug().Msg("Using GitHub token from flag")
+		return nil
+	}
+
+	// Priority 2: GitHub App authentication
+	appTokenSource, err := LoadInstallationTokenSource()
+	if err != nil {
+		return fmt.Errorf("failed to load GitHub App configuration: %w", err)
+	}
+	if appTokenSource != nil {
+		client.tokenSource = appTokenSource
+		l.Debug().Msg("Using GitHub App authentication")
+		return nil
+	}
+
+	// Priority 3: Token from environment variable
+	envToken := os.Getenv(TokenEnvVar)
+	if envToken != "" {
+		client.tokenSource = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: envToken})
+		l.Debug().Msg("Using GitHub token from environment variable")
+		return nil
+	}
+
+	// No authentication configured
+	l.Warn().Msg("No GitHub authentication configured, some features will be disabled and rate limits might be hit!")
+	return nil
 }
 
 // NewClient creates a new GitHub REST and GraphQL API client with the provided token and logger.
@@ -82,14 +119,9 @@ func NewClient(
 		opt(client)
 	}
 
-	switch {
-	case client.token != "":
-		l.Debug().Msg("Using GitHub token from flag")
-	case os.Getenv(TokenEnvVar) != "":
-		client.token = os.Getenv(TokenEnvVar)
-		l.Debug().Msg("Using GitHub token from environment variable")
-	default:
-		l.Warn().Msg("GitHub token not provided, some features will be disabled and rate limits might be hit!")
+	err := setupToken(client, l)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup authentication: %w", err)
 	}
 
 	onPrimaryRateLimitHit := func(ctx *github_primary_ratelimit.CallbackContext) {
@@ -126,24 +158,41 @@ func NewClient(
 		l.Msg(RateLimitHitMsg)
 	}
 
+	var baseTransport http.RoundTripper = client.next
+	if baseTransport == nil {
+		baseTransport = http.DefaultTransport
+	}
+
+	// Build the transport chain: OAuth2 (if needed) -> Logging -> Base
+	var restTransport http.RoundTripper = clientRoundTripper("REST", l, baseTransport)
+	if client.tokenSource != nil {
+		restTransport = &oauth2.Transport{
+			Source: client.tokenSource,
+			Base:   restTransport,
+		}
+	}
+
+	// Create rate limiter with the transport chain
 	rateLimiter := github_ratelimit.NewClient(
-		clientRoundTripper("REST", l, client.next),
+		restTransport,
 		github_primary_ratelimit.WithLimitDetectedCallback(onPrimaryRateLimitHit),
 		github_secondary_ratelimit.WithLimitDetectedCallback(onSecondaryRateLimitHit),
 	)
 
 	client.Rest = github.NewClient(rateLimiter)
-	if client.token != "" {
-		client.Rest = client.Rest.WithAuthToken(client.token)
-	}
 
 	l = l.With().Str("base_url", client.Rest.BaseURL.String()).Logger()
 
-	src := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: client.token},
-	)
-	graphqlClient := oauth2.NewClient(context.Background(), src)
-	graphqlClient.Transport = clientRoundTripper("GraphQL", l, graphqlClient.Transport)
+	// Setup GraphQL client with the same transport pattern
+	var graphqlTransport http.RoundTripper = clientRoundTripper("GraphQL", l, nil)
+	if client.tokenSource != nil {
+		graphqlTransport = &oauth2.Transport{
+			Source: client.tokenSource,
+			Base:   graphqlTransport,
+		}
+	}
+
+	graphqlClient := &http.Client{Transport: graphqlTransport}
 
 	if client.BaseURL != nil {
 		client.GraphQL = gh_graphql.NewEnterpriseClient(client.BaseURL.String(), graphqlClient)
