@@ -284,7 +284,8 @@ func (s *Server) ReceiveWebhook(req *WebhookRequest) (*WebhookResponse, error) {
 
 	switch req.Endpoint {
 	case WebhookEndpointTrunk:
-		return nil, trunk.ReceiveWebhook(l, req.Payload)
+		// Pass nil for jiraClient and trunkClient for now - these can be injected in the future
+		return nil, trunk.ReceiveWebhook(l, req.Payload, nil, nil)
 	default:
 		return nil, fmt.Errorf("unknown webhook endpoint: %s", req.Endpoint)
 	}
