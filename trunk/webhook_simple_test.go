@@ -3,12 +3,6 @@ package trunk
 import (
 	"encoding/json"
 	"testing"
-
-	"github.com/smartcontractkit/branch-out/jira"
-	// TODO: can we get rid of these?
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTestCaseStatusChangedPayload_ParseRealPayload(t *testing.T) {
@@ -57,22 +51,50 @@ func TestTestCaseStatusChangedPayload_ParseRealPayload(t *testing.T) {
 
 	var payload TestCaseStatusChangedPayload
 	err := json.Unmarshal([]byte(payloadJSON), &payload)
-	require.NoError(t, err, "Should parse the real Trunk test_case.status_changed payload")
+	if err != nil {
+		t.Fatalf("Should parse the real Trunk test_case.status_changed payload: %v", err)
+	}
 
 	// Verify the parsed structure
-	assert.Equal(t, "flaky", payload.StatusChange.CurrentStatus.Value)
-	assert.Equal(t, "healthy", payload.StatusChange.PreviousStatus)
-	assert.Equal(t, "2bfedccc-7fda-442c-bcf9-5e01c6d046d3", payload.TestCase.ID)
-	assert.Equal(t, "DistributedLock #tryLock default throws on double unlock", payload.TestCase.Name)
-	assert.Equal(t, "trunk/services/__tests__/distributed_lock.test.js", payload.TestCase.FilePath)
-	assert.Equal(t, "@backend", payload.TestCase.Codeowners[0])
-	assert.Equal(t, 0.1, payload.TestCase.FailureRateLast7D)
-	assert.Equal(t, 42, payload.TestCase.PullRequestsImpactedLast7D)
-	assert.True(t, payload.TestCase.Quarantine)
-	assert.Equal(t, "https://github.com/trunk-io/analytics-cli", payload.TestCase.Repository.HTMLURL)
-	assert.Equal(t, "https://trunk-io.atlassian.net/browse/KAN-130", payload.TestCase.Ticket.HTMLURL)
-	assert.Equal(t, "DistributedLock", payload.TestCase.TestSuite)
-	assert.Equal(t, "linux-x86_64", payload.TestCase.Variant)
+	if payload.StatusChange.CurrentStatus.Value != "flaky" {
+		t.Errorf("Expected current status 'flaky', got '%s'", payload.StatusChange.CurrentStatus.Value)
+	}
+	if payload.StatusChange.PreviousStatus != "healthy" {
+		t.Errorf("Expected previous status 'healthy', got '%s'", payload.StatusChange.PreviousStatus)
+	}
+	if payload.TestCase.ID != "2bfedccc-7fda-442c-bcf9-5e01c6d046d3" {
+		t.Errorf("Expected test case ID '2bfedccc-7fda-442c-bcf9-5e01c6d046d3', got '%s'", payload.TestCase.ID)
+	}
+	if payload.TestCase.Name != "DistributedLock #tryLock default throws on double unlock" {
+		t.Errorf("Expected test name 'DistributedLock #tryLock default throws on double unlock', got '%s'", payload.TestCase.Name)
+	}
+	if payload.TestCase.FilePath != "trunk/services/__tests__/distributed_lock.test.js" {
+		t.Errorf("Expected file path 'trunk/services/__tests__/distributed_lock.test.js', got '%s'", payload.TestCase.FilePath)
+	}
+	if len(payload.TestCase.Codeowners) == 0 || payload.TestCase.Codeowners[0] != "@backend" {
+		t.Errorf("Expected first codeowner '@backend', got %v", payload.TestCase.Codeowners)
+	}
+	if payload.TestCase.FailureRateLast7D != 0.1 {
+		t.Errorf("Expected failure rate 0.1, got %f", payload.TestCase.FailureRateLast7D)
+	}
+	if payload.TestCase.PullRequestsImpactedLast7D != 42 {
+		t.Errorf("Expected 42 impacted PRs, got %d", payload.TestCase.PullRequestsImpactedLast7D)
+	}
+	if !payload.TestCase.Quarantine {
+		t.Error("Expected quarantine to be true")
+	}
+	if payload.TestCase.Repository.HTMLURL != "https://github.com/trunk-io/analytics-cli" {
+		t.Errorf("Expected repository URL 'https://github.com/trunk-io/analytics-cli', got '%s'", payload.TestCase.Repository.HTMLURL)
+	}
+	if payload.TestCase.Ticket.HTMLURL != "https://trunk-io.atlassian.net/browse/KAN-130" {
+		t.Errorf("Expected ticket URL 'https://trunk-io.atlassian.net/browse/KAN-130', got '%s'", payload.TestCase.Ticket.HTMLURL)
+	}
+	if payload.TestCase.TestSuite != "DistributedLock" {
+		t.Errorf("Expected test suite 'DistributedLock', got '%s'", payload.TestCase.TestSuite)
+	}
+	if payload.TestCase.Variant != "linux-x86_64" {
+		t.Errorf("Expected variant 'linux-x86_64', got '%s'", payload.TestCase.Variant)
+	}
 }
 
 func TestExtractRepoNameFromURL(t *testing.T) {
@@ -89,7 +111,9 @@ func TestExtractRepoNameFromURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.url, func(t *testing.T) {
 			result := extractRepoNameFromURL(tt.url)
-			assert.Equal(t, tt.expected, result)
+			if result != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
+			}
 		})
 	}
 }
@@ -108,7 +132,9 @@ func TestExtractDomainFromJiraURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.url, func(t *testing.T) {
 			result := extractDomainFromJiraURL(tt.url)
-			assert.Equal(t, tt.expected, result)
+			if result != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
+			}
 		})
 	}
 }
@@ -130,44 +156,12 @@ func TestExtractRepoInfoFromURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.url, func(t *testing.T) {
 			owner, repo := extractRepoInfoFromURL(tt.url)
-			assert.Equal(t, tt.expectedOwner, owner, "Owner mismatch")
-			assert.Equal(t, tt.expectedRepo, repo, "Repo name mismatch")
+			if owner != tt.expectedOwner {
+				t.Errorf("Owner mismatch: expected '%s', got '%s'", tt.expectedOwner, owner)
+			}
+			if repo != tt.expectedRepo {
+				t.Errorf("Repo name mismatch: expected '%s', got '%s'", tt.expectedRepo, repo)
+			}
 		})
 	}
-}
-
-// MockJiraClient is a mock implementation of the JiraClient interface
-type MockJiraClient struct {
-	mock.Mock
-}
-
-func (m *MockJiraClient) CreateFlakyTestTicket(req jira.FlakyTestTicketRequest) (*jira.JiraTicketResponse, error) {
-	args := m.Called(req)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*jira.JiraTicketResponse), args.Error(1)
-}
-
-func (m *MockJiraClient) GetTicketStatus(ticketKey string) (*jira.JiraTicketStatus, error) {
-	args := m.Called(ticketKey)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*jira.JiraTicketStatus), args.Error(1)
-}
-
-func (m *MockJiraClient) AddCommentToTicket(ticketKey string, comment string) error {
-	args := m.Called(ticketKey, comment)
-	return args.Error(0)
-}
-
-// MockTrunkClient is a mock implementation of the TrunkClient interface
-type MockTrunkClient struct {
-	mock.Mock
-}
-
-func (m *MockTrunkClient) LinkTicketToTestCase(testCaseID string, ticket *jira.JiraTicketResponse, repoURL string) error {
-	args := m.Called(testCaseID, ticket, repoURL)
-	return args.Error(0)
 }
