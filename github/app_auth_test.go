@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:paralleltest // Tests use environment variables and cannot be parallelized
 func TestGithubAppTokenSource(t *testing.T) {
 	// Load test private key
 	testPrivateKeyPath := "testdata/test_key.pem"
@@ -20,9 +21,11 @@ func TestGithubAppTokenSource(t *testing.T) {
 	t.Run("LoadGithubAppTokenSource", func(t *testing.T) {
 		t.Run("no_app_id", func(t *testing.T) {
 			// Clear environment
-			originalAppId := os.Getenv(AppIdEnvVar)
-			defer os.Setenv(AppIdEnvVar, originalAppId)
-			os.Unsetenv(AppIdEnvVar)
+			originalAppID := os.Getenv(AppIDEnvVar)
+			defer func() {
+				require.NoError(t, os.Setenv(AppIDEnvVar, originalAppID))
+			}()
+			require.NoError(t, os.Unsetenv(AppIDEnvVar))
 
 			tokenSource, err := LoadInstallationTokenSource()
 			require.NoError(t, err)
@@ -30,50 +33,52 @@ func TestGithubAppTokenSource(t *testing.T) {
 		})
 
 		t.Run("invalid_app_id", func(t *testing.T) {
-			originalAppId := os.Getenv(AppIdEnvVar)
-			defer os.Setenv(AppIdEnvVar, originalAppId)
+			originalAppID := os.Getenv(AppIDEnvVar)
+			defer func() {
+				require.NoError(t, os.Setenv(AppIDEnvVar, originalAppID))
+			}()
 
-			os.Setenv(AppIdEnvVar, "invalid")
+			require.NoError(t, os.Setenv(AppIDEnvVar, "invalid"))
 
 			tokenSource, err := LoadInstallationTokenSource()
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, tokenSource)
 			assert.Contains(t, err.Error(), "invalid GitHub App ID")
 		})
 
 		t.Run("missing_private_key", func(t *testing.T) {
-			originalAppId := os.Getenv(AppIdEnvVar)
+			originalAppID := os.Getenv(AppIDEnvVar)
 			originalPrivateKey := os.Getenv(PrivateKeyEnvVar)
 			originalPrivateKeyFile := os.Getenv(PrivateKeyFileEnvVar)
 			defer func() {
-				os.Setenv(AppIdEnvVar, originalAppId)
-				os.Setenv(PrivateKeyEnvVar, originalPrivateKey)
-				os.Setenv(PrivateKeyFileEnvVar, originalPrivateKeyFile)
+				require.NoError(t, os.Setenv(AppIDEnvVar, originalAppID))
+				require.NoError(t, os.Setenv(PrivateKeyEnvVar, originalPrivateKey))
+				require.NoError(t, os.Setenv(PrivateKeyFileEnvVar, originalPrivateKeyFile))
 			}()
 
-			os.Setenv(AppIdEnvVar, "12345")
-			os.Unsetenv(PrivateKeyEnvVar)
-			os.Unsetenv(PrivateKeyFileEnvVar)
+			require.NoError(t, os.Setenv(AppIDEnvVar, "12345"))
+			require.NoError(t, os.Unsetenv(PrivateKeyEnvVar))
+			require.NoError(t, os.Unsetenv(PrivateKeyFileEnvVar))
 
 			tokenSource, err := LoadInstallationTokenSource()
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, tokenSource)
 			assert.Contains(t, err.Error(), "GitHub App private key not found")
 		})
 
 		t.Run("private_key_from_env", func(t *testing.T) {
-			originalAppId := os.Getenv(AppIdEnvVar)
+			originalAppID := os.Getenv(AppIDEnvVar)
 			originalPrivateKey := os.Getenv(PrivateKeyEnvVar)
-			originalInstallationId := os.Getenv(InstallationIdEnvVar)
+			originalInstallationID := os.Getenv(InstallationIDEnvVar)
 			defer func() {
-				os.Setenv(AppIdEnvVar, originalAppId)
-				os.Setenv(PrivateKeyEnvVar, originalPrivateKey)
-				os.Setenv(InstallationIdEnvVar, originalInstallationId)
+				require.NoError(t, os.Setenv(AppIDEnvVar, originalAppID))
+				require.NoError(t, os.Setenv(PrivateKeyEnvVar, originalPrivateKey))
+				require.NoError(t, os.Setenv(InstallationIDEnvVar, originalInstallationID))
 			}()
 
-			os.Setenv(AppIdEnvVar, "12345")
-			os.Setenv(PrivateKeyEnvVar, testPrivateKey)
-			os.Setenv(InstallationIdEnvVar, "67890")
+			require.NoError(t, os.Setenv(AppIDEnvVar, "12345"))
+			require.NoError(t, os.Setenv(PrivateKeyEnvVar, testPrivateKey))
+			require.NoError(t, os.Setenv(InstallationIDEnvVar, "67890"))
 
 			tokenSource, err := LoadInstallationTokenSource()
 			require.NoError(t, err)
@@ -81,21 +86,21 @@ func TestGithubAppTokenSource(t *testing.T) {
 		})
 
 		t.Run("private_key_from_file", func(t *testing.T) {
-			originalAppId := os.Getenv(AppIdEnvVar)
+			originalAppID := os.Getenv(AppIDEnvVar)
 			originalPrivateKey := os.Getenv(PrivateKeyEnvVar)
 			originalPrivateKeyFile := os.Getenv(PrivateKeyFileEnvVar)
-			originalInstallationId := os.Getenv(InstallationIdEnvVar)
+			originalInstallationID := os.Getenv(InstallationIDEnvVar)
 			defer func() {
-				os.Setenv(AppIdEnvVar, originalAppId)
-				os.Setenv(PrivateKeyEnvVar, originalPrivateKey)
-				os.Setenv(PrivateKeyFileEnvVar, originalPrivateKeyFile)
-				os.Setenv(InstallationIdEnvVar, originalInstallationId)
+				require.NoError(t, os.Setenv(AppIDEnvVar, originalAppID))
+				require.NoError(t, os.Setenv(PrivateKeyEnvVar, originalPrivateKey))
+				require.NoError(t, os.Setenv(PrivateKeyFileEnvVar, originalPrivateKeyFile))
+				require.NoError(t, os.Setenv(InstallationIDEnvVar, originalInstallationID))
 			}()
 
-			os.Setenv(AppIdEnvVar, "12345")
-			os.Unsetenv(PrivateKeyEnvVar) // Ensure env var takes precedence
-			os.Setenv(PrivateKeyFileEnvVar, testPrivateKeyPath)
-			os.Setenv(InstallationIdEnvVar, "67890")
+			require.NoError(t, os.Setenv(AppIDEnvVar, "12345"))
+			require.NoError(t, os.Unsetenv(PrivateKeyEnvVar)) // Ensure env var takes precedence
+			require.NoError(t, os.Setenv(PrivateKeyFileEnvVar, testPrivateKeyPath))
+			require.NoError(t, os.Setenv(InstallationIDEnvVar, "67890"))
 
 			tokenSource, err := LoadInstallationTokenSource()
 			require.NoError(t, err)
@@ -103,41 +108,41 @@ func TestGithubAppTokenSource(t *testing.T) {
 		})
 
 		t.Run("missing_installation_id", func(t *testing.T) {
-			originalAppId := os.Getenv(AppIdEnvVar)
+			originalAppID := os.Getenv(AppIDEnvVar)
 			originalPrivateKey := os.Getenv(PrivateKeyEnvVar)
-			originalInstallationId := os.Getenv(InstallationIdEnvVar)
+			originalInstallationID := os.Getenv(InstallationIDEnvVar)
 			defer func() {
-				os.Setenv(AppIdEnvVar, originalAppId)
-				os.Setenv(PrivateKeyEnvVar, originalPrivateKey)
-				os.Setenv(InstallationIdEnvVar, originalInstallationId)
+				require.NoError(t, os.Setenv(AppIDEnvVar, originalAppID))
+				require.NoError(t, os.Setenv(PrivateKeyEnvVar, originalPrivateKey))
+				require.NoError(t, os.Setenv(InstallationIDEnvVar, originalInstallationID))
 			}()
 
-			os.Setenv(AppIdEnvVar, "12345")
-			os.Setenv(PrivateKeyEnvVar, testPrivateKey)
-			os.Unsetenv(InstallationIdEnvVar)
+			require.NoError(t, os.Setenv(AppIDEnvVar, "12345"))
+			require.NoError(t, os.Setenv(PrivateKeyEnvVar, testPrivateKey))
+			require.NoError(t, os.Unsetenv(InstallationIDEnvVar))
 
 			tokenSource, err := LoadInstallationTokenSource()
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, tokenSource)
 			assert.Contains(t, err.Error(), "GitHub Installation ID is required")
 		})
 
 		t.Run("invalid_installation_id", func(t *testing.T) {
-			originalAppId := os.Getenv(AppIdEnvVar)
+			originalAppID := os.Getenv(AppIDEnvVar)
 			originalPrivateKey := os.Getenv(PrivateKeyEnvVar)
-			originalInstallationId := os.Getenv(InstallationIdEnvVar)
+			originalInstallationID := os.Getenv(InstallationIDEnvVar)
 			defer func() {
-				os.Setenv(AppIdEnvVar, originalAppId)
-				os.Setenv(PrivateKeyEnvVar, originalPrivateKey)
-				os.Setenv(InstallationIdEnvVar, originalInstallationId)
+				require.NoError(t, os.Setenv(AppIDEnvVar, originalAppID))
+				require.NoError(t, os.Setenv(PrivateKeyEnvVar, originalPrivateKey))
+				require.NoError(t, os.Setenv(InstallationIDEnvVar, originalInstallationID))
 			}()
 
-			os.Setenv(AppIdEnvVar, "12345")
-			os.Setenv(PrivateKeyEnvVar, testPrivateKey)
-			os.Setenv(InstallationIdEnvVar, "invalid")
+			require.NoError(t, os.Setenv(AppIDEnvVar, "12345"))
+			require.NoError(t, os.Setenv(PrivateKeyEnvVar, testPrivateKey))
+			require.NoError(t, os.Setenv(InstallationIDEnvVar, "invalid"))
 
 			tokenSource, err := LoadInstallationTokenSource()
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, tokenSource)
 			assert.Contains(t, err.Error(), "invalid GitHub Installation ID")
 		})

@@ -385,51 +385,51 @@ func TestNewClientWithGitHubApp(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		appId          string
+		appID          string
 		privateKey     string
 		privateKeyFile string
 		token          string
 		envToken       string
-		installationId string
+		installationID string
 		expectError    bool
 	}{
 		{
 			name:           "github app with private key",
-			appId:          "12345",
+			appID:          "12345",
 			privateKey:     testPrivateKey,
-			installationId: "67890",
+			installationID: "67890",
 			expectError:    false,
 		},
 		{
 			name:           "github app with private key file",
-			appId:          "12345",
+			appID:          "12345",
 			privateKeyFile: "/tmp/test-private-key.pem",
-			installationId: "67890",
+			installationID: "67890",
 			expectError:    false,
 		},
 		{
 			name:        "invalid app id",
-			appId:       "invalid",
+			appID:       "invalid",
 			privateKey:  testPrivateKey,
 			expectError: true,
 		},
 		{
 			name:        "missing private key",
-			appId:       "12345",
+			appID:       "12345",
 			expectError: true,
 		},
 		{
 			name:        "token takes priority over app",
 			token:       "token-priority",
-			appId:       "12345",
+			appID:       "12345",
 			privateKey:  testPrivateKey,
 			expectError: false,
 		},
 		{
 			name:           "github app with installation",
-			appId:          "12345",
+			appID:          "12345",
 			privateKey:     testPrivateKey,
-			installationId: "67890",
+			installationID: "67890",
 			expectError:    false,
 		},
 	}
@@ -437,15 +437,17 @@ func TestNewClientWithGitHubApp(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Uses t.Setenv, so we can't run it in parallel.
-			t.Setenv(AppIdEnvVar, tt.appId)
+			t.Setenv(AppIDEnvVar, tt.appID)
 			t.Setenv(PrivateKeyEnvVar, tt.privateKey)
 			t.Setenv(TokenEnvVar, tt.envToken)
-			t.Setenv(InstallationIdEnvVar, tt.installationId)
+			t.Setenv(InstallationIDEnvVar, tt.installationID)
 
 			// Create private key file for test cases that need it
 			if tt.privateKeyFile != "" && tt.privateKey == "" {
 				require.NoError(t, os.WriteFile(tt.privateKeyFile, []byte(testPrivateKey), 0600))
-				defer os.Remove(tt.privateKeyFile)
+				defer func() {
+					require.NoError(t, os.Remove(tt.privateKeyFile))
+				}()
 				t.Setenv(PrivateKeyFileEnvVar, tt.privateKeyFile)
 			}
 
@@ -476,7 +478,7 @@ func TestNewClientWithGitHubApp(t *testing.T) {
 				token, err := client.tokenSource.Token()
 				require.NoError(t, err)
 				assert.Equal(t, tt.token, token.AccessToken, "expected token to match")
-			case tt.appId != "" && (tt.privateKey != "" || tt.privateKeyFile != ""):
+			case tt.appID != "" && (tt.privateKey != "" || tt.privateKeyFile != ""):
 				assert.NotNil(t, client.tokenSource, "expected token source to be set for GitHub App")
 			}
 		})

@@ -158,13 +158,13 @@ func NewClient(
 		l.Msg(RateLimitHitMsg)
 	}
 
-	var baseTransport http.RoundTripper = client.next
+	var baseTransport = client.next
 	if baseTransport == nil {
 		baseTransport = http.DefaultTransport
 	}
 
 	// Build the transport chain: OAuth2 (if needed) -> Logging -> Base
-	var restTransport http.RoundTripper = clientRoundTripper("REST", l, baseTransport)
+	var restTransport = clientRoundTripper("REST", l, baseTransport)
 	if client.tokenSource != nil {
 		restTransport = &oauth2.Transport{
 			Source: client.tokenSource,
@@ -184,7 +184,7 @@ func NewClient(
 	l = l.With().Str("base_url", client.Rest.BaseURL.String()).Logger()
 
 	// Setup GraphQL client with the same transport pattern
-	var graphqlTransport http.RoundTripper = clientRoundTripper("GraphQL", l, nil)
+	var graphqlTransport = clientRoundTripper("GraphQL", l, nil)
 	if client.tokenSource != nil {
 		graphqlTransport = &oauth2.Transport{
 			Source: client.tokenSource,
