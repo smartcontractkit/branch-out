@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	LogLevelEnvVar = "BRANCH_OUT_LOG_LEVEL"
+	logLevelEnvVar = "BRANCH_OUT_LOG_LEVEL"
 )
 
 // GetLogLevel returns the log level based on the input string or environment variable.
@@ -19,7 +19,7 @@ func getLogLevel(logLevelInput string) zerolog.Level {
 		return level
 	}
 
-	envLogLevel := os.Getenv(LogLevelEnvVar)
+	envLogLevel := os.Getenv(logLevelEnvVar)
 	if envLogLevel != "" {
 		level, err := zerolog.ParseLevel(logLevelInput)
 		if err == nil {
