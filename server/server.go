@@ -15,12 +15,13 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/smartcontractkit/branch-out/logging"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
 // Server is the HTTP server for the branch-out application.
 type Server struct {
+	Addr string
+
 	logger zerolog.Logger
 	port   int
 	server *http.Server
@@ -52,7 +53,7 @@ func WithPort(port int) Option {
 // defaultOptions returns the default options for the server.
 func defaultOptions() *options {
 	return &options{
-		logger: logging.MustNew(),
+		logger: zerolog.Nop(),
 		port:   0, // 0 means to use a random free port
 	}
 }
@@ -89,6 +90,7 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create listener: %w", err)
 	}
 	url = listener.Addr().String()
+	s.Addr = url
 
 	baseMux := http.NewServeMux()
 	baseMux.HandleFunc("/", indexHandler(s))

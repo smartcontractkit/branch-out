@@ -7,6 +7,7 @@ tool gotest.tools/gotestsum
 require (
 	github.com/charmbracelet/fang v0.2.0
 	github.com/go-git/go-git/v5 v5.16.2
+	github.com/go-resty/resty/v2 v2.16.5
 	github.com/gofri/go-github-ratelimit/v2 v2.0.2
 	github.com/google/go-github/v73 v73.0.0
 	github.com/rs/zerolog v1.34.0

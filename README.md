@@ -141,29 +141,10 @@ pre-commit install # Install our pre-commit scripts
 See the [Makefile](./Makefile) for helpful commands for local development.
 
 ```sh
-make build                # Build binaries, results placed in dist/
 make lint                 # Lint and format code
-
 make test                 # Run all tests
 make test_race            # Run all tests with race detection
 make test_short           # Run all `short` tests
 make test_integration     # Only run Integration tests
 make test_example_project # Run example tests in the example_project directory
-
-```
-
-## Examples
-
-### Jira Integration Example
-
-```shell
-# Run the Jira example
-go run examples/jira/main.go
-```
-
-### Trunk.io Integration Example
-
-```shell
-# Run the Trunk example
-go run examples/trunk/main.go
 ```
