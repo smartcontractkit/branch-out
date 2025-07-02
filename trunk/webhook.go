@@ -6,11 +6,12 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog"
+
 	"github.com/smartcontractkit/branch-out/jira"
 )
 
 // ReceiveWebhook processes a Trunk webhook with optional Jira and Trunk.io integration
-func ReceiveWebhook(l zerolog.Logger, payload []byte, jiraClient jira.JiraClient, trunkClient TrunkClient) error {
+func ReceiveWebhook(l zerolog.Logger, payload []byte, jiraClient jira.Interface, trunkClient Interface) error {
 	l.Info().Msg("Received trunk webhook")
 	var webhookData TestCaseStatusChangedPayload
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
@@ -22,7 +23,12 @@ func ReceiveWebhook(l zerolog.Logger, payload []byte, jiraClient jira.JiraClient
 }
 
 // handleTestCaseStatusChanged processes test_case.status_changed events
-func handleTestCaseStatusChanged(l zerolog.Logger, webhookData TestCaseStatusChangedPayload, jiraClient jira.JiraClient, trunkClient TrunkClient) error {
+func handleTestCaseStatusChanged(
+	l zerolog.Logger,
+	webhookData TestCaseStatusChangedPayload,
+	jiraClient jira.Interface,
+	trunkClient Interface,
+) error {
 	l.Info().Msg("Processing test_case.status_changed event")
 
 	testCase := webhookData.TestCase
@@ -42,17 +48,21 @@ func handleTestCaseStatusChanged(l zerolog.Logger, webhookData TestCaseStatusCha
 		if testCase.Ticket.HTMLURL == "" {
 			// No existing ticket, create a new one
 			return createJiraTicketForFlakyTest(l, webhookData, jiraClient, trunkClient)
-		} else {
-			// Existing ticket found, check its status
-			return handleExistingTicketForFlakyTest(l, webhookData, jiraClient, trunkClient)
 		}
+		// Existing ticket found, check its status
+		return handleExistingTicketForFlakyTest(l, webhookData, jiraClient, trunkClient)
 	}
 
 	return nil
 }
 
 // createJiraTicketForFlakyTest creates a Jira ticket for a flaky test
-func createJiraTicketForFlakyTest(l zerolog.Logger, webhookData TestCaseStatusChangedPayload, jiraClient jira.JiraClient, trunkClient TrunkClient) error {
+func createJiraTicketForFlakyTest(
+	l zerolog.Logger,
+	webhookData TestCaseStatusChangedPayload,
+	jiraClient jira.Interface,
+	trunkClient Interface,
+) error {
 	testCase := webhookData.TestCase
 
 	// Extract repo name from the HTML URL
@@ -114,7 +124,12 @@ func createJiraTicketForFlakyTest(l zerolog.Logger, webhookData TestCaseStatusCh
 }
 
 // handleExistingTicketForFlakyTest handles the case where a test already has a linked Jira ticket
-func handleExistingTicketForFlakyTest(l zerolog.Logger, webhookData TestCaseStatusChangedPayload, jiraClient jira.JiraClient, trunkClient TrunkClient) error {
+func handleExistingTicketForFlakyTest(
+	l zerolog.Logger,
+	webhookData TestCaseStatusChangedPayload,
+	jiraClient jira.Interface,
+	trunkClient Interface,
+) error {
 	testCase := webhookData.TestCase
 	ticketURL := testCase.Ticket.HTMLURL
 
@@ -143,19 +158,24 @@ func handleExistingTicketForFlakyTest(l zerolog.Logger, webhookData TestCaseStat
 
 		// Create a new ticket since the old one is closed
 		return createJiraTicketForFlakyTest(l, webhookData, jiraClient, trunkClient)
-	} else {
-		l.Info().
-			Str("ticket_key", ticketKey).
-			Str("status", ticketStatus.Fields.Status.Name).
-			Msg("Existing ticket is still open, adding comment with latest flaky test info")
 
-		// Add a comment to the existing ticket with new information
-		return addFlakyTestUpdateComment(l, webhookData, jiraClient, ticketKey)
 	}
+	l.Info().
+		Str("ticket_key", ticketKey).
+		Str("status", ticketStatus.Fields.Status.Name).
+		Msg("Existing ticket is still open, adding comment with latest flaky test info")
+
+	// Add a comment to the existing ticket with new information
+	return addFlakyTestUpdateComment(l, webhookData, jiraClient, ticketKey)
 }
 
 // addFlakyTestUpdateComment adds a comment to an existing Jira ticket with updated flaky test information
-func addFlakyTestUpdateComment(l zerolog.Logger, webhookData TestCaseStatusChangedPayload, jiraClient jira.JiraClient, ticketKey string) error {
+func addFlakyTestUpdateComment(
+	l zerolog.Logger,
+	webhookData TestCaseStatusChangedPayload,
+	jiraClient jira.Interface,
+	ticketKey string,
+) error {
 	testCase := webhookData.TestCase
 
 	// Create a comment with the latest information
@@ -246,4 +266,3 @@ func extractRepoInfoFromURL(url string) (owner, repoName string) {
 	}
 	return "unknown", "unknown" // Fallback if parsing fails
 }
-

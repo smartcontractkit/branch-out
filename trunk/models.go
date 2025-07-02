@@ -169,16 +169,16 @@ type TestCaseStatusChangedPayload struct {
 	TestCase TestCase `json:"test_case"` // Reuse the existing TestCase struct
 }
 
-// TrunkLinkTicketRequest represents the request to link a Jira ticket to a test case in Trunk.io
+// LinkTicketRequest represents the request to link a Jira ticket to a test case in Trunk.io
 // See: https://docs.trunk.io/references/apis/flaky-tests#post-flaky-tests-link-ticket-to-test-case
-type TrunkLinkTicketRequest struct {
-	TestCaseID       string             `json:"test_case_id"`
-	ExternalTicketID string             `json:"external_ticket_id"`
-	Repo             TrunkRepoReference `json:"repo"`
+type LinkTicketRequest struct {
+	TestCaseID       string        `json:"test_case_id"`
+	ExternalTicketID string        `json:"external_ticket_id"`
+	Repo             RepoReference `json:"repo"`
 }
 
-// TrunkRepoReference represents the repository information for Trunk.io API
-type TrunkRepoReference struct {
+// RepoReference represents the repository information for Trunk.io API
+type RepoReference struct {
 	Host  string `json:"host"`
 	Owner string `json:"owner"`
 	Name  string `json:"name"`

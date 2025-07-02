@@ -25,8 +25,8 @@ type FlakyTestTicketRequest struct {
 	Details         string `json:"details"`  // JSON string with additional details (trunk Payload for example)
 }
 
-// JiraConfig holds the configuration for Jira API client
-type JiraConfig struct {
+// Config holds the configuration for Jira API client
+type Config struct {
 	BaseURL    string
 	ProjectKey string
 
@@ -41,10 +41,10 @@ type JiraConfig struct {
 	APIToken string
 }
 
-// JiraClient interface for interacting with Jira API (for testability)
-type JiraClient interface {
-	CreateFlakyTestTicket(req FlakyTestTicketRequest) (*JiraTicketResponse, error)
-	GetTicketStatus(ticketKey string) (*JiraTicketStatus, error)
+// Interface for interacting with Jira API (for testability)
+type Interface interface {
+	CreateFlakyTestTicket(req FlakyTestTicketRequest) (*TicketResponse, error)
+	GetTicketStatus(ticketKey string) (*TicketStatus, error)
 	AddCommentToTicket(ticketKey string, comment string) error
 }
 
@@ -53,22 +53,22 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// Client implements JiraClient interface
+// Client implements Interface
 type Client struct {
-	config     JiraConfig
+	config     Config
 	httpClient HTTPClient
 	logger     zerolog.Logger
 }
 
-// JiraTicketResponse represents the response from Jira when creating a ticket
-type JiraTicketResponse struct {
+// TicketResponse represents the response from Jira when creating a ticket
+type TicketResponse struct {
 	ID   string `json:"id"`
 	Key  string `json:"key"`
 	Self string `json:"self"`
 }
 
-// JiraTicketStatus represents the status information of a Jira ticket
-type JiraTicketStatus struct {
+// TicketStatus represents the status information of a Jira ticket
+type TicketStatus struct {
 	Key    string `json:"key"`
 	Status struct {
 		Name       string `json:"name"`
@@ -86,7 +86,7 @@ type JiraTicketStatus struct {
 }
 
 // IsResolved returns true if the ticket is in a resolved/closed state
-func (jts *JiraTicketStatus) IsResolved() bool {
+func (jts *TicketStatus) IsResolved() bool {
 	// Common resolved status categories in Jira
 	resolvedCategories := []string{"done", "complete", "resolved", "closed"}
 	statusCategory := strings.ToLower(jts.Fields.Status.StatusCategory.Key)
@@ -99,27 +99,27 @@ func (jts *JiraTicketStatus) IsResolved() bool {
 	return false
 }
 
-// JiraCreateIssueRequest represents the request body for creating a Jira issue
-type JiraCreateIssueRequest struct {
-	Fields JiraIssueFields `json:"fields"`
+// CreateIssueRequest represents the request body for creating a Jira issue.
+type CreateIssueRequest struct {
+	Fields IssueFields `json:"fields"`
 }
 
-// JiraIssueFields represents the fields for a Jira issue
-type JiraIssueFields struct {
-	Project     JiraProject   `json:"project"`
-	Summary     string        `json:"summary"`
-	Description string        `json:"description"`
-	IssueType   JiraIssueType `json:"issuetype"`
-	Labels      []string      `json:"labels"`
+// IssueFields represents the fields for a Jira issue
+type IssueFields struct {
+	Project     Project   `json:"project"`
+	Summary     string    `json:"summary"`
+	Description string    `json:"description"`
+	IssueType   IssueType `json:"issuetype"`
+	Labels      []string  `json:"labels"`
 }
 
-// JiraProject represents a Jira project
-type JiraProject struct {
+// Project represents a Jira project
+type Project struct {
 	Key string `json:"key"`
 }
 
-// JiraIssueType represents a Jira issue type
-type JiraIssueType struct {
+// IssueType represents a Jira issue type
+type IssueType struct {
 	Name string `json:"name"`
 }
 
@@ -132,7 +132,7 @@ func NewClient(logger zerolog.Logger, projectKey string) (*Client, error) {
 
 	baseURL := "https://" + baseDomain
 
-	config := JiraConfig{
+	config := Config{
 		BaseURL:    baseURL,
 		ProjectKey: projectKey,
 		// OAuth creds.
@@ -154,7 +154,9 @@ func NewClient(logger zerolog.Logger, projectKey string) (*Client, error) {
 	hasBasicAuth := config.Username != "" && config.APIToken != ""
 
 	if !hasOAuth && !hasBasicAuth {
-		return nil, fmt.Errorf("either OAuth credentials (JIRA_OAUTH_CLIENT_ID, JIRA_OAUTH_CLIENT_SECRET, JIRA_OAUTH_ACCESS_TOKEN) or basic auth credentials (JIRA_USERNAME, JIRA_API_TOKEN) are required")
+		return nil, fmt.Errorf(
+			"either OAuth credentials (JIRA_OAUTH_CLIENT_ID, JIRA_OAUTH_CLIENT_SECRET, JIRA_OAUTH_ACCESS_TOKEN) or basic auth credentials (JIRA_USERNAME, JIRA_API_TOKEN) are required",
+		)
 	}
 
 	// Ensure BaseURL doesn't have trailing slash
@@ -190,7 +192,7 @@ func NewClient(logger zerolog.Logger, projectKey string) (*Client, error) {
 }
 
 // NewClientWithHTTPClient creates a new Jira client with a custom HTTP client (for testing)
-func NewClientWithHTTPClient(config JiraConfig, httpClient HTTPClient, logger zerolog.Logger) *Client {
+func NewClientWithHTTPClient(config Config, httpClient HTTPClient, logger zerolog.Logger) *Client {
 	return &Client{
 		config:     config,
 		httpClient: httpClient,
@@ -199,7 +201,7 @@ func NewClientWithHTTPClient(config JiraConfig, httpClient HTTPClient, logger ze
 }
 
 // CreateFlakyTestTicket creates a new Jira ticket for a flaky test
-func (c *Client) CreateFlakyTestTicket(req FlakyTestTicketRequest) (*JiraTicketResponse, error) {
+func (c *Client) CreateFlakyTestTicket(req FlakyTestTicketRequest) (*TicketResponse, error) {
 	c.logger.Info().
 		Str("repo_name", req.RepoName).
 		Str("test_package", req.TestPackageName).
@@ -230,14 +232,14 @@ This ticket was automatically created by the branch-out system to track a flaky 
 		req.Details)
 
 	// Create the Jira issue request
-	jiraReq := JiraCreateIssueRequest{
-		Fields: JiraIssueFields{
-			Project: JiraProject{
+	jiraReq := CreateIssueRequest{
+		Fields: IssueFields{
+			Project: Project{
 				Key: c.config.ProjectKey,
 			},
 			Summary:     summary,
 			Description: description,
-			IssueType: JiraIssueType{
+			IssueType: IssueType{
 				Name: "Bug", // Default to Bug, could be configurable
 			},
 			Labels: []string{"flaky-test", "automated", "branch-out"},
@@ -264,10 +266,7 @@ This ticket was automatically created by the branch-out system to track a flaky 
 	httpReq.Header.Set("Accept", "application/json")
 
 	// Set authentication based on available credentials
-	if c.IsOAuthEnabled() {
-		// OAuth authentication - the OAuth client will handle the Authorization header
-		// No need to set it manually as the oauth2.Client handles this
-	} else if c.config.Username != "" && c.config.APIToken != "" {
+	if c.config.Username != "" && c.config.APIToken != "" {
 		// Fallback to basic auth
 		httpReq.SetBasicAuth(c.config.Username, c.config.APIToken)
 	} else {
@@ -281,7 +280,11 @@ This ticket was automatically created by the branch-out system to track a flaky 
 		c.logger.Error().Err(err).Msg("Failed to make HTTP request to Jira")
 		return nil, fmt.Errorf("failed to make HTTP request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Error().Err(closeErr).Msg("Failed to close response body")
+		}
+	}()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
@@ -296,11 +299,11 @@ This ticket was automatically created by the branch-out system to track a flaky 
 			Int("status_code", resp.StatusCode).
 			Str("response_body", string(body)).
 			Msg("Jira API returned error")
-		return nil, fmt.Errorf("Jira API error (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
-	var jiraResp JiraTicketResponse
+	var jiraResp TicketResponse
 	if err := json.Unmarshal(body, &jiraResp); err != nil {
 		c.logger.Error().Err(err).Str("response_body", string(body)).Msg("Failed to unmarshal Jira response")
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
@@ -315,7 +318,7 @@ This ticket was automatically created by the branch-out system to track a flaky 
 }
 
 // GetTicketStatus retrieves the current status of a Jira ticket
-func (c *Client) GetTicketStatus(ticketKey string) (*JiraTicketStatus, error) {
+func (c *Client) GetTicketStatus(ticketKey string) (*TicketStatus, error) {
 	c.logger.Info().Str("ticket_key", ticketKey).Msg("Getting Jira ticket status")
 
 	// Create the API URL
@@ -332,9 +335,7 @@ func (c *Client) GetTicketStatus(ticketKey string) (*JiraTicketStatus, error) {
 	httpReq.Header.Set("Accept", "application/json")
 
 	// Set authentication
-	if c.IsOAuthEnabled() {
-		// OAuth authentication handled by oauth2.Client
-	} else if c.config.Username != "" && c.config.APIToken != "" {
+	if c.config.Username != "" && c.config.APIToken != "" {
 		httpReq.SetBasicAuth(c.config.Username, c.config.APIToken)
 	} else {
 		c.logger.Error().Msg("No valid authentication credentials available")
@@ -347,7 +348,11 @@ func (c *Client) GetTicketStatus(ticketKey string) (*JiraTicketStatus, error) {
 		c.logger.Error().Err(err).Msg("Failed to make HTTP request to get ticket status")
 		return nil, fmt.Errorf("failed to make HTTP request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Error().Err(closeErr).Msg("Failed to close response body")
+		}
+	}()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
@@ -362,11 +367,11 @@ func (c *Client) GetTicketStatus(ticketKey string) (*JiraTicketStatus, error) {
 			Int("status_code", resp.StatusCode).
 			Str("response_body", string(body)).
 			Msg("Jira API returned error when getting ticket status")
-		return nil, fmt.Errorf("Jira API error (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
-	var ticketStatus JiraTicketStatus
+	var ticketStatus TicketStatus
 	if err := json.Unmarshal(body, &ticketStatus); err != nil {
 		c.logger.Error().Err(err).Str("response_body", string(body)).Msg("Failed to unmarshal ticket status response")
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
@@ -412,9 +417,7 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 	httpReq.Header.Set("Accept", "application/json")
 
 	// Set authentication
-	if c.IsOAuthEnabled() {
-		// OAuth authentication handled by oauth2.Client
-	} else if c.config.Username != "" && c.config.APIToken != "" {
+	if c.config.Username != "" && c.config.APIToken != "" {
 		httpReq.SetBasicAuth(c.config.Username, c.config.APIToken)
 	} else {
 		c.logger.Error().Msg("No valid authentication credentials available")
@@ -427,7 +430,11 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 		c.logger.Error().Err(err).Msg("Failed to make HTTP request to add comment")
 		return fmt.Errorf("failed to make HTTP request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Error().Err(closeErr).Msg("Failed to close response body")
+		}
+	}()
 
 	// Read response body for error details
 	body, err := io.ReadAll(resp.Body)
@@ -442,7 +449,7 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 			Int("status_code", resp.StatusCode).
 			Str("response_body", string(body)).
 			Msg("Jira API returned error when adding comment")
-		return fmt.Errorf("Jira API error (status %d): %s", resp.StatusCode, string(body))
+		return fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	c.logger.Info().

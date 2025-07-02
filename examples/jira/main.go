@@ -1,3 +1,5 @@
+// Package main demonstrates how to create and use a Jira client for creating tickets.
+// This example shows both OAuth and Basic Auth configurations.
 package main
 
 import (
@@ -5,6 +7,7 @@ import (
 	"os"
 
 	"github.com/rs/zerolog"
+
 	"github.com/smartcontractkit/branch-out/jira"
 )
 

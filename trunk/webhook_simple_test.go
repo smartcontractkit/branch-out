@@ -6,6 +6,7 @@ import (
 )
 
 func TestTestCaseStatusChangedPayload_ParseRealPayload(t *testing.T) {
+	t.Parallel()
 	payloadJSON := `{
 		"status_change": {
 			"current_status": {
@@ -66,10 +67,16 @@ func TestTestCaseStatusChangedPayload_ParseRealPayload(t *testing.T) {
 		t.Errorf("Expected test case ID '2bfedccc-7fda-442c-bcf9-5e01c6d046d3', got '%s'", payload.TestCase.ID)
 	}
 	if payload.TestCase.Name != "DistributedLock #tryLock default throws on double unlock" {
-		t.Errorf("Expected test name 'DistributedLock #tryLock default throws on double unlock', got '%s'", payload.TestCase.Name)
+		t.Errorf(
+			"Expected test name 'DistributedLock #tryLock default throws on double unlock', got '%s'",
+			payload.TestCase.Name,
+		)
 	}
 	if payload.TestCase.FilePath != "trunk/services/__tests__/distributed_lock.test.js" {
-		t.Errorf("Expected file path 'trunk/services/__tests__/distributed_lock.test.js', got '%s'", payload.TestCase.FilePath)
+		t.Errorf(
+			"Expected file path 'trunk/services/__tests__/distributed_lock.test.js', got '%s'",
+			payload.TestCase.FilePath,
+		)
 	}
 	if len(payload.TestCase.Codeowners) == 0 || payload.TestCase.Codeowners[0] != "@backend" {
 		t.Errorf("Expected first codeowner '@backend', got %v", payload.TestCase.Codeowners)
@@ -84,10 +91,16 @@ func TestTestCaseStatusChangedPayload_ParseRealPayload(t *testing.T) {
 		t.Error("Expected quarantine to be true")
 	}
 	if payload.TestCase.Repository.HTMLURL != "https://github.com/trunk-io/analytics-cli" {
-		t.Errorf("Expected repository URL 'https://github.com/trunk-io/analytics-cli', got '%s'", payload.TestCase.Repository.HTMLURL)
+		t.Errorf(
+			"Expected repository URL 'https://github.com/trunk-io/analytics-cli', got '%s'",
+			payload.TestCase.Repository.HTMLURL,
+		)
 	}
 	if payload.TestCase.Ticket.HTMLURL != "https://trunk-io.atlassian.net/browse/KAN-130" {
-		t.Errorf("Expected ticket URL 'https://trunk-io.atlassian.net/browse/KAN-130', got '%s'", payload.TestCase.Ticket.HTMLURL)
+		t.Errorf(
+			"Expected ticket URL 'https://trunk-io.atlassian.net/browse/KAN-130', got '%s'",
+			payload.TestCase.Ticket.HTMLURL,
+		)
 	}
 	if payload.TestCase.TestSuite != "DistributedLock" {
 		t.Errorf("Expected test suite 'DistributedLock', got '%s'", payload.TestCase.TestSuite)
@@ -98,6 +111,7 @@ func TestTestCaseStatusChangedPayload_ParseRealPayload(t *testing.T) {
 }
 
 func TestExtractRepoNameFromURL(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		url      string
 		expected string
@@ -110,6 +124,7 @@ func TestExtractRepoNameFromURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.url, func(t *testing.T) {
+			t.Parallel()
 			result := extractRepoNameFromURL(tt.url)
 			if result != tt.expected {
 				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
@@ -119,6 +134,7 @@ func TestExtractRepoNameFromURL(t *testing.T) {
 }
 
 func TestExtractDomainFromJiraURL(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		url      string
 		expected string
@@ -131,6 +147,7 @@ func TestExtractDomainFromJiraURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.url, func(t *testing.T) {
+			t.Parallel()
 			result := extractDomainFromJiraURL(tt.url)
 			if result != tt.expected {
 				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
@@ -140,6 +157,7 @@ func TestExtractDomainFromJiraURL(t *testing.T) {
 }
 
 func TestExtractRepoInfoFromURL(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		url           string
 		expectedOwner string
@@ -155,6 +173,7 @@ func TestExtractRepoInfoFromURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.url, func(t *testing.T) {
+			t.Parallel()
 			owner, repo := extractRepoInfoFromURL(tt.url)
 			if owner != tt.expectedOwner {
 				t.Errorf("Owner mismatch: expected '%s', got '%s'", tt.expectedOwner, owner)
