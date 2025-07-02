@@ -41,11 +41,11 @@ var root = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		serverOpts := []server.Option{
+		srv := server.New(
 			server.WithLogger(logger),
 			server.WithPort(port),
-		}
-		srv := server.New(serverOpts...)
+			server.WithVersion(Version()),
+		)
 		err := srv.Start(cmd.Context())
 		if err != nil {
 			logger.Error().Err(err).Msg("Server failure")
@@ -65,7 +65,7 @@ func init() {
 
 // Execute is the entry point for the CLI.
 func Execute() {
-	if err := fang.Execute(context.Background(), root, fang.WithVersion(versionString)); err != nil {
+	if err := fang.Execute(context.Background(), root, fang.WithVersion(Version())); err != nil {
 		os.Exit(1)
 	}
 }

@@ -11,15 +11,16 @@ var (
 	version   = "dev"
 	commit    = "dev"
 	buildTime = time.Now().Format("2006-01-02T15:04:05.000")
-	builtBy   = "local"
 	builtWith = runtime.Version()
+)
 
-	versionString = fmt.Sprintf(
-		"version: %s\ncommit: %s\nbuild time: %s\nbuilt by: %s\nbuilt with: %s",
+// Version returns the version of the application.
+func Version() string {
+	return fmt.Sprintf(
+		"version: %s\ncommit: %s\nbuild time: %s\nbuilt with: %s",
 		version,
 		commit,
 		buildTime,
-		builtBy,
 		builtWith,
 	)
-)
+}

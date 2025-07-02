@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -21,15 +22,19 @@ import (
 // Server is the HTTP server for the branch-out application.
 type Server struct {
 	Addr string
+	Port int
 
-	logger zerolog.Logger
-	port   int
-	server *http.Server
+	logger  zerolog.Logger
+	server  *http.Server
+	version string
+
+	started atomic.Bool
 }
 
 type options struct {
-	logger zerolog.Logger
-	port   int
+	logger  zerolog.Logger
+	port    int
+	version string
 }
 
 // Option is a functional option that configures the server.
@@ -50,11 +55,20 @@ func WithPort(port int) Option {
 	}
 }
 
+// WithVersion sets the version information for the server.
+// Should only be set by the main package.
+func WithVersion(version string) Option {
+	return func(opts *options) {
+		opts.version = version
+	}
+}
+
 // defaultOptions returns the default options for the server.
 func defaultOptions() *options {
 	return &options{
-		logger: zerolog.Nop(),
-		port:   0, // 0 means to use a random free port
+		logger:  zerolog.Nop(),
+		port:    0, // 0 means to use a random free port
+		version: "unknown",
 	}
 }
 
@@ -66,8 +80,9 @@ func New(options ...Option) *Server {
 	}
 
 	return &Server{
-		logger: opts.logger,
-		port:   opts.port,
+		logger:  opts.logger,
+		Port:    opts.port,
+		version: opts.version,
 	}
 }
 
@@ -85,12 +100,16 @@ func (s *Server) Start(ctx context.Context) error {
 		url      string
 	)
 
-	listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.port))
+	listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.Port))
 	if err != nil {
 		return fmt.Errorf("failed to create listener: %w", err)
 	}
 	url = listener.Addr().String()
 	s.Addr = url
+
+	// Get the port from the listener
+	port := listener.Addr().(*net.TCPAddr).Port
+	s.Port = port
 
 	baseMux := http.NewServeMux()
 	baseMux.HandleFunc("/", indexHandler(s))
@@ -108,6 +127,9 @@ func (s *Server) Start(ctx context.Context) error {
 		Addr:    url,
 		Handler: handler,
 	}
+	s.server.RegisterOnShutdown(func() {
+		s.started.Store(false)
+	})
 
 	// Listen for OS signals to shutdown the server
 	sigChan := make(chan os.Signal, 1)
@@ -117,11 +139,11 @@ func (s *Server) Start(ctx context.Context) error {
 	serverErrChan := make(chan error, 1)
 	go func() {
 		s.logger.Info().
-			Int("port", s.port).
-			Str("addr", s.server.Addr).
-			Str("url", url).
+			Int("port", s.Port).
+			Str("addr", s.Addr).
 			Msg("Server listening for requests")
 		fmt.Println("Listening on", url)
+		s.started.Store(true)
 		serverErr := s.server.Serve(listener)
 		if serverErr != nil && serverErr != http.ErrServerClosed {
 			serverErrChan <- serverErr
@@ -137,7 +159,7 @@ func (s *Server) Start(ctx context.Context) error {
 	case sig := <-sigChan:
 		s.logger.Warn().Str("signal", sig.String()).Msg("Received shutdown signal")
 	case <-ctx.Done():
-		s.logger.Warn().Msg("Context cancelled, shutting down")
+		s.logger.Warn().Msg("Context cancelled, server shutting down")
 	}
 
 	return s.shutdown()
@@ -145,11 +167,22 @@ func (s *Server) Start(ctx context.Context) error {
 
 // WaitHealthy blocks until the server is healthy or the context is done.
 func (s *Server) WaitHealthy(ctx context.Context) error {
+	health, err := s.Health()
+	if err != nil {
+		return err
+	}
+	if health.Status == "healthy" {
+		return nil
+	}
+
+	timer := time.NewTicker(10 * time.Millisecond)
+	defer timer.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
+		case <-timer.C:
 			health, err := s.Health()
 			if err != nil {
 				return err
@@ -198,15 +231,21 @@ type HealthResponse struct {
 
 // Health checks the health of the server and returns health status.
 func (s *Server) Health() (HealthResponse, error) {
-	s.logger.Debug().Msg("Health check requested")
-
-	// You can add additional health checks here
-	// For example: database connectivity, external service status, etc.
+	// Add additional health checks here as relevant.
+	if !s.started.Load() {
+		s.logger.Debug().Msg("Server unhealthy")
+		return HealthResponse{
+			Status:    "unhealthy",
+			Timestamp: time.Now(),
+		}, nil
+	}
 
 	response := HealthResponse{
 		Status:    "healthy",
 		Timestamp: time.Now(),
 	}
+
+	s.logger.Debug().Str("status", response.Status).Msg("Sever healthy")
 
 	return response, nil
 }
@@ -255,8 +294,8 @@ func (s *Server) ReceiveWebhook(req *WebhookRequest) (*WebhookResponse, error) {
 func indexHandler(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		info := map[string]any{
-			"service":     "Branch-Out",
-			"description": "Trunk.io Integration Service",
+			"description": "branch-out",
+			"version":     s.version,
 		}
 
 		w.Header().Set("Content-Type", "application/json")

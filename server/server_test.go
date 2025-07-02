@@ -70,27 +70,29 @@ func TestServer_Handlers(t *testing.T) {
 	err := server.WaitHealthy(context.Background())
 	require.NoError(t, err, "server did not become healthy")
 
-	client := resty.New().SetBaseURL(fmt.Sprintf("http://%s", server.Addr))
+	baseURL := fmt.Sprintf("http://%s", server.Addr)
+	t.Log("baseURL", baseURL)
+
+	client := resty.New().SetBaseURL(baseURL)
 	require.NotNil(t, client)
 
 	tests := []struct {
-		name         string
 		endpoint     string
 		method       string
 		expectedCode int
 		expectedBody string
 	}{
-		{name: "index", endpoint: "/", method: http.MethodGet, expectedCode: http.StatusOK, expectedBody: "Branch-Out"},
+		{endpoint: "/", method: http.MethodGet, expectedCode: http.StatusOK, expectedBody: "Branch-Out"},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s %s", test.method, test.endpoint), func(t *testing.T) {
 			t.Parallel()
 
 			resp, err := client.R().
 				SetResult(&map[string]any{}).
 				Execute(test.method, test.endpoint)
-			require.NoError(t, err, "error calling server, %s %s", test.method, test.endpoint)
+			require.NoError(t, err, "error calling server %s %s", test.method, resp.Request.URL)
 			require.Equal(t, test.expectedCode, resp.StatusCode())
 			require.Equal(t, test.expectedBody, resp.String())
 		})
