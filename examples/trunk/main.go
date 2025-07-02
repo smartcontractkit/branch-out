@@ -1,3 +1,5 @@
+// Package main demonstrates how to integrate with Trunk.io API for linking
+// Jira tickets to test cases and updating test case status.
 package main
 
 import (
@@ -6,6 +8,7 @@ import (
 	"os"
 
 	"github.com/rs/zerolog"
+
 	"github.com/smartcontractkit/branch-out/jira"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
@@ -37,7 +40,7 @@ export TRUNK_API_TOKEN="your-trunk-api-token"`)
 
 	// Example: Link a ticket to a test case
 	// This would typically happen after creating a Jira ticket
-	exampleTicket := &jira.JiraTicketResponse{
+	exampleTicket := &jira.TicketResponse{
 		ID:   "12345",
 		Key:  "EXAMPLE-123",
 		Self: "https://your-company.atlassian.net/rest/api/2/issue/12345",
