@@ -13,14 +13,17 @@ import (
 	"github.com/smartcontractkit/branch-out/server"
 )
 
+// DefaultPort is the default port for the server to listen on.
+const DefaultPort = 8181
+
 var (
 	logger zerolog.Logger
 
 	githubToken string
 	logLevel    string
 
-	webhookURL string
-	port       int
+	port         int
+	enableTunnel bool
 )
 
 // root is the root command for the CLI.
@@ -39,14 +42,13 @@ var root = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
-
-		server := server.New(
+		serverOpts := []server.Option{
 			server.WithLogger(logger),
-			server.WithWebhookURL(webhookURL),
 			server.WithPort(port),
-		)
-
-		return server.Start(cmd.Context())
+			server.WithTunnel(enableTunnel),
+		}
+		srv := server.New(serverOpts...)
+		return srv.Start(cmd.Context())
 	},
 }
 
@@ -56,8 +58,9 @@ func init() {
 	root.PersistentFlags().
 		StringVarP(&logLevel, "log-level", "l", "info", "The log level to use (error, warn, info, debug, trace, disabled)")
 
-	root.Flags().StringVarP(&webhookURL, "webhook-url", "w", "", "The URL to receive webhooks from Trunk.io")
-	root.Flags().IntVarP(&port, "port", "p", 8080, "The port for the server to listen on")
+	root.Flags().IntVarP(&port, "port", "p", DefaultPort, "The port for the server to listen on")
+	root.Flags().
+		BoolVar(&enableTunnel, "tunnel", false, "Enable tunnel mode for local development (creates ngrok tunnel)")
 }
 
 // Execute is the entry point for the CLI.

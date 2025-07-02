@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"golang.ngrok.com/ngrok/v2"
 
 	"github.com/smartcontractkit/branch-out/logging"
 	"github.com/smartcontractkit/branch-out/trunk"
@@ -20,34 +22,16 @@ import (
 
 // Server is the HTTP server for the branch-out application.
 type Server struct {
-	logger     zerolog.Logger
-	webhookURL string
-	port       int
-	server     *http.Server
-}
-
-// responseWriter wraps http.ResponseWriter to capture status code and response size
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-	size       int
-}
-
-func (rw *responseWriter) WriteHeader(statusCode int) {
-	rw.statusCode = statusCode
-	rw.ResponseWriter.WriteHeader(statusCode)
-}
-
-func (rw *responseWriter) Write(data []byte) (int, error) {
-	size, err := rw.ResponseWriter.Write(data)
-	rw.size += size
-	return size, err
+	logger zerolog.Logger
+	port   int
+	tunnel bool
+	server *http.Server
 }
 
 type options struct {
-	logger     zerolog.Logger
-	webhookURL string
-	port       int
+	logger zerolog.Logger
+	port   int
+	tunnel bool
 }
 
 // Option is a functional option that configures the server.
@@ -61,10 +45,11 @@ func WithLogger(logger zerolog.Logger) Option {
 	}
 }
 
-// WithWebhookURL sets the webhook URL for the server.
-func WithWebhookURL(webhookURL string) Option {
+// WithTunnel enables an ngrok tunnel for the server.
+// This is useful for local development, but shouldn't be used in production.
+func WithTunnel(enabled bool) Option {
 	return func(opts *options) {
-		opts.webhookURL = webhookURL
+		opts.tunnel = enabled
 	}
 }
 
@@ -78,9 +63,8 @@ func WithPort(port int) Option {
 // defaultOptions returns the default options for the server.
 func defaultOptions() *options {
 	return &options{
-		logger:     logging.MustNew(),
-		webhookURL: "",
-		port:       0, // 0 means to use a random free port
+		logger: logging.MustNew(),
+		port:   0, // 0 means to use a random free port
 	}
 }
 
@@ -92,41 +76,10 @@ func New(options ...Option) *Server {
 	}
 
 	return &Server{
-		logger:     opts.logger,
-		webhookURL: opts.webhookURL,
-		port:       opts.port,
+		logger: opts.logger,
+		port:   opts.port,
+		tunnel: opts.tunnel,
 	}
-}
-
-// loggingMiddleware logs all incoming HTTP requests
-func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		// Wrap the response writer to capture status code and response size
-		rw := &responseWriter{
-			ResponseWriter: w,
-			statusCode:     http.StatusOK, // Default status code
-		}
-
-		// Call the next handler
-		next.ServeHTTP(rw, r)
-
-		// Log the request
-		duration := time.Since(start)
-
-		s.logger.Trace().
-			Str("method", r.Method).
-			Str("url", r.URL.String()).
-			Str("path", r.URL.Path).
-			Str("remote_addr", r.RemoteAddr).
-			Str("user_agent", r.UserAgent()).
-			Int("status_code", rw.statusCode).
-			Int("response_size", rw.size).
-			Dur("duration", duration).
-			Str("protocol", r.Proto).
-			Msg("Processed request")
-	})
 }
 
 // Start starts the server and blocks until shutdown.
@@ -136,7 +89,32 @@ func (s *Server) Start(ctx context.Context) error {
 		ctx = context.Background()
 	}
 
-	s.logger.Info().Str("webhookURL", s.webhookURL).Int("port", s.port).Msg("Starting server")
+	// Create the appropriate listener
+	var (
+		listener net.Listener
+		err      error
+		url      string
+	)
+
+	if s.tunnel {
+		ngrokCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		listener, err = ngrok.Listen(ngrokCtx)
+		if err != nil {
+			return fmt.Errorf("failed to create ngrok tunnel: %w", err)
+		}
+		url = listener.Addr().String()
+
+		s.logger.Debug().
+			Str("tunnel_url", url).
+			Msg("Using ngrok to expose server to the internet")
+	} else {
+		listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.port))
+		if err != nil {
+			return fmt.Errorf("failed to create listener: %w", err)
+		}
+	}
+	url = listener.Addr().String()
 
 	baseMux := http.NewServeMux()
 	baseMux.HandleFunc("/", indexHandler(s))
@@ -147,25 +125,33 @@ func (s *Server) Start(ctx context.Context) error {
 	webhookMux.HandleFunc("/trunk", webhookHandler(s))
 	baseMux.Handle("/webhooks/", webhookMux)
 
-	// Wrap the mux with logging middleware
+	// Wrap in logging middleware
 	handler := s.loggingMiddleware(baseMux)
 
 	s.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.port),
+		Addr:    url,
 		Handler: handler,
 	}
 
-	// Create a channel to listen for OS signals
+	// Listen for OS signals to shutdown the server
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Start server in a goroutine
 	serverErrChan := make(chan error, 1)
 	go func() {
-		s.logger.Info().Msg("Server listening for requests")
-		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverErrChan <- err
+		s.logger.Info().
+			Int("port", s.port).
+			Str("addr", s.server.Addr).
+			Str("url", url).
+			Bool("using_ngrok_tunnel", s.tunnel).
+			Msg("Server listening for requests")
+		fmt.Println("Listening on", url)
+		serverErr := s.server.Serve(listener)
+		if serverErr != nil && serverErr != http.ErrServerClosed {
+			serverErrChan <- serverErr
 		}
+		s.logger.Info().Msg("Server stopped")
 	}()
 
 	// Wait for shutdown signal
@@ -174,9 +160,9 @@ func (s *Server) Start(ctx context.Context) error {
 		s.logger.Error().Err(err).Msg("Server error")
 		return err
 	case sig := <-sigChan:
-		s.logger.Info().Str("signal", sig.String()).Msg("Received shutdown signal")
+		s.logger.Warn().Str("signal", sig.String()).Msg("Received shutdown signal")
 	case <-ctx.Done():
-		s.logger.Info().Msg("Context cancelled, shutting down")
+		s.logger.Warn().Msg("Context cancelled, shutting down")
 	}
 
 	return s.shutdown()
@@ -202,7 +188,7 @@ func (s *Server) WaitHealthy(ctx context.Context) error {
 
 // shutdown gracefully shuts down the server.
 func (s *Server) shutdown() error {
-	s.logger.Info().Msg("Initiating graceful shutdown")
+	s.logger.Debug().Msg("Initiating graceful shutdown")
 
 	// Create a context with timeout for graceful shutdown
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -218,8 +204,6 @@ func (s *Server) shutdown() error {
 		}
 		return err
 	}
-
-	s.logger.Info().Msg("Server shutdown complete")
 	return nil
 }
 
@@ -385,4 +369,55 @@ func webhookHandler(s *Server) http.HandlerFunc {
 			l.Error().Err(err).Msg("Failed to encode webhook response")
 		}
 	}
+}
+
+// loggingMiddleware logs all incoming HTTP requests
+func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		// Wrap the response writer to capture status code and response size
+		rw := &responseWriter{
+			ResponseWriter: w,
+			statusCode:     http.StatusOK, // Default status code
+		}
+
+		// Call the next handler
+		next.ServeHTTP(rw, r)
+
+		// Log the request
+		duration := time.Since(start)
+
+		s.logger.Trace().
+			Str("method", r.Method).
+			Str("url", r.URL.String()).
+			Str("path", r.URL.Path).
+			Str("remote_addr", r.RemoteAddr).
+			Str("user_agent", r.UserAgent()).
+			Int("status_code", rw.statusCode).
+			Int("response_size", rw.size).
+			Dur("duration", duration).
+			Str("protocol", r.Proto).
+			Msg("Processed request")
+	})
+}
+
+// responseWriter wraps http.ResponseWriter to capture status code and response size for server logging middleware
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+	size       int
+}
+
+// WriteHeader writes the status code to the response writer
+func (rw *responseWriter) WriteHeader(statusCode int) {
+	rw.statusCode = statusCode
+	rw.ResponseWriter.WriteHeader(statusCode)
+}
+
+// Write writes the data to the response writer
+func (rw *responseWriter) Write(data []byte) (int, error) {
+	size, err := rw.ResponseWriter.Write(data)
+	rw.size += size
+	return size, err
 }
