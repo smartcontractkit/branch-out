@@ -26,10 +26,9 @@ func TestNewClient(t *testing.T) {
 	// Uses t.Setenv, so we can't run it in parallel.
 
 	tests := []struct {
-		name        string
-		token       string
-		envToken    string
-		expectError bool
+		name     string
+		token    string
+		envToken string
 	}{
 		{
 			name: "no token",
@@ -50,14 +49,8 @@ func TestNewClient(t *testing.T) {
 			// Uses t.Setenv, so we can't run it in parallel.
 			t.Setenv(TokenEnvVar, tt.envToken)
 			l := testhelpers.Logger(t)
-			client, err := NewClient(l, WithToken(tt.token))
+			client := NewClient(l, WithToken(tt.token))
 
-			if tt.expectError {
-				require.Error(t, err, "expected error")
-				return
-			}
-
-			require.NoError(t, err, "expected no error")
 			require.NotNil(t, client)
 			require.NotNil(t, client.Rest)
 			require.NotNil(t, client.GraphQL)
@@ -181,10 +174,10 @@ func TestRateLimit(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			client, err := NewClient(l)
-			require.NoError(t, err)
+			client := NewClient(l)
 			require.NotNil(t, client)
 
+			var err error
 			// Point the client to our test server
 			client.Rest.BaseURL, err = url.Parse(ts.URL + "/")
 			require.NoError(t, err)
@@ -283,8 +276,7 @@ func TestRateLimitHeaders(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			client, err := NewClient(l)
-			require.NoError(t, err)
+			client := NewClient(l)
 			require.NotNil(t, client)
 
 			resp, err := client.Rest.Client().Get(ts.URL)
@@ -313,8 +305,7 @@ func TestCustomRoundTripper(t *testing.T) {
 		body:       `{"login": "testuser"}`,
 	}
 
-	client, err := NewClient(mockRT.logger, WithNext(mockRT))
-	require.NoError(t, err)
+	client := NewClient(mockRT.logger, WithNext(mockRT))
 	require.NotNil(t, client)
 
 	resp, err := client.Rest.Client().Get("https://api.github.com/users/testuser")

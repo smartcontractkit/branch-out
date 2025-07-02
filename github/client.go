@@ -76,7 +76,7 @@ func WithNext(next http.RoundTripper) ClientOption {
 func NewClient(
 	l zerolog.Logger,
 	opts ...ClientOption,
-) (*Client, error) {
+) *Client {
 	client := &Client{}
 	for _, opt := range opts {
 		opt(client)
@@ -151,7 +151,7 @@ func NewClient(
 		client.GraphQL = gh_graphql.NewClient(graphqlClient)
 	}
 
-	return client, nil
+	return client
 }
 
 // clientRoundTripper returns a RoundTripper that logs requests and responses to the GitHub API.
@@ -203,6 +203,7 @@ func (lt *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 	resp, err := lt.transport.RoundTrip(req)
 	if err != nil {
+		l.Error().Err(err).Msg("GitHub API request failed")
 		// Probably a rate limit error, let the rate limit library handle it
 		return resp, err
 	}

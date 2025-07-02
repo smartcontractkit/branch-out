@@ -17,7 +17,6 @@ RUN apk add --no-cache ca-certificates
 
 COPY --from=buildgo /tmp/branch-out/ /usr/local/bin/
 
-EXPOSE 8080
-# EXPOSE 8443 ?
+EXPOSE 8181
 
 ENTRYPOINT ["/usr/local/bin/branch-out"]

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"golang.ngrok.com/ngrok/v2"
 
 	"github.com/smartcontractkit/branch-out/logging"
 	"github.com/smartcontractkit/branch-out/trunk"
@@ -24,14 +23,12 @@ import (
 type Server struct {
 	logger zerolog.Logger
 	port   int
-	tunnel bool
 	server *http.Server
 }
 
 type options struct {
 	logger zerolog.Logger
 	port   int
-	tunnel bool
 }
 
 // Option is a functional option that configures the server.
@@ -42,14 +39,6 @@ type Option func(*options)
 func WithLogger(logger zerolog.Logger) Option {
 	return func(opts *options) {
 		opts.logger = logger
-	}
-}
-
-// WithTunnel enables an ngrok tunnel for the server.
-// This is useful for local development, but shouldn't be used in production.
-func WithTunnel(enabled bool) Option {
-	return func(opts *options) {
-		opts.tunnel = enabled
 	}
 }
 
@@ -78,7 +67,6 @@ func New(options ...Option) *Server {
 	return &Server{
 		logger: opts.logger,
 		port:   opts.port,
-		tunnel: opts.tunnel,
 	}
 }
 
@@ -96,23 +84,9 @@ func (s *Server) Start(ctx context.Context) error {
 		url      string
 	)
 
-	if s.tunnel {
-		ngrokCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-		listener, err = ngrok.Listen(ngrokCtx)
-		if err != nil {
-			return fmt.Errorf("failed to create ngrok tunnel: %w", err)
-		}
-		url = listener.Addr().String()
-
-		s.logger.Debug().
-			Str("tunnel_url", url).
-			Msg("Using ngrok to expose server to the internet")
-	} else {
-		listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.port))
-		if err != nil {
-			return fmt.Errorf("failed to create listener: %w", err)
-		}
+	listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.port))
+	if err != nil {
+		return fmt.Errorf("failed to create listener: %w", err)
 	}
 	url = listener.Addr().String()
 
@@ -144,7 +118,6 @@ func (s *Server) Start(ctx context.Context) error {
 			Int("port", s.port).
 			Str("addr", s.server.Addr).
 			Str("url", url).
-			Bool("using_ngrok_tunnel", s.tunnel).
 			Msg("Server listening for requests")
 		fmt.Println("Listening on", url)
 		serverErr := s.server.Serve(listener)

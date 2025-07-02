@@ -72,6 +72,7 @@ func (c *Client) QuarantineTests(
 
 	defaultBranch, err := c.getDefaultBranch(ctx, owner, repo)
 	if err != nil {
+		l.Error().Err(err).Msg("Failed to get default branch")
 		return fmt.Errorf("failed to get default branch: %w", err)
 	}
 	l.Debug().Str("default_branch", defaultBranch).Msg("Got default branch")
@@ -79,6 +80,7 @@ func (c *Client) QuarantineTests(
 	branchName := fmt.Sprintf("branch-out/quarantine-tests-%s", time.Now().Format("20060102150405"))
 	newBranchHeadSHA, err := c.createBranch(ctx, l, owner, repo, branchName, defaultBranch)
 	if err != nil {
+		l.Error().Err(err).Msg("Failed to create branch")
 		return fmt.Errorf("failed to create branch: %w", err)
 	}
 
@@ -102,6 +104,7 @@ func (c *Client) QuarantineTests(
 	// Update files
 	sha, err := c.updateFiles(ctx, owner, repo, branchName, commitMessage.String(), newBranchHeadSHA, allFileUpdates)
 	if err != nil {
+		l.Error().Err(err).Msg("Failed to update files")
 		return fmt.Errorf("failed to update files: %w", err)
 	}
 	l = l.With().Str("commit_sha", sha).Logger()
@@ -109,6 +112,7 @@ func (c *Client) QuarantineTests(
 
 	prURL, err := c.createPullRequest(ctx, owner, repo, branchName, defaultBranch, title, results.Markdown())
 	if err != nil {
+		l.Error().Err(err).Msg("Failed to create pull request")
 		return fmt.Errorf("failed to create pull request: %w", err)
 	}
 

@@ -22,14 +22,13 @@ var (
 	githubToken string
 	logLevel    string
 
-	port         int
-	enableTunnel bool
+	port int
 )
 
 // root is the root command for the CLI.
 var root = &cobra.Command{
 	Use:   "branch-out",
-	Short: "Branch Out is a tool to accentuate the capabilities of Trunk.io's flaky test tools",
+	Short: "Branch Out accentuates the capabilities of Trunk.io's flaky test tools",
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 		if githubToken == "" {
 			githubToken = os.Getenv("GITHUB_TOKEN")
@@ -45,10 +44,13 @@ var root = &cobra.Command{
 		serverOpts := []server.Option{
 			server.WithLogger(logger),
 			server.WithPort(port),
-			server.WithTunnel(enableTunnel),
 		}
 		srv := server.New(serverOpts...)
-		return srv.Start(cmd.Context())
+		err := srv.Start(cmd.Context())
+		if err != nil {
+			logger.Error().Err(err).Msg("Server failure")
+		}
+		return err
 	},
 }
 
@@ -59,8 +61,6 @@ func init() {
 		StringVarP(&logLevel, "log-level", "l", "info", "The log level to use (error, warn, info, debug, trace, disabled)")
 
 	root.Flags().IntVarP(&port, "port", "p", DefaultPort, "The port for the server to listen on")
-	root.Flags().
-		BoolVar(&enableTunnel, "tunnel", false, "Enable tunnel mode for local development (creates ngrok tunnel)")
 }
 
 // Execute is the entry point for the CLI.
