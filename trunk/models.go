@@ -32,25 +32,25 @@ type WebhookEvent interface {
 // TestCase is the common structure for all test case events.
 type TestCase struct {
 	Codeowners         []string `json:"codeowners"`
-	FailureRateLast7D  float64  `json:"failure_rate_last_7d"` // Use float64 for consistency
+	FailureRateLast7D  float64  `json:"failure_rate_last_7d"`
 	FilePath           string   `json:"file_path"`
 	HTMLURL            string   `json:"html_url"`
 	ID                 string   `json:"id"`
 	MostCommonFailures []struct {
-		LastOccurrence  time.Time `json:"last_occurrence"`
-		OccurrenceCount int       `json:"occurrence_count"`
-		Summary         string    `json:"summary"`
+		LastOccurrence  string `json:"last_occurrence"`
+		OccurrenceCount int    `json:"occurrence_count"`
+		Summary         string `json:"summary"`
 	} `json:"most_common_failures"`
 	Name                       string `json:"name"`
 	PullRequestsImpactedLast7D int    `json:"pull_requests_impacted_last_7d"`
-	Quarantined                bool   `json:"quarantined"` // Use consistent field name
+	Quarantine                 bool   `json:"quarantine"`
 	Repository                 struct {
 		HTMLURL string `json:"html_url"`
 	} `json:"repository"`
 	Status struct {
-		Reason    string    `json:"reason"`
-		Timestamp time.Time `json:"timestamp"`
-		Value     string    `json:"value"`
+		Reason    string `json:"reason"`
+		Timestamp string `json:"timestamp"`
+		Value     string `json:"value"`
 	} `json:"status"`
 	TestSuite string `json:"test_suite"`
 	Ticket    struct {
@@ -153,4 +153,33 @@ func GetWebhookType(data []byte) (WebhookType, error) {
 	}
 
 	return WebhookType(envelope.Type), nil
+}
+
+// TestCaseStatusChangedPayload represents the payload for test_case.status_changed events from Trunk.io
+// See: https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
+type TestCaseStatusChangedPayload struct {
+	StatusChange struct {
+		CurrentStatus struct {
+			Reason    string `json:"reason"`
+			Timestamp string `json:"timestamp"`
+			Value     string `json:"value"`
+		} `json:"current_status"`
+		PreviousStatus string `json:"previous_status"`
+	} `json:"status_change"`
+	TestCase TestCase `json:"test_case"` // Reuse the existing TestCase struct
+}
+
+// LinkTicketRequest represents the request to link a Jira ticket to a test case in Trunk.io
+// See: https://docs.trunk.io/references/apis/flaky-tests#post-flaky-tests-link-ticket-to-test-case
+type LinkTicketRequest struct {
+	TestCaseID       string        `json:"test_case_id"`
+	ExternalTicketID string        `json:"external_ticket_id"`
+	Repo             RepoReference `json:"repo"`
+}
+
+// RepoReference represents the repository information for Trunk.io API
+type RepoReference struct {
+	Host  string `json:"host"`
+	Owner string `json:"owner"`
+	Name  string `json:"name"`
 }

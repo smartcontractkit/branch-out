@@ -29,3 +29,5 @@ coverage.svg
 dist/
 .goreleaser.lock
 .goreleaser.yml
+
+.env
