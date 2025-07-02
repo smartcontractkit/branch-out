@@ -19,6 +19,7 @@ jobs:
       aws-ecr-name: branch-out
       aws-region-ecr: us-west-2
       aws-region-gati: us-west-2
+      build-arm64-image: false
       dockerfile: ./Dockerfile
       docker-build-context: .
       docker-manifest-sign: true
