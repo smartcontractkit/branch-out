@@ -21,6 +21,7 @@ var (
 
 	githubToken string
 	logLevel    string
+	logPath     string
 
 	port int
 )
@@ -34,7 +35,17 @@ var root = &cobra.Command{
 			githubToken = os.Getenv("GITHUB_TOKEN")
 		}
 		var err error
-		logger, err = logging.New(logging.WithLevel(logLevel))
+
+		opts := []logging.Option{
+			logging.WithLevel(logLevel),
+			logging.WithFileName(logPath),
+		}
+
+		if logPath == "" {
+			opts = append(opts, logging.DisableFileLogging())
+		}
+
+		logger, err = logging.New(opts...)
 		if err != nil {
 			return err
 		}
@@ -58,7 +69,9 @@ func init() {
 	root.PersistentFlags().
 		StringVarP(&githubToken, "github-token", "t", "", "The GitHub token to use for the GitHub API (try using 'gh auth token') (reads from GITHUB_TOKEN environment variable if not provided)")
 	root.PersistentFlags().
-		StringVarP(&logLevel, "log-level", "l", "info", "The log level to use (error, warn, info, debug, trace, disabled)")
+		StringVarP(&logLevel, "log-level", "l", "", "The log level to use (error, warn, info, debug, trace, disabled)")
+	root.PersistentFlags().
+		StringVarP(&logPath, "log-path", "f", "", "The path to the log file. When not included, logs will be written to stdout only.")
 
 	root.Flags().IntVarP(&port, "port", "p", DefaultPort, "The port for the server to listen on")
 }

@@ -10,6 +10,7 @@ require (
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/gofri/go-github-ratelimit/v2 v2.0.2
 	github.com/google/go-github/v73 v73.0.0
+	github.com/jferrl/go-githubauth v1.2.0
 	github.com/rs/zerolog v1.34.0
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
 	github.com/spf13/cobra v1.9.1
@@ -40,7 +41,9 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
+	github.com/google/go-github/v69 v69.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

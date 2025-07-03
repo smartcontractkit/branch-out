@@ -26,3 +26,7 @@ coverage.svg
 *_coverage.txt
 
 .env
+.envrc
+
+# secrets
+*.pem

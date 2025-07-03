@@ -37,7 +37,10 @@ var quarantineCmd = &cobra.Command{
 			return fmt.Errorf("failed to parse repo URL: %w", err)
 		}
 
-		githubClient := github.NewClient(logger, github.WithToken(githubToken))
+		githubClient, err := github.NewClient(logger, github.WithToken(githubToken))
+		if err != nil {
+			return fmt.Errorf("failed to create GitHub client: %w", err)
+		}
 
 		quarantineTargets, err := parseTargets(targets)
 		if err != nil {
