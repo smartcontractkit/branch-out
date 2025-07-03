@@ -9,7 +9,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 
 RUN mkdir -p /tmp/branch-out
-RUN CGO_ENABLED=0 go build -o /tmp/branch-out/branch-out ./main.go
+RUN CGO_ENABLED=0 go build \
+  -ldflags="-X 'github.com/branch-out/branch-out/cmd.builtBy=docker'" \
+  -o /tmp/branch-out/branch-out ./main.go
 
 FROM alpine:3.22
 

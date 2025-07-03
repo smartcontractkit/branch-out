@@ -77,12 +77,13 @@ func TestServer_Handlers(t *testing.T) {
 	require.NotNil(t, client)
 
 	tests := []struct {
-		endpoint     string
-		method       string
-		expectedCode int
-		expectedBody string
+		endpoint             string
+		method               string
+		expectedCode         int
+		expectedBodyContains string
 	}{
-		{endpoint: "/", method: http.MethodGet, expectedCode: http.StatusOK, expectedBody: "Branch-Out"},
+		{endpoint: "/", method: http.MethodGet, expectedCode: http.StatusOK, expectedBodyContains: "branch-out"},
+		{endpoint: "/health", method: http.MethodGet, expectedCode: http.StatusOK, expectedBodyContains: "healthy"},
 	}
 
 	for _, test := range tests {
@@ -94,7 +95,7 @@ func TestServer_Handlers(t *testing.T) {
 				Execute(test.method, test.endpoint)
 			require.NoError(t, err, "error calling server %s %s", test.method, resp.Request.URL)
 			require.Equal(t, test.expectedCode, resp.StatusCode())
-			require.Equal(t, test.expectedBody, resp.String())
+			require.Contains(t, resp.String(), test.expectedBodyContains)
 		})
 	}
 }

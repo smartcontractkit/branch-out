@@ -294,8 +294,8 @@ func (s *Server) ReceiveWebhook(req *WebhookRequest) (*WebhookResponse, error) {
 func indexHandler(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		info := map[string]any{
-			"description": "branch-out",
-			"version":     s.version,
+			"app":     "branch-out",
+			"version": s.version,
 		}
 
 		w.Header().Set("Content-Type", "application/json")
