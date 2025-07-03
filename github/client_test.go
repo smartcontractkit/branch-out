@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -26,10 +27,9 @@ func TestNewClient(t *testing.T) {
 	// Uses t.Setenv, so we can't run it in parallel.
 
 	tests := []struct {
-		name        string
-		token       string
-		envToken    string
-		expectError bool
+		name     string
+		token    string
+		envToken string
 	}{
 		{
 			name: "no token",
@@ -48,16 +48,25 @@ func TestNewClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Uses t.Setenv, so we can't run it in parallel.
+
+			// Clear GitHub App environment variables to prevent interference
+			t.Setenv("GITHUB_APP_ID", "")
+			t.Setenv("GITHUB_PRIVATE_KEY", "")
+			t.Setenv("GITHUB_PRIVATE_KEY_FILE", "")
+			t.Setenv("GITHUB_INSTALLATION_ID", "")
+
 			t.Setenv(TokenEnvVar, tt.envToken)
 			l := testhelpers.Logger(t)
-			client, err := NewClient(l, WithToken(tt.token))
 
-			if tt.expectError {
-				require.Error(t, err, "expected error")
-				return
+			opts := []ClientOption{}
+			if tt.token != "" {
+				// If a token is provided, use the WithToken option
+				opts = append(opts, WithToken(tt.token))
 			}
 
+			client, err := NewClient(l, opts...)
 			require.NoError(t, err, "expected no error")
+
 			require.NotNil(t, client)
 			require.NotNil(t, client.Rest)
 			require.NotNil(t, client.GraphQL)
@@ -66,11 +75,17 @@ func TestNewClient(t *testing.T) {
 
 			switch {
 			case tt.token != "":
-				assert.Equal(t, tt.token, client.token, "expected arg token to be set")
+				require.NotNil(t, client.tokenSource, "expected token source to be set")
+				token, err := client.tokenSource.Token()
+				require.NoError(t, err)
+				assert.Equal(t, tt.token, token.AccessToken, "expected arg token to be set")
 			case tt.envToken != "":
-				assert.Equal(t, tt.envToken, client.token, "expected env token to be set")
+				require.NotNil(t, client.tokenSource, "expected token source to be set")
+				token, err := client.tokenSource.Token()
+				require.NoError(t, err)
+				assert.Equal(t, tt.envToken, token.AccessToken, "expected env token to be set")
 			default:
-				assert.Empty(t, client.token, "expected empty token")
+				assert.Nil(t, client.tokenSource, "expected no token source")
 			}
 		})
 	}
@@ -181,7 +196,7 @@ func TestRateLimit(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			client, err := NewClient(l)
+			client, err := NewClient(l, WithToken("test-token"))
 			require.NoError(t, err)
 			require.NotNil(t, client)
 
@@ -283,7 +298,7 @@ func TestRateLimitHeaders(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			client, err := NewClient(l)
+			client, err := NewClient(l, WithToken("test-token"))
 			require.NoError(t, err)
 			require.NotNil(t, client)
 
@@ -313,7 +328,7 @@ func TestCustomRoundTripper(t *testing.T) {
 		body:       `{"login": "testuser"}`,
 	}
 
-	client, err := NewClient(mockRT.logger, WithNext(mockRT))
+	client, err := NewClient(mockRT.logger, WithNext(mockRT), WithToken("test-token"))
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
@@ -356,4 +371,116 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		Request:    req,
 		Body:       io.NopCloser(bytes.NewBufferString(m.body)),
 	}, nil
+}
+
+func TestNewClientWithGitHubApp(t *testing.T) {
+	// Uses t.Setenv, so we can't run it in parallel.
+
+	testPrivateKeyPath := "testdata/test_key.pem"
+	testPrivateKeyBytes, err := os.ReadFile(testPrivateKeyPath)
+	if err != nil {
+		t.Fatalf("failed to read test private key: %v", err)
+	}
+	testPrivateKey := string(testPrivateKeyBytes)
+
+	tests := []struct {
+		name           string
+		appID          string
+		privateKey     string
+		privateKeyFile string
+		token          string
+		envToken       string
+		installationID string
+		expectError    bool
+	}{
+		{
+			name:           "github app with private key",
+			appID:          "12345",
+			privateKey:     testPrivateKey,
+			installationID: "67890",
+			expectError:    false,
+		},
+		{
+			name:           "github app with private key file",
+			appID:          "12345",
+			privateKeyFile: "/tmp/test-private-key.pem",
+			installationID: "67890",
+			expectError:    false,
+		},
+		{
+			name:        "invalid app id",
+			appID:       "invalid",
+			privateKey:  testPrivateKey,
+			expectError: true,
+		},
+		{
+			name:        "missing private key",
+			appID:       "12345",
+			expectError: true,
+		},
+		{
+			name:        "token takes priority over app",
+			token:       "token-priority",
+			appID:       "12345",
+			privateKey:  testPrivateKey,
+			expectError: false,
+		},
+		{
+			name:           "github app with installation",
+			appID:          "12345",
+			privateKey:     testPrivateKey,
+			installationID: "67890",
+			expectError:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Uses t.Setenv, so we can't run it in parallel.
+			t.Setenv(AppIDEnvVar, tt.appID)
+			t.Setenv(PrivateKeyEnvVar, tt.privateKey)
+			t.Setenv(TokenEnvVar, tt.envToken)
+			t.Setenv(InstallationIDEnvVar, tt.installationID)
+
+			// Create private key file for test cases that need it
+			if tt.privateKeyFile != "" && tt.privateKey == "" {
+				require.NoError(t, os.WriteFile(tt.privateKeyFile, []byte(testPrivateKey), 0600))
+				defer func() {
+					require.NoError(t, os.Remove(tt.privateKeyFile))
+				}()
+				t.Setenv(PrivateKeyFileEnvVar, tt.privateKeyFile)
+			}
+
+			l := testhelpers.Logger(t)
+
+			var opts []ClientOption
+			if tt.token != "" {
+				opts = append(opts, WithToken(tt.token))
+			}
+
+			client, err := NewClient(l, opts...)
+
+			if tt.expectError {
+				require.Error(t, err, "expected error")
+				return
+			}
+
+			require.NoError(t, err, "expected no error")
+			require.NotNil(t, client)
+			require.NotNil(t, client.Rest)
+			require.NotNil(t, client.GraphQL)
+
+			// Verify token source is set for auth cases
+			switch {
+			case tt.token != "":
+				assert.NotNil(t, client.tokenSource, "expected token source to be set")
+				// Verify it's a static token source by getting a token
+				token, err := client.tokenSource.Token()
+				require.NoError(t, err)
+				assert.Equal(t, tt.token, token.AccessToken, "expected token to match")
+			case tt.appID != "" && (tt.privateKey != "" || tt.privateKeyFile != ""):
+				assert.NotNil(t, client.tokenSource, "expected token source to be set for GitHub App")
+			}
+		})
+	}
 }
