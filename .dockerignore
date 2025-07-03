@@ -1,10 +1,14 @@
 .github/*
+.vscode/*
 
 Dockerfile
 LICENSE
 README.md
+*.md
+Makefile
 
+golang/example_project/*
+.env.example
 .gitignore
 .golangci.yaml
-.goreleaser.yaml
 .pre-commit-config.yaml

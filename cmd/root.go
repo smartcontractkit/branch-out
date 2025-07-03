@@ -13,6 +13,9 @@ import (
 	"github.com/smartcontractkit/branch-out/server"
 )
 
+// DefaultPort is the default port for the server to listen on.
+const DefaultPort = 8181
+
 var (
 	logger zerolog.Logger
 
@@ -20,14 +23,13 @@ var (
 	logLevel    string
 	logPath     string
 
-	webhookURL string
-	port       int
+	port int
 )
 
 // root is the root command for the CLI.
 var root = &cobra.Command{
 	Use:   "branch-out",
-	Short: "Branch Out is a tool to accentuate the capabilities of Trunk.io's flaky test tools",
+	Short: "Branch Out accentuates the capabilities of Trunk.io's flaky test tools",
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 		if githubToken == "" {
 			githubToken = os.Getenv("GITHUB_TOKEN")
@@ -50,14 +52,16 @@ var root = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
-
-		server := server.New(
+		srv := server.New(
 			server.WithLogger(logger),
-			server.WithWebhookURL(webhookURL),
 			server.WithPort(port),
+			server.WithVersion(Version()),
 		)
-
-		return server.Start(cmd.Context())
+		err := srv.Start(cmd.Context())
+		if err != nil {
+			logger.Error().Err(err).Msg("Server failure")
+		}
+		return err
 	},
 }
 
@@ -69,13 +73,12 @@ func init() {
 	root.PersistentFlags().
 		StringVarP(&logPath, "log-path", "f", "", "The path to the log file. When not included, logs will be written to stdout only.")
 
-	root.Flags().StringVarP(&webhookURL, "webhook-url", "w", "", "The URL to receive webhooks from Trunk.io")
-	root.Flags().IntVarP(&port, "port", "p", 8080, "The port for the server to listen on")
+	root.Flags().IntVarP(&port, "port", "p", DefaultPort, "The port for the server to listen on")
 }
 
 // Execute is the entry point for the CLI.
 func Execute() {
-	if err := fang.Execute(context.Background(), root, fang.WithVersion(versionString)); err != nil {
+	if err := fang.Execute(context.Background(), root, fang.WithVersion(Version())); err != nil {
 		os.Exit(1)
 	}
 }

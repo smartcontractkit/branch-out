@@ -6,48 +6,35 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
 
-	"github.com/smartcontractkit/branch-out/logging"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
 // Server is the HTTP server for the branch-out application.
 type Server struct {
-	logger     zerolog.Logger
-	webhookURL string
-	port       int
-	server     *http.Server
-}
+	Addr string
+	Port int
 
-// responseWriter wraps http.ResponseWriter to capture status code and response size
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-	size       int
-}
+	logger  zerolog.Logger
+	server  *http.Server
+	version string
 
-func (rw *responseWriter) WriteHeader(statusCode int) {
-	rw.statusCode = statusCode
-	rw.ResponseWriter.WriteHeader(statusCode)
-}
-
-func (rw *responseWriter) Write(data []byte) (int, error) {
-	size, err := rw.ResponseWriter.Write(data)
-	rw.size += size
-	return size, err
+	started atomic.Bool
 }
 
 type options struct {
-	logger     zerolog.Logger
-	webhookURL string
-	port       int
+	logger  zerolog.Logger
+	port    int
+	version string
 }
 
 // Option is a functional option that configures the server.
@@ -61,13 +48,6 @@ func WithLogger(logger zerolog.Logger) Option {
 	}
 }
 
-// WithWebhookURL sets the webhook URL for the server.
-func WithWebhookURL(webhookURL string) Option {
-	return func(opts *options) {
-		opts.webhookURL = webhookURL
-	}
-}
-
 // WithPort sets the port for the server.
 func WithPort(port int) Option {
 	return func(opts *options) {
@@ -75,12 +55,20 @@ func WithPort(port int) Option {
 	}
 }
 
+// WithVersion sets the version information for the server.
+// Should only be set by the main package.
+func WithVersion(version string) Option {
+	return func(opts *options) {
+		opts.version = version
+	}
+}
+
 // defaultOptions returns the default options for the server.
 func defaultOptions() *options {
 	return &options{
-		logger:     logging.MustNew(),
-		webhookURL: "",
-		port:       0, // 0 means to use a random free port
+		logger:  zerolog.Nop(),
+		port:    0, // 0 means to use a random free port
+		version: "unknown",
 	}
 }
 
@@ -92,41 +80,10 @@ func New(options ...Option) *Server {
 	}
 
 	return &Server{
-		logger:     opts.logger,
-		webhookURL: opts.webhookURL,
-		port:       opts.port,
+		logger:  opts.logger,
+		Port:    opts.port,
+		version: opts.version,
 	}
-}
-
-// loggingMiddleware logs all incoming HTTP requests
-func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		// Wrap the response writer to capture status code and response size
-		rw := &responseWriter{
-			ResponseWriter: w,
-			statusCode:     http.StatusOK, // Default status code
-		}
-
-		// Call the next handler
-		next.ServeHTTP(rw, r)
-
-		// Log the request
-		duration := time.Since(start)
-
-		s.logger.Trace().
-			Str("method", r.Method).
-			Str("url", r.URL.String()).
-			Str("path", r.URL.Path).
-			Str("remote_addr", r.RemoteAddr).
-			Str("user_agent", r.UserAgent()).
-			Int("status_code", rw.statusCode).
-			Int("response_size", rw.size).
-			Dur("duration", duration).
-			Str("protocol", r.Proto).
-			Msg("Processed request")
-	})
 }
 
 // Start starts the server and blocks until shutdown.
@@ -136,7 +93,23 @@ func (s *Server) Start(ctx context.Context) error {
 		ctx = context.Background()
 	}
 
-	s.logger.Info().Str("webhookURL", s.webhookURL).Int("port", s.port).Msg("Starting server")
+	// Create the appropriate listener
+	var (
+		listener net.Listener
+		err      error
+		url      string
+	)
+
+	listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.Port))
+	if err != nil {
+		return fmt.Errorf("failed to create listener: %w", err)
+	}
+	url = listener.Addr().String()
+	s.Addr = url
+
+	// Get the port from the listener
+	port := listener.Addr().(*net.TCPAddr).Port
+	s.Port = port
 
 	baseMux := http.NewServeMux()
 	baseMux.HandleFunc("/", indexHandler(s))
@@ -147,25 +120,35 @@ func (s *Server) Start(ctx context.Context) error {
 	webhookMux.HandleFunc("/trunk", webhookHandler(s))
 	baseMux.Handle("/webhooks/", webhookMux)
 
-	// Wrap the mux with logging middleware
+	// Wrap in logging middleware
 	handler := s.loggingMiddleware(baseMux)
 
 	s.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.port),
+		Addr:    url,
 		Handler: handler,
 	}
+	s.server.RegisterOnShutdown(func() {
+		s.started.Store(false)
+	})
 
-	// Create a channel to listen for OS signals
+	// Listen for OS signals to shutdown the server
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Start server in a goroutine
 	serverErrChan := make(chan error, 1)
 	go func() {
-		s.logger.Info().Msg("Server listening for requests")
-		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverErrChan <- err
+		s.logger.Info().
+			Int("port", s.Port).
+			Str("addr", s.Addr).
+			Msg("Server listening for requests")
+		fmt.Println("Listening on", url)
+		s.started.Store(true)
+		serverErr := s.server.Serve(listener)
+		if serverErr != nil && serverErr != http.ErrServerClosed {
+			serverErrChan <- serverErr
 		}
+		s.logger.Info().Msg("Server stopped")
 	}()
 
 	// Wait for shutdown signal
@@ -174,9 +157,9 @@ func (s *Server) Start(ctx context.Context) error {
 		s.logger.Error().Err(err).Msg("Server error")
 		return err
 	case sig := <-sigChan:
-		s.logger.Info().Str("signal", sig.String()).Msg("Received shutdown signal")
+		s.logger.Warn().Str("signal", sig.String()).Msg("Received shutdown signal")
 	case <-ctx.Done():
-		s.logger.Info().Msg("Context cancelled, shutting down")
+		s.logger.Warn().Msg("Context cancelled, server shutting down")
 	}
 
 	return s.shutdown()
@@ -184,11 +167,22 @@ func (s *Server) Start(ctx context.Context) error {
 
 // WaitHealthy blocks until the server is healthy or the context is done.
 func (s *Server) WaitHealthy(ctx context.Context) error {
+	health, err := s.Health()
+	if err != nil {
+		return err
+	}
+	if health.Status == "healthy" {
+		return nil
+	}
+
+	timer := time.NewTicker(10 * time.Millisecond)
+	defer timer.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
+		case <-timer.C:
 			health, err := s.Health()
 			if err != nil {
 				return err
@@ -202,7 +196,7 @@ func (s *Server) WaitHealthy(ctx context.Context) error {
 
 // shutdown gracefully shuts down the server.
 func (s *Server) shutdown() error {
-	s.logger.Info().Msg("Initiating graceful shutdown")
+	s.logger.Debug().Msg("Initiating graceful shutdown")
 
 	// Create a context with timeout for graceful shutdown
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -218,8 +212,6 @@ func (s *Server) shutdown() error {
 		}
 		return err
 	}
-
-	s.logger.Info().Msg("Server shutdown complete")
 	return nil
 }
 
@@ -239,15 +231,21 @@ type HealthResponse struct {
 
 // Health checks the health of the server and returns health status.
 func (s *Server) Health() (HealthResponse, error) {
-	s.logger.Debug().Msg("Health check requested")
-
-	// You can add additional health checks here
-	// For example: database connectivity, external service status, etc.
+	// Add additional health checks here as relevant.
+	if !s.started.Load() {
+		s.logger.Debug().Msg("Server unhealthy")
+		return HealthResponse{
+			Status:    "unhealthy",
+			Timestamp: time.Now(),
+		}, nil
+	}
 
 	response := HealthResponse{
 		Status:    "healthy",
 		Timestamp: time.Now(),
 	}
+
+	s.logger.Debug().Str("status", response.Status).Msg("Sever healthy")
 
 	return response, nil
 }
@@ -296,8 +294,8 @@ func (s *Server) ReceiveWebhook(req *WebhookRequest) (*WebhookResponse, error) {
 func indexHandler(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		info := map[string]any{
-			"service":     "Branch-Out",
-			"description": "Trunk.io Integration Service",
+			"app":     "branch-out",
+			"version": s.version,
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -386,4 +384,55 @@ func webhookHandler(s *Server) http.HandlerFunc {
 			l.Error().Err(err).Msg("Failed to encode webhook response")
 		}
 	}
+}
+
+// loggingMiddleware logs all incoming HTTP requests
+func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		// Wrap the response writer to capture status code and response size
+		rw := &responseWriter{
+			ResponseWriter: w,
+			statusCode:     http.StatusOK, // Default status code
+		}
+
+		// Call the next handler
+		next.ServeHTTP(rw, r)
+
+		// Log the request
+		duration := time.Since(start)
+
+		s.logger.Trace().
+			Str("method", r.Method).
+			Str("url", r.URL.String()).
+			Str("path", r.URL.Path).
+			Str("remote_addr", r.RemoteAddr).
+			Str("user_agent", r.UserAgent()).
+			Int("status_code", rw.statusCode).
+			Int("response_size", rw.size).
+			Dur("duration", duration).
+			Str("protocol", r.Proto).
+			Msg("Processed request")
+	})
+}
+
+// responseWriter wraps http.ResponseWriter to capture status code and response size for server logging middleware
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+	size       int
+}
+
+// WriteHeader writes the status code to the response writer
+func (rw *responseWriter) WriteHeader(statusCode int) {
+	rw.statusCode = statusCode
+	rw.ResponseWriter.WriteHeader(statusCode)
+}
+
+// Write writes the data to the response writer
+func (rw *responseWriter) Write(data []byte) (int, error) {
+	size, err := rw.ResponseWriter.Write(data)
+	rw.size += size
+	return size, err
 }

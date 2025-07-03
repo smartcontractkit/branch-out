@@ -133,8 +133,8 @@ func New(options ...Option) (zerolog.Logger, error) {
 
 // MustNew initializes a new logger with the specified options.
 // It panics if there is an error.
-func MustNew() zerolog.Logger {
-	logger, err := New()
+func MustNew(options ...Option) zerolog.Logger {
+	logger, err := New(options...)
 	if err != nil {
 		panic(err)
 	}

@@ -252,6 +252,7 @@ func (lt *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 	resp, err := lt.transport.RoundTrip(req)
 	if err != nil {
+		l.Error().Err(err).Msg("GitHub API request failed")
 		// Probably a rate limit error, let the rate limit library handle it
 		return resp, err
 	}

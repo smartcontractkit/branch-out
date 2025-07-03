@@ -25,12 +25,6 @@ coverage/
 coverage.svg
 *_coverage.txt
 
-# goreleaser
-dist/
-.goreleaser.lock
-.goreleaser.yml
-
-# env
 .env
 .envrc
 
