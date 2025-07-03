@@ -121,10 +121,7 @@ func New(options ...Option) (zerolog.Logger, error) {
 		}
 	}
 
-	logLevel, err := zerolog.ParseLevel(logLevelInput)
-	if err != nil {
-		return zerolog.Logger{}, err
-	}
+	logLevel := getLogLevel(logLevelInput)
 
 	once.Do(func() {
 		zerolog.TimeFieldFormat = TimeLayout
