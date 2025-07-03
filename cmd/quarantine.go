@@ -18,17 +18,12 @@ var (
 
 var quarantineCmd = &cobra.Command{
 	Use:   "quarantine",
-	Short: "Quarantine tests in a Go project",
+	Short: "Quarantine tests in a Go project using the CLI instead of reading from Trunk.io webhooks.",
 	PreRunE: func(_ *cobra.Command, _ []string) error {
-		if githubToken == "" {
+		if appConfig.GitHub.Token == "" {
 			return errors.New("github-token is required")
 		}
-		if repoURL == "" {
-			return errors.New("repo-url is required")
-		}
-		if len(targets) == 0 {
-			return errors.New("targets are required")
-		}
+
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
@@ -37,7 +32,7 @@ var quarantineCmd = &cobra.Command{
 			return fmt.Errorf("failed to parse repo URL: %w", err)
 		}
 
-		githubClient, err := github.NewClient(logger, github.WithToken(githubToken))
+		githubClient, err := github.NewClient(logger, github.WithConfig(&appConfig.GitHub))
 		if err != nil {
 			return fmt.Errorf("failed to create GitHub client: %w", err)
 		}
@@ -63,6 +58,13 @@ func init() {
 		StringVar(&repoURL, "repo-url", "", "The URL of the GitHub repository to quarantine tests in")
 	quarantineCmd.Flags().
 		StringSliceVar(&targets, "targets", []string{}, "The targets to quarantine tests for (e.g. 'github.com/owner/repo/pkg.TestName, github.com/owner/repo/pkg.TestName2')")
+
+	if err := quarantineCmd.MarkFlagRequired("repo-url"); err != nil {
+		panic(err)
+	}
+	if err := quarantineCmd.MarkFlagRequired("targets"); err != nil {
+		panic(err)
+	}
 }
 
 func parseTargets(targets []string) ([]golang.QuarantineTarget, error) {

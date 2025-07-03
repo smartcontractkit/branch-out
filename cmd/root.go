@@ -8,7 +8,9 @@ import (
 	"github.com/charmbracelet/fang"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
+	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/logging"
 	"github.com/smartcontractkit/branch-out/server"
 )
@@ -17,13 +19,8 @@ import (
 const DefaultPort = 8181
 
 var (
-	logger zerolog.Logger
-
-	githubToken string
-	logLevel    string
-	logPath     string
-
-	port int
+	appConfig *config.Config
+	logger    zerolog.Logger
 )
 
 // root is the root command for the CLI.
@@ -31,31 +28,25 @@ var root = &cobra.Command{
 	Use:   "branch-out",
 	Short: "Branch Out accentuates the capabilities of Trunk.io's flaky test tools",
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-		if githubToken == "" {
-			githubToken = os.Getenv("GITHUB_TOKEN")
-		}
 		var err error
 
-		opts := []logging.Option{
-			logging.WithLevel(logLevel),
-			logging.WithFileName(logPath),
-		}
-
-		if logPath == "" {
-			opts = append(opts, logging.DisableFileLogging())
-		}
-
-		logger, err = logging.New(opts...)
+		appConfig, err = config.Load()
 		if err != nil {
 			return err
 		}
-		return nil
+
+		opts := []logging.Option{
+			logging.WithLevel(appConfig.LogLevel),
+			logging.WithFileName(appConfig.LogPath),
+		}
+
+		logger, err = logging.New(opts...)
+		return err
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		srv := server.New(
 			server.WithLogger(logger),
-			server.WithPort(port),
-			server.WithVersion(Version()),
+			server.WithPort(appConfig.Port),
 		)
 		err := srv.Start(cmd.Context())
 		if err != nil {
@@ -67,18 +58,26 @@ var root = &cobra.Command{
 
 func init() {
 	root.PersistentFlags().
-		StringVarP(&githubToken, "github-token", "t", "", "The GitHub token to use for the GitHub API (try using 'gh auth token') (reads from GITHUB_TOKEN environment variable if not provided)")
+		StringP("github-token", "t", "", "The GitHub token to use for the GitHub API (try using 'gh auth token') (reads from GITHUB_TOKEN environment variable if not provided)")
 	root.PersistentFlags().
-		StringVarP(&logLevel, "log-level", "l", "", "The log level to use (error, warn, info, debug, trace, disabled)")
+		StringP("log-level", "l", "", "The log level to use (error, warn, info, debug, trace, disabled)")
 	root.PersistentFlags().
-		StringVarP(&logPath, "log-path", "f", "", "The path to the log file. When not included, logs will be written to stdout only.")
+		StringP("log-path", "f", "", "Also logs to a file at the given path")
 
-	root.Flags().IntVarP(&port, "port", "p", DefaultPort, "The port for the server to listen on")
+	root.Flags().IntP("port", "p", DefaultPort, "The port for the server to listen on")
+
+	// Bind flags to viper
+	if err := viper.BindPFlags(root.PersistentFlags()); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlags(root.Flags()); err != nil {
+		panic(err)
+	}
 }
 
 // Execute is the entry point for the CLI.
 func Execute() {
-	if err := fang.Execute(context.Background(), root, fang.WithVersion(Version())); err != nil {
+	if err := fang.Execute(context.Background(), root, fang.WithVersion(config.VersionString())); err != nil {
 		os.Exit(1)
 	}
 }

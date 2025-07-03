@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -91,12 +92,7 @@ func (jts *TicketStatus) IsResolved() bool {
 	resolvedCategories := []string{"done", "complete", "resolved", "closed"}
 	statusCategory := strings.ToLower(jts.Fields.Status.StatusCategory.Key)
 
-	for _, resolved := range resolvedCategories {
-		if statusCategory == resolved {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(resolvedCategories, statusCategory)
 }
 
 // CreateIssueRequest represents the request body for creating a Jira issue.
