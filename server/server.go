@@ -16,6 +16,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
@@ -55,14 +56,6 @@ func WithPort(port int) Option {
 	}
 }
 
-// WithVersion sets the version information for the server.
-// Should only be set by the main package.
-func WithVersion(version string) Option {
-	return func(opts *options) {
-		opts.version = version
-	}
-}
-
 // defaultOptions returns the default options for the server.
 func defaultOptions() *options {
 	return &options{
@@ -82,7 +75,7 @@ func New(options ...Option) *Server {
 	return &Server{
 		logger:  opts.logger,
 		Port:    opts.port,
-		version: opts.version,
+		version: config.Version,
 	}
 }
 

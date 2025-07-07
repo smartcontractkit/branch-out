@@ -20,6 +20,8 @@ linters:
     - copyloopvar
     - godox
     - revive
+    - depguard
+    - forbidigo
   settings:
     godox:
       keywords:
@@ -30,6 +32,26 @@ linters:
       excludes:
         - G304 # We're writing and reading a lot of files that we are in control of
         - G204 # We're launching processes that we are in control of
+    depguard:
+      rules:
+        main:
+          list-mode: lax
+          deny:
+            - pkg: github.com/test-go/testify
+              desc: "Use github.com/stretchr/testify instead"
+            - pkg: github.com/testify/testify
+              desc: "Use github.com/stretchr/testify instead"
+            - pkg: gotest.tools/v3/assert
+              desc: "Use github.com/stretchr/testify/assert instead"
+    forbidigo:
+      forbid:
+        - pattern: 'os\.Getenv'
+          msg: 'Use config package instead of reading from env vars'
+        - pattern: 'os\.LookupEnv'
+          msg: 'Use config package instead of reading from env vars'
+        - pattern: 'syscall\.Getenv'
+          msg: 'Use config package instead of reading from env vars'
+
 formatters:
   enable:
     - gofmt

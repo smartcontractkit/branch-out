@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
+	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
 	"golang.org/x/oauth2"
+
+	"github.com/smartcontractkit/branch-out/config"
 )
 
 // FlakyTestTicketRequest represents the data needed to create a Jira ticket for a flaky test
@@ -23,22 +26,6 @@ type FlakyTestTicketRequest struct {
 	FilePath        string `json:"file_path"`
 	TrunkID         string `json:"trunk_id"` // UUID
 	Details         string `json:"details"`  // JSON string with additional details (trunk Payload for example)
-}
-
-// Config holds the configuration for Jira API client
-type Config struct {
-	BaseURL    string
-	ProjectKey string
-
-	// OAuth Configuration
-	ClientID     string
-	ClientSecret string
-	AccessToken  string
-	RefreshToken string
-
-	// Legacy Basic Auth (optional fallback or for local testing)
-	Username string
-	APIToken string
 }
 
 // Interface for interacting with Jira API (for testability)
@@ -55,7 +42,8 @@ type HTTPClient interface {
 
 // Client implements Interface
 type Client struct {
-	config     Config
+	baseURL    string
+	secrets    config.Jira
 	httpClient HTTPClient
 	logger     zerolog.Logger
 }
@@ -91,12 +79,7 @@ func (jts *TicketStatus) IsResolved() bool {
 	resolvedCategories := []string{"done", "complete", "resolved", "closed"}
 	statusCategory := strings.ToLower(jts.Fields.Status.StatusCategory.Key)
 
-	for _, resolved := range resolvedCategories {
-		if statusCategory == resolved {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(resolvedCategories, statusCategory)
 }
 
 // CreateIssueRequest represents the request body for creating a Jira issue.
@@ -123,59 +106,95 @@ type IssueType struct {
 	Name string `json:"name"`
 }
 
+// Option is a function that sets a configuration option for the Jira client.
+type Option func(*jiraClientOptions)
+
+type jiraClientOptions struct {
+	config     *config.Config
+	logger     zerolog.Logger
+	httpClient HTTPClient
+}
+
+// WithLogger sets the logger to use for the Jira client.
+func WithLogger(logger zerolog.Logger) Option {
+	return func(cfg *jiraClientOptions) {
+		cfg.logger = logger
+	}
+}
+
+// WithConfig sets the config to use for the Jira client.
+func WithConfig(config *config.Config) Option {
+	return func(cfg *jiraClientOptions) {
+		cfg.config = config
+	}
+}
+
+// WithHTTPClient sets the HTTP client to use for the Jira client.
+func WithHTTPClient(httpClient HTTPClient) Option {
+	return func(cfg *jiraClientOptions) {
+		cfg.httpClient = httpClient
+	}
+}
+
 // NewClient creates a new Jira client with configuration from environment variables
-func NewClient(logger zerolog.Logger, projectKey string) (*Client, error) {
-	baseDomain := os.Getenv("JIRA_BASE_DOMAIN")
-	if baseDomain == "" {
-		return nil, fmt.Errorf("JIRA_BASE_DOMAIN environment variable is required (e.g., 'your-company.atlassian.net')")
+func NewClient(options ...Option) (*Client, error) {
+	opts := &jiraClientOptions{
+		logger: zerolog.Nop(),
+	}
+	for _, opt := range options {
+		opt(opts)
 	}
 
-	baseURL := "https://" + baseDomain
-
-	config := Config{
-		BaseURL:    baseURL,
-		ProjectKey: projectKey,
-		// OAuth creds.
-		ClientID:     os.Getenv("JIRA_OAUTH_CLIENT_ID"),
-		ClientSecret: os.Getenv("JIRA_OAUTH_CLIENT_SECRET"),
-		AccessToken:  os.Getenv("JIRA_OAUTH_ACCESS_TOKEN"),
-		RefreshToken: os.Getenv("JIRA_OAUTH_REFRESH_TOKEN"),
-		// Legacy Basic Auth.
-		Username: os.Getenv("JIRA_USERNAME"),
-		APIToken: os.Getenv("JIRA_API_TOKEN"),
+	var (
+		appConfig = opts.config
+		err       error
+	)
+	if appConfig == nil {
+		appConfig, err = config.Load()
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if config.ProjectKey == "" {
-		return nil, fmt.Errorf("project key is required")
+	if appConfig.Jira.BaseDomain == "" {
+		return nil, fmt.Errorf("jira base domain is required")
+	}
+
+	if appConfig.Jira.ProjectKey == "" {
+		return nil, fmt.Errorf("jira project key is required")
 	}
 
 	// Check if OAuth credentials are provided
-	hasOAuth := config.ClientID != "" && config.ClientSecret != "" && config.AccessToken != ""
-	hasBasicAuth := config.Username != "" && config.APIToken != ""
+	hasOAuth := appConfig.Jira.OAuthClientID != "" && appConfig.Jira.OAuthClientSecret != "" &&
+		appConfig.Jira.OAuthAccessToken != ""
+	hasBasicAuth := appConfig.Jira.Username != "" && appConfig.Jira.Token != ""
 
 	if !hasOAuth && !hasBasicAuth {
 		return nil, fmt.Errorf(
-			"either OAuth credentials (JIRA_OAUTH_CLIENT_ID, JIRA_OAUTH_CLIENT_SECRET, JIRA_OAUTH_ACCESS_TOKEN) or basic auth credentials (JIRA_USERNAME, JIRA_API_TOKEN) are required",
+			"jira OAuth credentials or basic auth credentials are required",
 		)
 	}
 
-	// Ensure BaseURL doesn't have trailing slash
-	config.BaseURL = strings.TrimSuffix(config.BaseURL, "/")
+	baseURL := fmt.Sprintf("https://%s", appConfig.Jira.BaseDomain)
+	tokenURL, err := url.JoinPath(baseURL, "plugins/servlet/oauth/access-token")
+	if err != nil {
+		return nil, fmt.Errorf("failed to join path: %w", err)
+	}
 
 	// Create HTTP client with OAuth if available
 	var httpClient HTTPClient
 	if hasOAuth {
 		oauthConfig := &oauth2.Config{
-			ClientID:     config.ClientID,
-			ClientSecret: config.ClientSecret,
+			ClientID:     appConfig.Jira.OAuthClientID,
+			ClientSecret: appConfig.Jira.OAuthClientSecret,
 			Endpoint: oauth2.Endpoint{
-				TokenURL: fmt.Sprintf("%s/plugins/servlet/oauth/access-token", config.BaseURL),
+				TokenURL: tokenURL,
 			},
 		}
 
 		token := &oauth2.Token{
-			AccessToken:  config.AccessToken,
-			RefreshToken: config.RefreshToken,
+			AccessToken:  appConfig.Jira.OAuthAccessToken,
+			RefreshToken: appConfig.Jira.OAuthRefreshToken,
 			TokenType:    "Bearer",
 		}
 
@@ -185,19 +204,11 @@ func NewClient(logger zerolog.Logger, projectKey string) (*Client, error) {
 	}
 
 	return &Client{
-		config:     config,
+		baseURL:    baseURL,
+		secrets:    appConfig.Jira,
 		httpClient: httpClient,
-		logger:     logger.With().Str("component", "jira_client").Logger(),
+		logger:     opts.logger,
 	}, nil
-}
-
-// NewClientWithHTTPClient creates a new Jira client with a custom HTTP client (for testing)
-func NewClientWithHTTPClient(config Config, httpClient HTTPClient, logger zerolog.Logger) *Client {
-	return &Client{
-		config:     config,
-		httpClient: httpClient,
-		logger:     logger.With().Str("component", "jira_client").Logger(),
-	}
 }
 
 // CreateFlakyTestTicket creates a new Jira ticket for a flaky test
@@ -235,7 +246,7 @@ This ticket was automatically created by the branch-out system to track a flaky 
 	jiraReq := CreateIssueRequest{
 		Fields: IssueFields{
 			Project: Project{
-				Key: c.config.ProjectKey,
+				Key: c.secrets.ProjectKey,
 			},
 			Summary:     summary,
 			Description: description,
@@ -254,7 +265,7 @@ This ticket was automatically created by the branch-out system to track a flaky 
 	}
 
 	// Create HTTP request
-	url := fmt.Sprintf("%s/rest/api/2/issue", c.config.BaseURL)
+	url := fmt.Sprintf("%s/rest/api/2/issue", c.baseURL)
 	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		c.logger.Error().Err(err).Str("url", url).Msg("Failed to create HTTP request")
@@ -266,9 +277,9 @@ This ticket was automatically created by the branch-out system to track a flaky 
 	httpReq.Header.Set("Accept", "application/json")
 
 	// Set authentication based on available credentials
-	if c.config.Username != "" && c.config.APIToken != "" {
+	if c.secrets.Username != "" && c.secrets.Token != "" {
 		// Fallback to basic auth
-		httpReq.SetBasicAuth(c.config.Username, c.config.APIToken)
+		httpReq.SetBasicAuth(c.secrets.Username, c.secrets.Token)
 	} else {
 		c.logger.Error().Msg("No valid authentication credentials available")
 		return nil, fmt.Errorf("no valid authentication credentials available")
@@ -322,7 +333,7 @@ func (c *Client) GetTicketStatus(ticketKey string) (*TicketStatus, error) {
 	c.logger.Info().Str("ticket_key", ticketKey).Msg("Getting Jira ticket status")
 
 	// Create the API URL
-	url := fmt.Sprintf("%s/rest/api/2/issue/%s?fields=status", c.config.BaseURL, ticketKey)
+	url := fmt.Sprintf("%s/rest/api/2/issue/%s?fields=status", c.baseURL, ticketKey)
 
 	// Create HTTP request
 	httpReq, err := http.NewRequest("GET", url, nil)
@@ -335,8 +346,8 @@ func (c *Client) GetTicketStatus(ticketKey string) (*TicketStatus, error) {
 	httpReq.Header.Set("Accept", "application/json")
 
 	// Set authentication
-	if c.config.Username != "" && c.config.APIToken != "" {
-		httpReq.SetBasicAuth(c.config.Username, c.config.APIToken)
+	if c.secrets.Username != "" && c.secrets.Token != "" {
+		httpReq.SetBasicAuth(c.secrets.Username, c.secrets.Token)
 	} else {
 		c.logger.Error().Msg("No valid authentication credentials available")
 		return nil, fmt.Errorf("no valid authentication credentials available")
@@ -391,7 +402,7 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 	c.logger.Info().Str("ticket_key", ticketKey).Msg("Adding comment to Jira ticket")
 
 	// Create the API URL
-	url := fmt.Sprintf("%s/rest/api/2/issue/%s/comment", c.config.BaseURL, ticketKey)
+	url := fmt.Sprintf("%s/rest/api/2/issue/%s/comment", c.baseURL, ticketKey)
 
 	// Create request body
 	requestBody := map[string]interface{}{
@@ -417,8 +428,8 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 	httpReq.Header.Set("Accept", "application/json")
 
 	// Set authentication
-	if c.config.Username != "" && c.config.APIToken != "" {
-		httpReq.SetBasicAuth(c.config.Username, c.config.APIToken)
+	if c.secrets.Username != "" && c.secrets.Token != "" {
+		httpReq.SetBasicAuth(c.secrets.Username, c.secrets.Token)
 	} else {
 		c.logger.Error().Msg("No valid authentication credentials available")
 		return fmt.Errorf("no valid authentication credentials available")
@@ -461,14 +472,14 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 
 // IsOAuthEnabled returns true if OAuth authentication is configured
 func (c *Client) IsOAuthEnabled() bool {
-	return c.config.AccessToken != ""
+	return c.secrets.OAuthAccessToken != ""
 }
 
 // AuthType returns the type of authentication being used
 func (c *Client) AuthType() string {
 	if c.IsOAuthEnabled() {
 		return "OAuth"
-	} else if c.config.Username != "" && c.config.APIToken != "" {
+	} else if c.secrets.Username != "" && c.secrets.Token != "" {
 		return "Basic Auth"
 	}
 	return "None"

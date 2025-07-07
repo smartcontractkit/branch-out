@@ -2,6 +2,7 @@
 package logging
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -18,12 +19,11 @@ var once sync.Once
 
 // options holds the options for the logger.
 type options struct {
-	enableConsoleLog   bool
-	logLevelInput      string
-	logFileName        string
-	disableFileLogging bool
-	writers            []io.Writer
-	soleWriter         io.Writer
+	enableConsoleLog bool
+	logLevelInput    string
+	logFileName      string
+	writers          []io.Writer
+	soleWriter       io.Writer
 }
 
 // Option is a function that sets an option for the logger.
@@ -66,18 +66,9 @@ func WithConsoleLog(enabled bool) Option {
 	}
 }
 
-// DisableFileLogging disables only logging to a file.
-func DisableFileLogging() Option {
-	return func(o *options) {
-		o.disableFileLogging = true
-	}
-}
-
 func defaultOptions() *options {
 	return &options{
 		enableConsoleLog: true,
-		logLevelInput:    "info",
-		logFileName:      "branch-out.log.json",
 	}
 }
 
@@ -89,17 +80,16 @@ func New(options ...Option) (zerolog.Logger, error) {
 	}
 
 	var (
-		logFileName        = opts.logFileName
-		logLevelInput      = opts.logLevelInput
-		enableConsoleLog   = opts.enableConsoleLog
-		disableFileLogging = opts.disableFileLogging
+		logFileName      = opts.logFileName
+		logLevelInput    = opts.logLevelInput
+		enableConsoleLog = opts.enableConsoleLog
 	)
 
 	writers := opts.writers
 	if opts.soleWriter != nil {
 		writers = []io.Writer{opts.soleWriter}
 	} else {
-		if !disableFileLogging {
+		if logFileName != "" {
 			err := os.MkdirAll(filepath.Dir(logFileName), 0700)
 			if err != nil {
 				return zerolog.Logger{}, err
@@ -121,7 +111,10 @@ func New(options ...Option) (zerolog.Logger, error) {
 		}
 	}
 
-	logLevel := getLogLevel(logLevelInput)
+	logLevel, err := zerolog.ParseLevel(logLevelInput)
+	if err != nil {
+		return zerolog.Logger{}, fmt.Errorf("invalid log level: %w", err)
+	}
 
 	once.Do(func() {
 		zerolog.TimeFieldFormat = TimeLayout

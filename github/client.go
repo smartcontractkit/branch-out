@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"time"
 
@@ -17,11 +16,11 @@ import (
 	"github.com/rs/zerolog"
 	gh_graphql "github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
+
+	"github.com/smartcontractkit/branch-out/config"
 )
 
 const (
-	// TokenEnvVar is the environment variable that contains the GitHub token.
-	TokenEnvVar = "GITHUB_TOKEN"
 	// RateLimitWarningThreshold is the number of remaining requests before a warning is logged.
 	RateLimitWarningThreshold = 5
 	// RateLimitWarningMsg is the message logged when the number of remaining requests is below the warning threshold.
@@ -45,81 +44,56 @@ type Client struct {
 }
 
 // ClientOption is a function that can be used to configure the GitHub client.
-type ClientOption func(*Client)
+type ClientOption func(*clientOptions)
+
+type clientOptions struct {
+	baseURL     *url.URL
+	tokenSource oauth2.TokenSource
+	next        http.RoundTripper
+	config      *config.GitHub
+}
 
 // WithBaseURL sets the base URL of the GitHub API.
 func WithBaseURL(baseURL *url.URL) ClientOption {
-	return func(c *Client) {
+	return func(c *clientOptions) {
 		if baseURL != nil {
-			c.BaseURL = baseURL
+			c.baseURL = baseURL
 		}
 	}
 }
 
-// WithToken sets the GitHub token used to authenticate requests.
-func WithToken(token string) ClientOption {
-	return func(c *Client) {
-		if token != "" {
-			c.tokenSource = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-		}
+// WithConfig uses a GitHub config to setup authentication.
+func WithConfig(githubConfig *config.GitHub) ClientOption {
+	return func(c *clientOptions) {
+		c.config = githubConfig
 	}
 }
 
 // WithNext sets the next HTTP round tripper. Helpful for testing.
 func WithNext(next http.RoundTripper) ClientOption {
-	return func(c *Client) {
+	return func(c *clientOptions) {
 		c.next = next
 	}
-}
-
-// setupToken configures the authentication mechanism for the GitHub client.
-// It tries authentication methods in the following order:
-// 1. GitHub token from flag (if provided via WithToken)
-// 2. GitHub App authentication (automatically uses installation tokens if available)
-// 3. GitHub token from environment variable
-func setupToken(client *Client, l zerolog.Logger) error {
-	// Priority 1: Token from flag (already set via WithToken)
-	if client.tokenSource != nil {
-		l.Debug().Msg("Using GitHub token from flag")
-		return nil
-	}
-
-	// Priority 2: GitHub App authentication
-	appTokenSource, err := LoadInstallationTokenSource()
-	if err != nil {
-		return fmt.Errorf("failed to load GitHub App configuration: %w", err)
-	}
-	if appTokenSource != nil {
-		client.tokenSource = appTokenSource
-		l.Debug().Msg("Using GitHub App authentication")
-		return nil
-	}
-
-	// Priority 3: Token from environment variable
-	envToken := os.Getenv(TokenEnvVar)
-	if envToken != "" {
-		client.tokenSource = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: envToken})
-		l.Debug().Msg("Using GitHub token from environment variable")
-		return nil
-	}
-
-	// No authentication configured
-	l.Warn().Msg("No GitHub authentication configured, some features will be disabled and rate limits might be hit!")
-	return nil
 }
 
 // NewClient creates a new GitHub REST and GraphQL API client with the provided token and logger.
 // If optionalNext is provided, it will be used as the base client for both REST and GraphQL, handy for testing.
 func NewClient(
 	l zerolog.Logger,
-	opts ...ClientOption,
+	options ...ClientOption,
 ) (*Client, error) {
-	client := &Client{}
-	for _, opt := range opts {
-		opt(client)
+	opts := &clientOptions{}
+	for _, opt := range options {
+		opt(opts)
 	}
 
-	err := setupToken(client, l)
+	client := &Client{
+		tokenSource: opts.tokenSource,
+		next:        opts.next,
+	}
+
+	var err error
+	client.tokenSource, err = setupAuth(l, opts.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup authentication: %w", err)
 	}

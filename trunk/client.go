@@ -7,19 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/rs/zerolog"
 
+	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/jira"
 )
-
-// Config holds the configuration for Trunk.io API client
-type Config struct {
-	BaseURL  string
-	APIToken string
-}
 
 // Interface for interacting with Trunk.io API (for testability)
 type Interface interface {
@@ -31,39 +25,80 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// Client implements Interface
+// Client is the Trunk.io client.
 type Client struct {
-	config     Config
+	baseURL    string
+	secrets    config.Trunk
 	httpClient HTTPClient
 	logger     zerolog.Logger
 }
 
-// NewClient creates a new Trunk.io client with configuration from environment variables
-func NewClient(logger zerolog.Logger) (*Client, error) {
-	apiToken := os.Getenv("TRUNK_API_TOKEN")
-	if apiToken == "" {
-		return nil, fmt.Errorf("TRUNK_API_TOKEN environment variable is required")
-	}
+// Option is a function that sets a configuration option for the Trunk.io client.
+type Option func(*trunkClientOptions)
 
-	config := Config{
-		BaseURL:  "https://api.trunk.io",
-		APIToken: apiToken,
-	}
-
-	return &Client{
-		config:     config,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		logger:     logger,
-	}, nil
+type trunkClientOptions struct {
+	baseURL    string
+	cfg        *config.Config
+	logger     zerolog.Logger
+	httpClient HTTPClient
 }
 
-// NewClientWithHTTPClient creates a new Trunk.io client with a custom HTTP client (for testing)
-func NewClientWithHTTPClient(config Config, httpClient HTTPClient, logger zerolog.Logger) *Client {
-	return &Client{
-		config:     config,
-		httpClient: httpClient,
-		logger:     logger,
+// WithLogger sets the logger to use for the Trunk.io client.
+func WithLogger(logger zerolog.Logger) Option {
+	return func(opts *trunkClientOptions) {
+		opts.logger = logger
 	}
+}
+
+// WithConfig sets the config to use for the Trunk.io client.
+func WithConfig(config *config.Config) Option {
+	return func(opts *trunkClientOptions) {
+		opts.cfg = config
+	}
+}
+
+// WithHTTPClient sets the HTTP client to use for the Trunk.io client.
+func WithHTTPClient(httpClient HTTPClient) Option {
+	return func(opts *trunkClientOptions) {
+		opts.httpClient = httpClient
+	}
+}
+
+// WithBaseURL sets the base URL for the Trunk.io client. Useful for testing.
+func WithBaseURL(baseURL string) Option {
+	return func(opts *trunkClientOptions) {
+		opts.baseURL = baseURL
+	}
+}
+
+// NewClient creates a new Trunk.io client.
+func NewClient(options ...Option) (*Client, error) {
+	opts := &trunkClientOptions{
+		baseURL:    "https://api.trunk.io",
+		logger:     zerolog.Nop(),
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+	}
+	for _, opt := range options {
+		opt(opts)
+	}
+
+	var (
+		appConfig = opts.cfg
+		err       error
+	)
+	if appConfig == nil {
+		appConfig, err = config.Load()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &Client{
+		baseURL:    opts.baseURL,
+		secrets:    appConfig.Trunk,
+		httpClient: opts.httpClient,
+		logger:     opts.logger,
+	}, nil
 }
 
 // LinkTicketToTestCase links a Jira ticket to a test case in Trunk.io
@@ -96,7 +131,7 @@ func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResp
 	}
 
 	// Create HTTP request
-	url := fmt.Sprintf("%s/v1/flaky-tests/link-ticket-to-test-case", c.config.BaseURL)
+	url := fmt.Sprintf("%s/v1/flaky-tests/link-ticket-to-test-case", c.baseURL)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to create HTTP request for Trunk API")
@@ -106,7 +141,7 @@ func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResp
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "*/*")
-	req.Header.Set("x-api-token", c.config.APIToken)
+	req.Header.Set("x-api-token", c.secrets.Token)
 
 	// Make the HTTP request
 	resp, err := c.httpClient.Do(req)
