@@ -15,9 +15,6 @@ import (
 	"github.com/smartcontractkit/branch-out/server"
 )
 
-// DefaultPort is the default port for the server to listen on.
-const DefaultPort = 8181
-
 var (
 	appConfig *config.Config
 	logger    zerolog.Logger
@@ -64,7 +61,7 @@ func init() {
 	root.PersistentFlags().
 		StringP("log-path", "f", "", "Also logs to a file at the given path")
 
-	root.Flags().IntP("port", "p", DefaultPort, "The port for the server to listen on")
+	root.Flags().IntP("port", "p", config.DefaultPort, "The port for the server to listen on")
 
 	// Bind flags to viper
 	if err := viper.BindPFlags(root.PersistentFlags()); err != nil {

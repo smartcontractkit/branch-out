@@ -5,11 +5,22 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
+)
+
+// DefaultPort is the default port for the server to listen on.
+const (
+	// DefaultPort is the default port for the server to listen on.
+	DefaultPort = 8181
+	// DefaultLogLevel is the default log level for the server.
+	DefaultLogLevel = "info"
 )
 
 // These variables are set at build time and describe the version and build of the application
@@ -40,9 +51,9 @@ type Config struct {
 	Port     int    `mapstructure:"BRANCH_OUT_PORT"`
 
 	// Secrets
-	GitHub GitHub
-	Trunk  Trunk
-	Jira   Jira
+	GitHub GitHub `mapstructure:",squash"`
+	Trunk  Trunk  `mapstructure:",squash"`
+	Jira   Jira   `mapstructure:",squash"`
 }
 
 // GitHub configures authentication to the GitHub API.
@@ -74,23 +85,88 @@ type Jira struct {
 	Token             string `mapstructure:"JIRA_TOKEN"`
 }
 
-// Load loads config from environment variables and flags.
-func Load() (*Config, error) {
-	viper.SetConfigFile(".env")
-	viper.AutomaticEnv()
+// Option is a function that can be used to configure loading the config.
+type Option func(*configOptions)
 
-	err := viper.ReadInConfig()
-	// Ignore errors if the config file doesn't exist or is not found. Just use env vars and flags.
-	if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, viper.ConfigFileNotFoundError{}) {
-		return nil, err
+type configOptions struct {
+	configFile string
+	logger     zerolog.Logger
+	viper      *viper.Viper
+}
+
+// WithConfigFile sets the exact config file to load.
+func WithConfigFile(configFile string) Option {
+	return func(cfg *configOptions) {
+		cfg.configFile = configFile
+	}
+}
+
+// WithLogger sets the logger to use.
+func WithLogger(logger zerolog.Logger) Option {
+	return func(cfg *configOptions) {
+		cfg.logger = logger
+	}
+}
+
+// WithViper sets a custom viper instance to use.
+func WithViper(v *viper.Viper) Option {
+	return func(cfg *configOptions) {
+		cfg.viper = v
+	}
+}
+
+// Load loads config from environment variables and flags.
+func Load(options ...Option) (*Config, error) {
+	opts := &configOptions{
+		configFile: ".env",
+		logger:     zerolog.Nop(),
+		viper:      nil, // Will create new instance if not provided
+	}
+	for _, opt := range options {
+		opt(opts)
+	}
+	l := opts.logger.With().Str("config_file", opts.configFile).Logger()
+
+	// Use provided viper instance or create a new one
+	v := opts.viper
+	if v == nil {
+		v = viper.New()
+		// Set up defaults and env binding for new instance
+		setupViperDefaults(v)
+	}
+
+	if opts.configFile != "" {
+		v.SetConfigFile(opts.configFile)
+	}
+
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok || errors.Is(err, os.ErrNotExist) {
+			// Config file not found; ignore error and use env vars and flags
+			l.Debug().Msg("Config file not found")
+		} else {
+			l.Error().Err(err).Msg("Error reading config file")
+			// Config file was found but another error was produced
+			return nil, err
+		}
 	}
 
 	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
+	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
 
+	l.Debug().Str("log_level", cfg.LogLevel).Int("port", cfg.Port).Msg("Loaded config")
+
 	return &cfg, nil
+}
+
+// MustLoad is Load but panics if there is an error.
+func MustLoad(options ...Option) *Config {
+	cfg, err := Load(options...)
+	if err != nil {
+		panic(err)
+	}
+	return cfg
 }
 
 func init() {
@@ -112,6 +188,55 @@ func init() {
 		Commit = "dev"
 	}
 
-	// Config setup
-	viper.SetDefault("GITHUB_BASE_URL", "https://api.github.com")
+	// Set up defaults for global viper instance (for backward compatibility)
+	setupViperDefaults(viper.GetViper())
+}
+
+// setupViperDefaults configures viper with sensible defaults for all configuration fields
+func setupViperDefaults(v *viper.Viper) {
+	// Set only the essential defaults
+	v.SetDefault("BRANCH_OUT_LOG_LEVEL", DefaultLogLevel)
+	v.SetDefault("BRANCH_OUT_PORT", DefaultPort)
+	v.SetDefault("GITHUB_BASE_URL", "https://api.github.com")
+
+	// Automatically bind all environment variables based on struct tags
+	if err := bindEnvsFromStruct(v, reflect.TypeOf(Config{})); err != nil {
+		panic(err)
+	}
+
+	// Configure viper to automatically read environment variables
+	v.AutomaticEnv()
+}
+
+// bindEnvsFromStruct binds environment variables to viper based on struct tags.
+// Avoids having to manually viper.BindEnv for each field.
+func bindEnvsFromStruct(v *viper.Viper, t reflect.Type) error {
+	if t.Kind() != reflect.Struct {
+		return fmt.Errorf("type %s is not a struct", t.Name())
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		tag := field.Tag.Get("mapstructure")
+		// Skip fields without a mapstructure tag
+		if tag == "" {
+			continue
+		}
+		if strings.Contains(tag, ",squash") {
+			// Handle embedded structs with squash
+			if err := bindEnvsFromStruct(v, field.Type); err != nil {
+				return err
+			}
+			continue
+		}
+		if tag == "-" {
+			// Skip ignored fields
+			continue
+		}
+		// Bind the environment variable
+		if err := v.BindEnv(tag); err != nil {
+			return fmt.Errorf("failed to bind env %s: %w", tag, err)
+		}
+	}
+	return nil
 }
