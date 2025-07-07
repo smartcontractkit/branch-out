@@ -108,7 +108,7 @@ func WithLogger(logger zerolog.Logger) Option {
 	}
 }
 
-// WithViper sets a custom viper instance to use.
+// WithViper sets a custom viper instance to use. Useful for testing.
 func WithViper(v *viper.Viper) Option {
 	return func(cfg *configOptions) {
 		cfg.viper = v

@@ -15,11 +15,6 @@ import (
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
 )
 
-const (
-	// This file does not exist. Set file to non-existent for tests where you want to make sure you don't load the real .env file.
-	nonExistentFile = "non-existent-file.env"
-)
-
 func TestVersionString(t *testing.T) {
 	t.Parallel()
 
@@ -78,6 +73,23 @@ GITHUB_BASE_URL=%s
 	assert.Equal(t, baseURL, cfg.GitHub.BaseURL)
 }
 
+func TestLoad_Viper(t *testing.T) {
+	t.Parallel()
+
+	v := viper.New()
+	v.Set("BRANCH_OUT_LOG_LEVEL", "test_level")
+	v.Set("BRANCH_OUT_PORT", 9090)
+	v.Set("GITHUB_BASE_URL", "https://test-base-url.com")
+
+	cfg, err := Load(WithViper(v))
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, "test_level", cfg.LogLevel)
+	assert.Equal(t, 9090, cfg.Port)
+	assert.Equal(t, "https://test-base-url.com", cfg.GitHub.BaseURL)
+}
+
 func TestLoad_BadFile(t *testing.T) {
 	t.Parallel()
 
@@ -109,7 +121,7 @@ func TestLoad_EnvVars(t *testing.T) {
 	t.Setenv("TRUNK_TOKEN", trunkToken)
 
 	l := testhelpers.Logger(t)
-	cfg, err := Load(WithConfigFile(nonExistentFile), WithLogger(l))
+	cfg, err := Load(WithConfigFile("non-existent-file.env"), WithLogger(l))
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
