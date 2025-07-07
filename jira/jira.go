@@ -9,41 +9,30 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/rs/zerolog"
 	"golang.org/x/oauth2"
 
+	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
 )
 
-// Interface for interacting with Jira API (for testability)
-type Interface interface {
-	CreateFlakyTestTicket(req FlakyTestTicketRequest) (*TicketResponse, error)
-	GetTicketStatus(ticketKey string) (*TicketStatus, error)
-	AddCommentToTicket(ticketKey string, comment string) error
-}
-
-// HTTPClient interface for HTTP requests (for testability)
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
 // Client implements Interface
 type Client struct {
-	baseURL    string
-	secrets    config.Jira
-	httpClient HTTPClient
-	logger     zerolog.Logger
+	BaseURL    *url.URL
+	HTTPClient *http.Client
+
+	secrets config.Jira
+	logger  zerolog.Logger
 }
 
 // Option is a function that sets a configuration option for the Jira client.
 type Option func(*jiraClientOptions)
 
 type jiraClientOptions struct {
-	config     *config.Config
-	logger     zerolog.Logger
-	httpClient HTTPClient
+	baseURL *url.URL
+	config  *config.Config
+	logger  zerolog.Logger
 }
 
 // WithLogger sets the logger to use for the Jira client.
@@ -60,11 +49,19 @@ func WithConfig(config *config.Config) Option {
 	}
 }
 
-// WithHTTPClient sets the HTTP client to use for the Jira client.
-func WithHTTPClient(httpClient HTTPClient) Option {
+// WithBaseURL sets the base URL for the Jira client.
+func WithBaseURL(baseURL *url.URL) Option {
 	return func(cfg *jiraClientOptions) {
-		cfg.httpClient = httpClient
+		cfg.baseURL = baseURL
 	}
+}
+
+// ClientInterface is the interface that wraps the basic Jira client methods.
+// Helpful for mocking in tests.
+type ClientInterface interface {
+	CreateFlakyTestTicket(req FlakyTestTicketRequest) (*TicketResponse, error)
+	GetTicketStatus(ticketKey string) (*TicketStatus, error)
+	AddCommentToTicket(ticketKey string, comment string) error
 }
 
 // NewClient creates a new Jira client with configuration from environment variables
@@ -106,20 +103,24 @@ func NewClient(options ...Option) (*Client, error) {
 		)
 	}
 
-	baseURL := fmt.Sprintf("https://%s", appConfig.Jira.BaseDomain)
-	tokenURL, err := url.JoinPath(baseURL, "plugins/servlet/oauth/access-token")
-	if err != nil {
-		return nil, fmt.Errorf("failed to join path: %w", err)
+	baseURL := &url.URL{
+		Scheme: "https",
+		Host:   appConfig.Jira.BaseDomain,
 	}
+	tokenURL := baseURL.JoinPath("plugins/servlet/oauth/access-token")
 
-	// Create HTTP client with OAuth if available
-	var httpClient HTTPClient
+	baseTransport := base.NewTransport(
+		base.WithLogger(opts.logger),
+		base.WithComponent("jira"),
+	)
+
+	var httpClient *http.Client
 	if hasOAuth {
 		oauthConfig := &oauth2.Config{
 			ClientID:     appConfig.Jira.OAuthClientID,
 			ClientSecret: appConfig.Jira.OAuthClientSecret,
 			Endpoint: oauth2.Endpoint{
-				TokenURL: tokenURL,
+				TokenURL: tokenURL.String(),
 			},
 		}
 
@@ -129,15 +130,16 @@ func NewClient(options ...Option) (*Client, error) {
 			TokenType:    "Bearer",
 		}
 
-		httpClient = oauthConfig.Client(context.Background(), token)
-	} else {
-		httpClient = &http.Client{Timeout: 30 * time.Second}
+		// Use context to pass the base transport to the oauth2 client
+		clientCtx := context.WithValue(context.Background(), oauth2.HTTPClient, baseTransport)
+		client := oauthConfig.Client(clientCtx, token)
+		httpClient = client
 	}
 
 	return &Client{
-		baseURL:    baseURL,
+		BaseURL:    baseURL,
+		HTTPClient: httpClient,
 		secrets:    appConfig.Jira,
-		httpClient: httpClient,
 		logger:     opts.logger,
 	}, nil
 }
@@ -196,10 +198,10 @@ This ticket was automatically created by the branch-out system to track a flaky 
 	}
 
 	// Create HTTP request
-	url := fmt.Sprintf("%s/rest/api/2/issue", c.baseURL)
-	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	url := c.BaseURL.JoinPath("rest/api/2/issue")
+	httpReq, err := http.NewRequest("POST", url.String(), bytes.NewBuffer(jsonData))
 	if err != nil {
-		c.logger.Error().Err(err).Str("url", url).Msg("Failed to create HTTP request")
+		c.logger.Error().Err(err).Str("url", url.String()).Msg("Failed to create HTTP request")
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
@@ -217,7 +219,7 @@ This ticket was automatically created by the branch-out system to track a flaky 
 	}
 
 	// Make the request
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to make HTTP request to Jira")
 		return nil, fmt.Errorf("failed to make HTTP request: %w", err)
@@ -264,10 +266,10 @@ func (c *Client) GetTicketStatus(ticketKey string) (*TicketStatus, error) {
 	c.logger.Info().Str("ticket_key", ticketKey).Msg("Getting Jira ticket status")
 
 	// Create the API URL
-	url := fmt.Sprintf("%s/rest/api/2/issue/%s?fields=status", c.baseURL, ticketKey)
+	url := c.BaseURL.JoinPath("rest/api/2/issue", ticketKey, "?fields=status")
 
 	// Create HTTP request
-	httpReq, err := http.NewRequest("GET", url, nil)
+	httpReq, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to create HTTP request for getting ticket status")
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
@@ -285,7 +287,7 @@ func (c *Client) GetTicketStatus(ticketKey string) (*TicketStatus, error) {
 	}
 
 	// Make the request
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to make HTTP request to get ticket status")
 		return nil, fmt.Errorf("failed to make HTTP request: %w", err)
@@ -333,7 +335,7 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 	c.logger.Info().Str("ticket_key", ticketKey).Msg("Adding comment to Jira ticket")
 
 	// Create the API URL
-	url := fmt.Sprintf("%s/rest/api/2/issue/%s/comment", c.baseURL, ticketKey)
+	url := c.BaseURL.JoinPath("rest/api/2/issue", ticketKey, "comment")
 
 	// Create request body
 	requestBody := map[string]interface{}{
@@ -348,7 +350,7 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 	}
 
 	// Create HTTP request
-	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
+	httpReq, err := http.NewRequest("POST", url.String(), bytes.NewBuffer(jsonBody))
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to create HTTP request for adding comment")
 		return fmt.Errorf("failed to create HTTP request: %w", err)
@@ -367,7 +369,7 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 	}
 
 	// Make the request
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to make HTTP request to add comment")
 		return fmt.Errorf("failed to make HTTP request: %w", err)

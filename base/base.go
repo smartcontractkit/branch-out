@@ -20,39 +20,49 @@ const (
 	RateLimitHitMsg = "API rate limit hit, sleeping until limit reset"
 )
 
-type clientOptions struct {
+type baseOptions struct {
 	logger    zerolog.Logger
 	component string
 	base      http.RoundTripper
 }
 
-// ClientOption can modify how the base client works
-type ClientOption func(*clientOptions)
+// Option can modify how the base client works
+type Option func(*baseOptions)
 
 // WithLogger sets the logger to use for logging requests and responses
-func WithLogger(logger zerolog.Logger) ClientOption {
-	return func(opts *clientOptions) {
+func WithLogger(logger zerolog.Logger) Option {
+	return func(opts *baseOptions) {
 		opts.logger = logger
 	}
 }
 
-// WithBase sets the base transport to use for the client
-func WithBase(base http.RoundTripper) ClientOption {
-	return func(opts *clientOptions) {
+// WithBaseTransport sets the base transport to use for the client
+func WithBaseTransport(base http.RoundTripper) Option {
+	return func(opts *baseOptions) {
 		opts.base = base
 	}
 }
 
 // WithComponent sets the component used
-func WithComponent(component string) ClientOption {
-	return func(opts *clientOptions) {
+func WithComponent(component string) Option {
+	return func(opts *baseOptions) {
 		opts.component = component
 	}
 }
 
-// NewClient creates a new base HTTP client with logging to use as the base transport for other clients
-func NewClient(options ...ClientOption) *http.Client {
-	opts := &clientOptions{
+// NewClient creates a new base HTTP client with logging middleware
+func NewClient(options ...Option) *http.Client {
+	transport := NewTransport(options...)
+
+	return &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+	}
+}
+
+// NewTransport creates a new base transport with logging middleware for use as the base transport for other clients
+func NewTransport(options ...Option) http.RoundTripper {
+	opts := &baseOptions{
 		logger: zerolog.Nop(),
 		base:   http.DefaultTransport,
 	}
@@ -64,12 +74,10 @@ func NewClient(options ...ClientOption) *http.Client {
 		opts.logger = opts.logger.With().Str("component", opts.component).Logger()
 	}
 
-	return &http.Client{
-		Transport: &LoggingTransport{
-			Base:      opts.base,
-			Logger:    opts.logger,
-			Component: opts.component,
-		},
+	return &LoggingTransport{
+		Base:      opts.base,
+		Logger:    opts.logger,
+		Component: opts.component,
 	}
 }
 

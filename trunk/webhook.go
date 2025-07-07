@@ -10,8 +10,14 @@ import (
 	"github.com/smartcontractkit/branch-out/jira"
 )
 
-// ReceiveWebhook processes a Trunk webhook with optional Jira and Trunk.io integration
-func ReceiveWebhook(l zerolog.Logger, payload []byte, jiraClient jira.Interface, trunkClient Interface) error {
+// ReceiveWebhook processes a Trunk webhook, typically triggered by a test being marked/unmarked as flaky.
+// It will create a
+func ReceiveWebhook(
+	l zerolog.Logger,
+	payload []byte,
+	jiraClient jira.ClientInterface,
+	trunkClient ClientInterface,
+) error {
 	l.Info().Msg("Received trunk webhook")
 	var webhookData TestCaseStatusChangedPayload
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
@@ -26,8 +32,8 @@ func ReceiveWebhook(l zerolog.Logger, payload []byte, jiraClient jira.Interface,
 func handleTestCaseStatusChanged(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.Interface,
-	trunkClient Interface,
+	jiraClient jira.ClientInterface,
+	trunkClient ClientInterface,
 ) error {
 	l.Info().Msg("Processing test_case.status_changed event")
 
@@ -60,8 +66,8 @@ func handleTestCaseStatusChanged(
 func createJiraTicketForFlakyTest(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.Interface,
-	trunkClient Interface,
+	jiraClient jira.ClientInterface,
+	trunkClient ClientInterface,
 ) error {
 	testCase := webhookData.TestCase
 
@@ -127,8 +133,8 @@ func createJiraTicketForFlakyTest(
 func handleExistingTicketForFlakyTest(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.Interface,
-	trunkClient Interface,
+	jiraClient jira.ClientInterface,
+	trunkClient ClientInterface,
 ) error {
 	testCase := webhookData.TestCase
 	ticketURL := testCase.Ticket.HTMLURL
@@ -173,7 +179,7 @@ func handleExistingTicketForFlakyTest(
 func addFlakyTestUpdateComment(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.Interface,
+	jiraClient jira.ClientInterface,
 	ticketKey string,
 ) error {
 	testCase := webhookData.TestCase

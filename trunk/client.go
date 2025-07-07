@@ -7,40 +7,37 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
+	"net/url"
 
 	"github.com/rs/zerolog"
 
+	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/jira"
 )
 
-// Interface for interacting with Trunk.io API (for testability)
-type Interface interface {
-	LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResponse, repoURL string) error
-}
-
-// HTTPClient interface for HTTP requests (for testability)
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
 // Client is the Trunk.io client.
 type Client struct {
-	baseURL    string
-	secrets    config.Trunk
-	httpClient HTTPClient
-	logger     zerolog.Logger
+	BaseURL    *url.URL
+	HTTPClient *http.Client
+
+	secrets config.Trunk
+	logger  zerolog.Logger
+}
+
+// ClientInterface is the interface that wraps the basic Trunk.io client methods.
+// Helpful for mocking in tests.
+type ClientInterface interface {
+	LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResponse, repoURL string) error
 }
 
 // Option is a function that sets a configuration option for the Trunk.io client.
 type Option func(*trunkClientOptions)
 
 type trunkClientOptions struct {
-	baseURL    string
-	cfg        *config.Config
-	logger     zerolog.Logger
-	httpClient HTTPClient
+	baseURL *url.URL
+	cfg     *config.Config
+	logger  zerolog.Logger
 }
 
 // WithLogger sets the logger to use for the Trunk.io client.
@@ -57,15 +54,8 @@ func WithConfig(config *config.Config) Option {
 	}
 }
 
-// WithHTTPClient sets the HTTP client to use for the Trunk.io client.
-func WithHTTPClient(httpClient HTTPClient) Option {
-	return func(opts *trunkClientOptions) {
-		opts.httpClient = httpClient
-	}
-}
-
 // WithBaseURL sets the base URL for the Trunk.io client. Useful for testing.
-func WithBaseURL(baseURL string) Option {
+func WithBaseURL(baseURL *url.URL) Option {
 	return func(opts *trunkClientOptions) {
 		opts.baseURL = baseURL
 	}
@@ -74,9 +64,8 @@ func WithBaseURL(baseURL string) Option {
 // NewClient creates a new Trunk.io client.
 func NewClient(options ...Option) (*Client, error) {
 	opts := &trunkClientOptions{
-		baseURL:    "https://api.trunk.io",
-		logger:     zerolog.Nop(),
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		baseURL: &url.URL{Scheme: "https", Host: "api.trunk.io"},
+		logger:  zerolog.Nop(),
 	}
 	for _, opt := range options {
 		opt(opts)
@@ -94,17 +83,20 @@ func NewClient(options ...Option) (*Client, error) {
 	}
 
 	return &Client{
-		baseURL:    opts.baseURL,
-		secrets:    appConfig.Trunk,
-		httpClient: opts.httpClient,
-		logger:     opts.logger,
+		BaseURL: opts.baseURL,
+		HTTPClient: base.NewClient(
+			base.WithLogger(opts.logger),
+			base.WithComponent("trunk"),
+		),
+		secrets: appConfig.Trunk,
+		logger:  opts.logger,
 	}, nil
 }
 
 // LinkTicketToTestCase links a Jira ticket to a test case in Trunk.io
 // See: https://docs.trunk.io/references/apis/flaky-tests#post-flaky-tests-link-ticket-to-test-case
 func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResponse, repoURL string) error {
-	c.logger.Info().
+	c.logger.Debug().
 		Str("test_case_id", testCaseID).
 		Str("jira_ticket_key", ticket.Key).
 		Msg("Linking Jira ticket to Trunk test case")
@@ -131,8 +123,8 @@ func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResp
 	}
 
 	// Create HTTP request
-	url := fmt.Sprintf("%s/v1/flaky-tests/link-ticket-to-test-case", c.baseURL)
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
+	url := c.BaseURL.JoinPath("v1/flaky-tests/link-ticket-to-test-case")
+	req, err := http.NewRequest("POST", url.String(), bytes.NewBuffer(requestBody))
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to create HTTP request for Trunk API")
 		return fmt.Errorf("failed to create request: %w", err)
@@ -144,7 +136,7 @@ func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResp
 	req.Header.Set("x-api-token", c.secrets.Token)
 
 	// Make the HTTP request
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to make request to Trunk API")
 		return fmt.Errorf("failed to make request to Trunk API: %w", err)

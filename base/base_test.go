@@ -15,6 +15,27 @@ import (
 	"github.com/smartcontractkit/branch-out/logging"
 )
 
+func TestNewTransport_Logging(t *testing.T) {
+	t.Parallel()
+
+	logs := bytes.NewBuffer(nil)
+	logger := testhelpers.Logger(t, logging.WithSoleWriter(logs))
+	transport := NewTransport(WithLogger(logger), WithComponent("test"))
+	require.NotNil(t, transport)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	resp, err := transport.RoundTrip(httptest.NewRequest("GET", server.URL, nil))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	assert.Contains(t, logs.String(), `"component":"test"`, "missing component in logs")
+	assert.Contains(t, logs.String(), "HTTP client request", "missing request in logs")
+}
+
 func TestNewClient_Logging(t *testing.T) {
 	t.Parallel()
 
