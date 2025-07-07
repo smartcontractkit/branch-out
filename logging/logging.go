@@ -2,6 +2,7 @@
 package logging
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -110,7 +111,10 @@ func New(options ...Option) (zerolog.Logger, error) {
 		}
 	}
 
-	logLevel := getLogLevel(logLevelInput)
+	logLevel, err := zerolog.ParseLevel(logLevelInput)
+	if err != nil {
+		return zerolog.Logger{}, fmt.Errorf("invalid log level: %w", err)
+	}
 
 	once.Do(func() {
 		zerolog.TimeFieldFormat = TimeLayout

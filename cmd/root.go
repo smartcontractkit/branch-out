@@ -25,9 +25,12 @@ var root = &cobra.Command{
 	Use:   "branch-out",
 	Short: "Branch Out accentuates the capabilities of Trunk.io's flaky test tools",
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-		var err error
+		var (
+			err error
+			v   = viper.GetViper()
+		)
 
-		appConfig, err = config.Load()
+		appConfig, err = config.Load(config.WithViper(v))
 		if err != nil {
 			return err
 		}
@@ -38,7 +41,12 @@ var root = &cobra.Command{
 		}
 
 		logger, err = logging.New(opts...)
-		return err
+		if err != nil {
+			return err
+		}
+
+		logger.Debug().Str("log_level", appConfig.LogLevel).Int("port", appConfig.Port).Msg("Loaded config")
+		return nil
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		srv := server.New(
@@ -63,11 +71,16 @@ func init() {
 
 	root.Flags().IntP("port", "p", config.DefaultPort, "The port for the server to listen on")
 
-	// Bind flags to viper
-	if err := viper.BindPFlags(root.PersistentFlags()); err != nil {
+	if err := viper.BindPFlag("LOG_LEVEL", root.PersistentFlags().Lookup("log-level")); err != nil {
 		panic(err)
 	}
-	if err := viper.BindPFlags(root.Flags()); err != nil {
+	if err := viper.BindPFlag("LOG_PATH", root.PersistentFlags().Lookup("log-path")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("PORT", root.Flags().Lookup("port")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("GITHUB_TOKEN", root.PersistentFlags().Lookup("github-token")); err != nil {
 		panic(err)
 	}
 }

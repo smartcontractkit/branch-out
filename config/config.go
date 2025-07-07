@@ -11,16 +11,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 )
 
 // DefaultPort is the default port for the server to listen on.
 const (
 	// DefaultPort is the default port for the server to listen on.
-	DefaultPort = 8181
+	DefaultPort = 8080
 	// DefaultLogLevel is the default log level for the server.
 	DefaultLogLevel = "info"
+	// DefaultGitHubBaseURL is the default base URL for the GitHub API.
+	DefaultGitHubBaseURL = "https://api.github.com"
+
+	// EnvVarLogLevel is the environment variable for the log level.
+	EnvVarLogLevel = "LOG_LEVEL"
+	// EnvVarPort is the environment variable for the port.
+	EnvVarPort = "PORT"
 )
 
 // These variables are set at build time and describe the version and build of the application
@@ -46,9 +52,9 @@ func VersionString() string {
 
 // Config is the application configuration, set by flags, then by environment variables.
 type Config struct {
-	LogLevel string `mapstructure:"BRANCH_OUT_LOG_LEVEL"`
-	LogPath  string `mapstructure:"BRANCH_OUT_LOG_PATH"`
-	Port     int    `mapstructure:"BRANCH_OUT_PORT"`
+	LogLevel string `mapstructure:"LOG_LEVEL"`
+	LogPath  string `mapstructure:"LOG_PATH"`
+	Port     int    `mapstructure:"PORT"`
 
 	// Secrets
 	GitHub GitHub `mapstructure:",squash"`
@@ -90,7 +96,6 @@ type Option func(*configOptions)
 
 type configOptions struct {
 	configFile string
-	logger     zerolog.Logger
 	viper      *viper.Viper
 }
 
@@ -98,13 +103,6 @@ type configOptions struct {
 func WithConfigFile(configFile string) Option {
 	return func(cfg *configOptions) {
 		cfg.configFile = configFile
-	}
-}
-
-// WithLogger sets the logger to use.
-func WithLogger(logger zerolog.Logger) Option {
-	return func(cfg *configOptions) {
-		cfg.logger = logger
 	}
 }
 
@@ -119,15 +117,12 @@ func WithViper(v *viper.Viper) Option {
 func Load(options ...Option) (*Config, error) {
 	opts := &configOptions{
 		configFile: ".env",
-		logger:     zerolog.Nop(),
-		viper:      nil, // Will create new instance if not provided
+		viper:      viper.GetViper(), // Use the global viper instance by default
 	}
 	for _, opt := range options {
 		opt(opts)
 	}
-	l := opts.logger.With().Str("config_file", opts.configFile).Logger()
 
-	// Use provided viper instance or create a new one
 	v := opts.viper
 	if v == nil {
 		v = viper.New()
@@ -140,12 +135,8 @@ func Load(options ...Option) (*Config, error) {
 	}
 
 	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok || errors.Is(err, os.ErrNotExist) {
-			// Config file not found; ignore error and use env vars and flags
-			l.Debug().Msg("Config file not found")
-		} else {
-			l.Error().Err(err).Msg("Error reading config file")
-			// Config file was found but another error was produced
+		// Ignore config file not found error
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
 	}
@@ -154,8 +145,6 @@ func Load(options ...Option) (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
-
-	l.Debug().Str("log_level", cfg.LogLevel).Int("port", cfg.Port).Msg("Loaded config")
 
 	return &cfg, nil
 }
@@ -195,16 +184,19 @@ func init() {
 // setupViperDefaults configures viper with sensible defaults for all configuration fields
 func setupViperDefaults(v *viper.Viper) {
 	// Set only the essential defaults
-	v.SetDefault("BRANCH_OUT_LOG_LEVEL", DefaultLogLevel)
-	v.SetDefault("BRANCH_OUT_PORT", DefaultPort)
-	v.SetDefault("GITHUB_BASE_URL", "https://api.github.com")
+	v.SetDefault(EnvVarLogLevel, DefaultLogLevel)
+	v.SetDefault(EnvVarPort, DefaultPort)
+	v.SetDefault("GITHUB_BASE_URL", DefaultGitHubBaseURL)
+
+	// Handle dashes in CLI flags
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
 	// Automatically bind all environment variables based on struct tags
 	if err := bindEnvsFromStruct(v, reflect.TypeOf(Config{})); err != nil {
 		panic(err)
 	}
 
-	// Configure viper to automatically read environment variables
+	// Handle dashes in CLI flags
 	v.AutomaticEnv()
 }
 

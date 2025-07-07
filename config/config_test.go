@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/spf13/viper"
-
-	"github.com/smartcontractkit/branch-out/internal/testhelpers"
 )
 
 func TestVersionString(t *testing.T) {
@@ -25,8 +23,7 @@ func TestVersionString(t *testing.T) {
 func TestLoad(t *testing.T) {
 	t.Parallel()
 
-	l := testhelpers.Logger(t)
-	cfg, err := Load(WithLogger(l))
+	cfg, err := Load()
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 }
@@ -34,9 +31,8 @@ func TestLoad(t *testing.T) {
 func TestMustLoad(t *testing.T) {
 	t.Parallel()
 
-	l := testhelpers.Logger(t)
 	require.NotPanics(t, func() {
-		cfg := MustLoad(WithLogger(l))
+		cfg := MustLoad()
 		require.NotNil(t, cfg)
 	})
 }
@@ -54,8 +50,8 @@ func TestLoad_File(t *testing.T) {
 		baseURL = "https://test-base-url.com"
 	)
 
-	envContent := fmt.Sprintf(`BRANCH_OUT_LOG_LEVEL=%s
-BRANCH_OUT_PORT=%d
+	envContent := fmt.Sprintf(`LOG_LEVEL=%s
+PORT=%d
 GITHUB_BASE_URL=%s
 `, level, port, baseURL)
 
@@ -77,8 +73,8 @@ func TestLoad_Viper(t *testing.T) {
 	t.Parallel()
 
 	v := viper.New()
-	v.Set("BRANCH_OUT_LOG_LEVEL", "test_level")
-	v.Set("BRANCH_OUT_PORT", 9090)
+	v.Set(EnvVarLogLevel, "test_level")
+	v.Set(EnvVarPort, 9090)
 	v.Set("GITHUB_BASE_URL", "https://test-base-url.com")
 
 	cfg, err := Load(WithViper(v))
@@ -102,8 +98,7 @@ func TestLoad_BadFile(t *testing.T) {
 	err := os.WriteFile(tempEnvFile, []byte(envContent), 0600)
 	require.NoError(t, err)
 
-	l := testhelpers.Logger(t)
-	cfg, err := Load(WithConfigFile(tempEnvFile), WithLogger(l))
+	cfg, err := Load(WithConfigFile(tempEnvFile))
 	require.Error(t, err)
 	require.Nil(t, cfg)
 }
@@ -115,13 +110,12 @@ func TestLoad_EnvVars(t *testing.T) {
 		token      = "env-token-456"
 		trunkToken = "env-trunk-token-789"
 	)
-	t.Setenv("BRANCH_OUT_LOG_LEVEL", level)
-	t.Setenv("BRANCH_OUT_PORT", fmt.Sprint(port))
+	t.Setenv(EnvVarLogLevel, level)
+	t.Setenv(EnvVarPort, fmt.Sprint(port))
 	t.Setenv("GITHUB_TOKEN", token)
 	t.Setenv("TRUNK_TOKEN", trunkToken)
 
-	l := testhelpers.Logger(t)
-	cfg, err := Load(WithConfigFile("non-existent-file.env"), WithLogger(l))
+	cfg, err := Load(WithConfigFile("non-existent-file.env"))
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
@@ -135,8 +129,7 @@ func TestLoad_EnvVars(t *testing.T) {
 func TestLoad_Defaults(t *testing.T) {
 	t.Parallel()
 
-	l := testhelpers.Logger(t)
-	cfg, err := Load(WithLogger(l))
+	cfg, err := Load()
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
