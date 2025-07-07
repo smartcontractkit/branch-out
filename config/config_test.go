@@ -89,7 +89,6 @@ func TestLoad_Viper(t *testing.T) {
 func TestLoad_BadFile(t *testing.T) {
 	t.Parallel()
 
-	// Create a temporary .env file
 	tempDir := t.TempDir()
 	tempEnvFile := filepath.Join(tempDir, ".env")
 
@@ -129,7 +128,7 @@ func TestLoad_EnvVars(t *testing.T) {
 func TestLoad_Defaults(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := Load()
+	cfg, err := Load(WithConfigFile("non-existent-file.env"))
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
