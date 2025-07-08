@@ -123,30 +123,27 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	// Process rate limit headers (GitHub style)
 	if callLimitStr := resp.Header.Get("X-RateLimit-Limit"); callLimitStr != "" {
 		callLimit, err := strconv.Atoi(callLimitStr)
-		if err == nil {
-			l = l.With().Int("call_limit", callLimit).Logger()
-		} else {
+		if err != nil {
 			return resp, err
 		}
+		l = l.With().Int("call_limit", callLimit).Logger()
 	}
 
 	if callsUsedStr := resp.Header.Get("X-RateLimit-Used"); callsUsedStr != "" {
 		callsUsed, err := strconv.Atoi(callsUsedStr)
-		if err == nil {
-			l = l.With().Int("calls_used", callsUsed).Logger()
-		} else {
+		if err != nil {
 			return resp, err
 		}
+		l = l.With().Int("calls_used", callsUsed).Logger()
 	}
 
 	if limitResetStr := resp.Header.Get("X-RateLimit-Reset"); limitResetStr != "" {
 		limitReset, err := strconv.Atoi(limitResetStr)
-		if err == nil {
-			limitResetTime := time.Unix(int64(limitReset), 0)
-			l = l.With().Time("limit_reset", limitResetTime).Logger()
-		} else {
+		if err != nil {
 			return resp, err
 		}
+		limitResetTime := time.Unix(int64(limitReset), 0)
+		l = l.With().Time("limit_reset", limitResetTime).Logger()
 	}
 
 	if callsRemainingStr := resp.Header.Get("X-RateLimit-Remaining"); callsRemainingStr != "" {
@@ -155,7 +152,9 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 			return resp, err
 		}
 		l = l.With().Int("calls_remaining", callsRemaining).Logger()
-		if callsRemaining <= RateLimitWarningThreshold {
+		if callsRemaining == 0 {
+			l.Warn().Msg(RateLimitHitMsg)
+		} else if callsRemaining <= RateLimitWarningThreshold {
 			l.Warn().Msg(RateLimitWarningMsg)
 		}
 	}
