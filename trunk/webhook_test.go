@@ -3,6 +3,8 @@ package trunk
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestTestCaseStatusChangedPayload_ParseRealPayload(t *testing.T) {
@@ -52,62 +54,47 @@ func TestTestCaseStatusChangedPayload_ParseRealPayload(t *testing.T) {
 
 	var payload TestCaseStatusChangedPayload
 	err := json.Unmarshal([]byte(payloadJSON), &payload)
-	if err != nil {
-		t.Fatalf("Should parse the real Trunk test_case.status_changed payload: %v", err)
-	}
+	require.NoError(t, err, "cannot parse the Trunk payload")
 
 	// Verify the parsed structure
-	if payload.StatusChange.CurrentStatus.Value != "flaky" {
-		t.Errorf("Expected current status 'flaky', got '%s'", payload.StatusChange.CurrentStatus.Value)
-	}
-	if payload.StatusChange.PreviousStatus != "healthy" {
-		t.Errorf("Expected previous status 'healthy', got '%s'", payload.StatusChange.PreviousStatus)
-	}
-	if payload.TestCase.ID != "2bfedccc-7fda-442c-bcf9-5e01c6d046d3" {
-		t.Errorf("Expected test case ID '2bfedccc-7fda-442c-bcf9-5e01c6d046d3', got '%s'", payload.TestCase.ID)
-	}
-	if payload.TestCase.Name != "DistributedLock #tryLock default throws on double unlock" {
-		t.Errorf(
-			"Expected test name 'DistributedLock #tryLock default throws on double unlock', got '%s'",
-			payload.TestCase.Name,
-		)
-	}
-	if payload.TestCase.FilePath != "trunk/services/__tests__/distributed_lock.test.js" {
-		t.Errorf(
-			"Expected file path 'trunk/services/__tests__/distributed_lock.test.js', got '%s'",
-			payload.TestCase.FilePath,
-		)
-	}
-	if len(payload.TestCase.Codeowners) == 0 || payload.TestCase.Codeowners[0] != "@backend" {
-		t.Errorf("Expected first codeowner '@backend', got %v", payload.TestCase.Codeowners)
-	}
-	if payload.TestCase.FailureRateLast7D != 0.1 {
-		t.Errorf("Expected failure rate 0.1, got %f", payload.TestCase.FailureRateLast7D)
-	}
-	if payload.TestCase.PullRequestsImpactedLast7D != 42 {
-		t.Errorf("Expected 42 impacted PRs, got %d", payload.TestCase.PullRequestsImpactedLast7D)
-	}
-	if !payload.TestCase.Quarantine {
-		t.Error("Expected quarantine to be true")
-	}
-	if payload.TestCase.Repository.HTMLURL != "https://github.com/trunk-io/analytics-cli" {
-		t.Errorf(
-			"Expected repository URL 'https://github.com/trunk-io/analytics-cli', got '%s'",
-			payload.TestCase.Repository.HTMLURL,
-		)
-	}
-	if payload.TestCase.Ticket.HTMLURL != "https://trunk-io.atlassian.net/browse/KAN-130" {
-		t.Errorf(
-			"Expected ticket URL 'https://trunk-io.atlassian.net/browse/KAN-130', got '%s'",
-			payload.TestCase.Ticket.HTMLURL,
-		)
-	}
-	if payload.TestCase.TestSuite != "DistributedLock" {
-		t.Errorf("Expected test suite 'DistributedLock', got '%s'", payload.TestCase.TestSuite)
-	}
-	if payload.TestCase.Variant != "linux-x86_64" {
-		t.Errorf("Expected variant 'linux-x86_64', got '%s'", payload.TestCase.Variant)
-	}
+	require.Equal(t, "flaky", payload.StatusChange.CurrentStatus.Value, "expected current status 'flaky'")
+	require.Equal(t, "healthy", payload.StatusChange.PreviousStatus, "expected previous status 'healthy'")
+	require.Equal(
+		t,
+		"2bfedccc-7fda-442c-bcf9-5e01c6d046d3",
+		payload.TestCase.ID,
+		"expected test case ID '2bfedccc-7fda-442c-bcf9-5e01c6d046d3'",
+	)
+	require.Equal(
+		t,
+		"DistributedLock #tryLock default throws on double unlock",
+		payload.TestCase.Name,
+		"expected test name 'DistributedLock #tryLock default throws on double unlock'",
+	)
+	require.Equal(
+		t,
+		"trunk/services/__tests__/distributed_lock.test.js",
+		payload.TestCase.FilePath,
+		"expected file path 'trunk/services/__tests__/distributed_lock.test.js'",
+	)
+	require.Equal(t, "@backend", payload.TestCase.Codeowners[0], "expected first codeowner '@backend'")
+	require.InEpsilon(t, 0.1, payload.TestCase.FailureRateLast7D, 0.0000000000000001, "expected failure rate 0.1")
+	require.Equal(t, 42, payload.TestCase.PullRequestsImpactedLast7D, "expected 42 impacted PRs")
+	require.True(t, payload.TestCase.Quarantine, "expected quarantine to be true")
+	require.Equal(
+		t,
+		"https://github.com/trunk-io/analytics-cli",
+		payload.TestCase.Repository.HTMLURL,
+		"expected repository URL 'https://github.com/trunk-io/analytics-cli'",
+	)
+	require.Equal(
+		t,
+		"https://trunk-io.atlassian.net/browse/KAN-130",
+		payload.TestCase.Ticket.HTMLURL,
+		"expected ticket URL 'https://trunk-io.atlassian.net/browse/KAN-130'",
+	)
+	require.Equal(t, "DistributedLock", payload.TestCase.TestSuite, "expected test suite 'DistributedLock'")
+	require.Equal(t, "linux-x86_64", payload.TestCase.Variant, "expected variant 'linux-x86_64'")
 }
 
 func TestExtractRepoNameFromURL(t *testing.T) {
@@ -126,9 +113,7 @@ func TestExtractRepoNameFromURL(t *testing.T) {
 		t.Run(tt.url, func(t *testing.T) {
 			t.Parallel()
 			result := extractRepoNameFromURL(tt.url)
-			if result != tt.expected {
-				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
-			}
+			require.Equal(t, tt.expected, result, "expected '%s', got '%s'", tt.expected, result)
 		})
 	}
 }
@@ -149,9 +134,7 @@ func TestExtractDomainFromJiraURL(t *testing.T) {
 		t.Run(tt.url, func(t *testing.T) {
 			t.Parallel()
 			result := extractDomainFromJiraURL(tt.url)
-			if result != tt.expected {
-				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
-			}
+			require.Equal(t, tt.expected, result, "expected '%s', got '%s'", tt.expected, result)
 		})
 	}
 }
@@ -175,12 +158,22 @@ func TestExtractRepoInfoFromURL(t *testing.T) {
 		t.Run(tt.url, func(t *testing.T) {
 			t.Parallel()
 			owner, repo := extractRepoInfoFromURL(tt.url)
-			if owner != tt.expectedOwner {
-				t.Errorf("Owner mismatch: expected '%s', got '%s'", tt.expectedOwner, owner)
-			}
-			if repo != tt.expectedRepo {
-				t.Errorf("Repo name mismatch: expected '%s', got '%s'", tt.expectedRepo, repo)
-			}
+			require.Equal(
+				t,
+				tt.expectedOwner,
+				owner,
+				"owner mismatch: expected '%s', got '%s'",
+				tt.expectedOwner,
+				owner,
+			)
+			require.Equal(
+				t,
+				tt.expectedRepo,
+				repo,
+				"repo name mismatch: expected '%s', got '%s'",
+				tt.expectedRepo,
+				repo,
+			)
 		})
 	}
 }

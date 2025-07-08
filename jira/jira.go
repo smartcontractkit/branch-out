@@ -146,7 +146,7 @@ func NewClient(options ...Option) (*Client, error) {
 
 // CreateFlakyTestTicket creates a new Jira ticket for a flaky test
 func (c *Client) CreateFlakyTestTicket(req FlakyTestTicketRequest) (*TicketResponse, error) {
-	c.logger.Info().
+	c.logger.Debug().
 		Str("repo_name", req.RepoName).
 		Str("test_package", req.TestPackageName).
 		Str("file_path", req.FilePath).
@@ -193,7 +193,6 @@ This ticket was automatically created by the branch-out system to track a flaky 
 	// Convert to JSON
 	jsonData, err := json.Marshal(jiraReq)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to marshal Jira request")
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
@@ -201,7 +200,6 @@ This ticket was automatically created by the branch-out system to track a flaky 
 	url := c.BaseURL.JoinPath("rest/api/2/issue")
 	httpReq, err := http.NewRequest("POST", url.String(), bytes.NewBuffer(jsonData))
 	if err != nil {
-		c.logger.Error().Err(err).Str("url", url.String()).Msg("Failed to create HTTP request")
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
@@ -221,7 +219,6 @@ This ticket was automatically created by the branch-out system to track a flaky 
 	// Make the request
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to make HTTP request to Jira")
 		return nil, fmt.Errorf("failed to make HTTP request: %w", err)
 	}
 	defer func() {
@@ -233,45 +230,37 @@ This ticket was automatically created by the branch-out system to track a flaky 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to read response body")
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	// Check if request was successful
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.logger.Error().
-			Int("status_code", resp.StatusCode).
-			Str("response_body", string(body)).
-			Msg("Jira API returned error")
 		return nil, fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
 	var jiraResp TicketResponse
 	if err := json.Unmarshal(body, &jiraResp); err != nil {
-		c.logger.Error().Err(err).Str("response_body", string(body)).Msg("Failed to unmarshal Jira response")
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	c.logger.Info().
 		Str("ticket_key", jiraResp.Key).
 		Str("ticket_id", jiraResp.ID).
-		Msg("Successfully created Jira ticket for flaky test")
+		Msg("Created Jira ticket for flaky test")
 
 	return &jiraResp, nil
 }
 
 // GetTicketStatus retrieves the current status of a Jira ticket
 func (c *Client) GetTicketStatus(ticketKey string) (*TicketStatus, error) {
-	c.logger.Info().Str("ticket_key", ticketKey).Msg("Getting Jira ticket status")
-
+	c.logger.Debug().Str("ticket_key", ticketKey).Msg("Getting Jira ticket status")
 	// Create the API URL
 	url := c.BaseURL.JoinPath("rest/api/2/issue", ticketKey, "?fields=status")
 
 	// Create HTTP request
 	httpReq, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to create HTTP request for getting ticket status")
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
@@ -282,14 +271,12 @@ func (c *Client) GetTicketStatus(ticketKey string) (*TicketStatus, error) {
 	if c.secrets.Username != "" && c.secrets.Token != "" {
 		httpReq.SetBasicAuth(c.secrets.Username, c.secrets.Token)
 	} else {
-		c.logger.Error().Msg("No valid authentication credentials available")
 		return nil, fmt.Errorf("no valid authentication credentials available")
 	}
 
 	// Make the request
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to make HTTP request to get ticket status")
 		return nil, fmt.Errorf("failed to make HTTP request: %w", err)
 	}
 	defer func() {
@@ -301,38 +288,32 @@ func (c *Client) GetTicketStatus(ticketKey string) (*TicketStatus, error) {
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to read response body")
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	// Check if request was successful
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.logger.Error().
-			Int("status_code", resp.StatusCode).
-			Str("response_body", string(body)).
-			Msg("Jira API returned error when getting ticket status")
 		return nil, fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
 	var ticketStatus TicketStatus
 	if err := json.Unmarshal(body, &ticketStatus); err != nil {
-		c.logger.Error().Err(err).Str("response_body", string(body)).Msg("Failed to unmarshal ticket status response")
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	c.logger.Info().
+	c.logger.Debug().
 		Str("ticket_key", ticketKey).
 		Str("status", ticketStatus.Fields.Status.Name).
 		Str("status_category", ticketStatus.Fields.Status.StatusCategory.Key).
-		Msg("Successfully retrieved ticket status")
+		Msg("Retrieved Jira ticket status")
 
 	return &ticketStatus, nil
 }
 
 // AddCommentToTicket adds a comment to an existing Jira ticket
 func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
-	c.logger.Info().Str("ticket_key", ticketKey).Msg("Adding comment to Jira ticket")
+	c.logger.Debug().Str("ticket_key", ticketKey).Msg("Adding comment to Jira ticket")
 
 	// Create the API URL
 	url := c.BaseURL.JoinPath("rest/api/2/issue", ticketKey, "comment")
@@ -345,14 +326,12 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 	// Marshal request body
 	jsonBody, err := json.Marshal(requestBody)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to marshal comment request")
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	// Create HTTP request
 	httpReq, err := http.NewRequest("POST", url.String(), bytes.NewBuffer(jsonBody))
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to create HTTP request for adding comment")
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
@@ -371,7 +350,6 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 	// Make the request
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to make HTTP request to add comment")
 		return fmt.Errorf("failed to make HTTP request: %w", err)
 	}
 	defer func() {
@@ -383,22 +361,17 @@ func (c *Client) AddCommentToTicket(ticketKey string, comment string) error {
 	// Read response body for error details
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to read response body")
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	// Check if request was successful
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.logger.Error().
-			Int("status_code", resp.StatusCode).
-			Str("response_body", string(body)).
-			Msg("Jira API returned error when adding comment")
 		return fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	c.logger.Info().
+	c.logger.Debug().
 		Str("ticket_key", ticketKey).
-		Msg("Successfully added comment to Jira ticket")
+		Msg("Added comment to Jira ticket")
 
 	return nil
 }
