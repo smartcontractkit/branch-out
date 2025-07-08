@@ -1,4 +1,10 @@
-.PHONY: lint test test_race test_short test_integration test_example_project
+.PHONY: build generate lint test test_race test_short test_integration test_example_project
+
+build:
+	goreleaser build --snapshot --clean --single-target --single-target
+
+generate:
+	go generate ./...
 
 lint:
 	golangci-lint run ./... --fix

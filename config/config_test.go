@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,8 +72,8 @@ func TestLoad_Viper(t *testing.T) {
 	t.Parallel()
 
 	v := viper.New()
-	v.Set(EnvVarLogLevel, "test_level")
-	v.Set(EnvVarPort, 9090)
+	v.Set("LOG_LEVEL", "test_level")
+	v.Set("PORT", 9090)
 	v.Set("GITHUB_BASE_URL", "https://test-base-url.com")
 
 	cfg, err := Load(WithViper(v))
@@ -109,8 +108,8 @@ func TestLoad_EnvVars(t *testing.T) {
 		token      = "env-token-456"
 		trunkToken = "env-trunk-token-789"
 	)
-	t.Setenv(EnvVarLogLevel, level)
-	t.Setenv(EnvVarPort, fmt.Sprint(port))
+	t.Setenv("LOG_LEVEL", level)
+	t.Setenv("PORT", fmt.Sprint(port))
 	t.Setenv("GITHUB_TOKEN", token)
 	t.Setenv("TRUNK_TOKEN", trunkToken)
 
@@ -134,144 +133,4 @@ func TestLoad_Defaults(t *testing.T) {
 
 	assert.Equal(t, DefaultLogLevel, cfg.LogLevel)
 	assert.Equal(t, DefaultPort, cfg.Port)
-}
-
-func TestBindEnvsFromStruct(t *testing.T) {
-	// Define test structs
-	type NestedStruct struct {
-		NestedField string `mapstructure:"NESTED_FIELD"`
-		NoTag       string
-	}
-
-	type TestConfig struct {
-		SimpleField   string       `mapstructure:"SIMPLE_FIELD"`
-		NumberField   int          `mapstructure:"NUMBER_FIELD"`
-		NoTagField    string       // should be ignored
-		IgnoredField  string       `mapstructure:"-"`              // should be ignored
-		EmptyTag      string       `mapstructure:""`               // should be ignored
-		WhitespaceTag string       `mapstructure:"   "`            // should be ignored
-		NestedSquash  NestedStruct `mapstructure:",squash"`        // should process nested fields
-		RegularNested NestedStruct `mapstructure:"REGULAR_NESTED"` // should bind as single field
-	}
-
-	tests := []struct {
-		name           string
-		inputType      reflect.Type
-		expectedEnv    map[string]string
-		expectBound    []string
-		expectNotBound []string
-	}{
-		{
-			name:      "struct with various field types",
-			inputType: reflect.TypeOf(TestConfig{}),
-			expectedEnv: map[string]string{
-				"SIMPLE_FIELD":   "test-value",
-				"NUMBER_FIELD":   "42",
-				"NESTED_FIELD":   "nested-value",
-				"REGULAR_NESTED": "regular-nested-value",
-			},
-			expectBound: []string{
-				"SIMPLE_FIELD",
-				"NUMBER_FIELD",
-				"NESTED_FIELD", // from squash
-				"REGULAR_NESTED",
-			},
-			expectNotBound: []string{
-				"NoTagField",    // no tag
-				"IgnoredField",  // dash tag
-				"EmptyTag",      // empty tag
-				"WhitespaceTag", // whitespace tag
-			},
-		},
-		{
-			name:      "empty struct",
-			inputType: reflect.TypeOf(struct{}{}),
-			expectedEnv: map[string]string{
-				"RANDOM_VAR": "should-not-bind",
-			},
-			expectBound:    []string{},
-			expectNotBound: []string{"RANDOM_VAR"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			v := viper.New()
-
-			// Set environment variables
-			for envKey, envVal := range tt.expectedEnv {
-				t.Setenv(envKey, envVal)
-			}
-
-			// Call the function under test
-			err := bindEnvsFromStruct(v, tt.inputType)
-			require.NoError(t, err)
-
-			// Test that expected keys are bound and can read env vars
-			for _, key := range tt.expectBound {
-				envVal, exists := tt.expectedEnv[key]
-				if exists {
-					actualVal := v.GetString(key)
-					assert.Equal(
-						t,
-						envVal,
-						actualVal,
-						"Expected '%s' to be bound to '%s'",
-						key,
-						envVal,
-					)
-				}
-			}
-
-			// Test that unexpected keys are not bound
-			for _, key := range tt.expectNotBound {
-				_, exists := tt.expectedEnv[key]
-				if exists {
-					actualVal := v.GetString(key)
-					// If the key is not bound, viper should return empty string even if env var exists
-					assert.Empty(
-						t,
-						actualVal,
-						"Expected '%s' to NOT be bound",
-						key,
-					)
-				}
-			}
-		})
-	}
-}
-
-func TestBindEnvsFromStruct_ErrorHandling(t *testing.T) {
-	t.Parallel()
-
-	// Test that the function doesn't panic with various edge cases
-	testCases := []struct {
-		name string
-		typ  reflect.Type
-	}{
-		{"nil type", nil},
-		{"int type", reflect.TypeOf(42)},
-		{"string type", reflect.TypeOf("hello")},
-		{"slice type", reflect.TypeOf([]string{})},
-		{"map type", reflect.TypeOf(map[string]string{})},
-		{"function type", reflect.TypeOf(func() {})},
-		{"interface type", reflect.TypeOf((*any)(nil)).Elem()},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Create a new viper instance for this test
-			v := viper.New()
-
-			// This should not panic
-			assert.NotPanics(t, func() {
-				if tc.typ != nil {
-					err := bindEnvsFromStruct(v, tc.typ)
-					assert.Error(t, err)
-				}
-			})
-		})
-	}
 }

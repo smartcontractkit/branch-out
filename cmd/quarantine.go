@@ -19,6 +19,10 @@ var (
 var quarantineCmd = &cobra.Command{
 	Use:   "quarantine",
 	Short: "Quarantine tests in a Go project using the CLI instead of reading from Trunk.io webhooks.",
+	Long: `Quarantine tests in a Go project using the CLI instead of reading from Trunk.io webhooks.
+
+This is handy for generating quarantine PRs on demand rather than waiting for Trunk.io to send webhooks.`,
+	Example: `branch-out quarantine --repo-url github.com/owner/repo --targets github.com/owner/repo/pkg.TestName,github.com/owner/repo/pkg.TestName2`,
 	PreRunE: func(_ *cobra.Command, _ []string) error {
 		if appConfig.GitHub.Token == "" {
 			return errors.New("github-token is required")

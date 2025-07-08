@@ -5,16 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"runtime"
 	"runtime/debug"
-	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-// DefaultPort is the default port for the server to listen on.
+// Default config values
 const (
 	// DefaultPort is the default port for the server to listen on.
 	DefaultPort = 8080
@@ -22,11 +21,6 @@ const (
 	DefaultLogLevel = "info"
 	// DefaultGitHubBaseURL is the default base URL for the GitHub API.
 	DefaultGitHubBaseURL = "https://api.github.com"
-
-	// EnvVarLogLevel is the environment variable for the log level.
-	EnvVarLogLevel = "LOG_LEVEL"
-	// EnvVarPort is the environment variable for the port.
-	EnvVarPort = "PORT"
 )
 
 // These variables are set at build time and describe the version and build of the application
@@ -52,9 +46,9 @@ func VersionString() string {
 
 // Config is the application configuration, set by flags, then by environment variables.
 type Config struct {
-	LogLevel string `mapstructure:"LOG_LEVEL"`
-	LogPath  string `mapstructure:"LOG_PATH"`
-	Port     int    `mapstructure:"PORT"`
+	LogLevel string `mapstructure:"LOG_LEVEL" desc:"Log level for the application"    example:"info"                flag:"log-level" shortflag:"l" default:"info"`
+	LogPath  string `mapstructure:"LOG_PATH"  desc:"Path to log file (optional)"      example:"/tmp/branch-out.log" flag:"log-path"`
+	Port     int    `mapstructure:"PORT"      desc:"Port for the server to listen on" example:"8080"                flag:"port"      shortflag:"p" default:"8080"`
 
 	// Secrets
 	GitHub GitHub `mapstructure:",squash"`
@@ -64,31 +58,31 @@ type Config struct {
 
 // GitHub configures authentication to the GitHub API.
 type GitHub struct {
-	BaseURL string `mapstructure:"GITHUB_BASE_URL"`
+	BaseURL string `mapstructure:"GITHUB_BASE_URL"         env:"GITHUB_BASE_URL"         desc:"GitHub API base URL"                                        example:"https://api.github.com"   flag:"github-base-url"         default:"https://api.github.com"`
 	// GitHub App configuration
-	AppID          string `mapstructure:"GITHUB_APP_ID"`
-	PrivateKey     string `mapstructure:"GITHUB_PRIVATE_KEY"`
-	PrivateKeyFile string `mapstructure:"GITHUB_PRIVATE_KEY_FILE"`
-	InstallationID string `mapstructure:"GITHUB_INSTALLATION_ID"`
+	AppID          string `mapstructure:"GITHUB_APP_ID"           env:"GITHUB_APP_ID"           desc:"GitHub App ID (alternative to token)"                       example:"123456"                   flag:"github-app-id"`
+	PrivateKey     string `mapstructure:"GITHUB_PRIVATE_KEY"      env:"GITHUB_PRIVATE_KEY"      desc:"GitHub App private key (PEM format)"                                                           flag:"github-private-key"`
+	PrivateKeyFile string `mapstructure:"GITHUB_PRIVATE_KEY_FILE" env:"GITHUB_PRIVATE_KEY_FILE" desc:"Path to GitHub App private key file"                        example:"/path/to/private-key.pem" flag:"github-private-key-file"`
+	InstallationID string `mapstructure:"GITHUB_INSTALLATION_ID"  env:"GITHUB_INSTALLATION_ID"  desc:"GitHub App installation ID"                                 example:"87654321"                 flag:"github-installation-id"`
 	// Or use a simple GitHub token
-	Token string `mapstructure:"GITHUB_TOKEN"`
+	Token string `mapstructure:"GITHUB_TOKEN"            env:"GITHUB_TOKEN"            desc:"GitHub personal access token instead of using a GitHub App" example:"ghp_xxxxxxxxxxxxxxxxxxxx" flag:"github-token"`
 }
 
 // Trunk configures authentication to the Trunk API.
 type Trunk struct {
-	Token string `mapstructure:"TRUNK_TOKEN"`
+	Token string `mapstructure:"TRUNK_TOKEN" env:"TRUNK_TOKEN" desc:"Trunk API token" example:"trunk_xxxxxxxxxxxxxxxxxxxx" flag:"trunk-token"`
 }
 
 // Jira configures authentication to the Jira API.
 type Jira struct {
-	BaseDomain        string `mapstructure:"JIRA_BASE_DOMAIN"`
-	ProjectKey        string `mapstructure:"JIRA_PROJECT_KEY"`
-	OAuthClientID     string `mapstructure:"JIRA_OAUTH_CLIENT_ID"`
-	OAuthClientSecret string `mapstructure:"JIRA_OAUTH_CLIENT_SECRET"`
-	OAuthAccessToken  string `mapstructure:"JIRA_OAUTH_ACCESS_TOKEN"`
-	OAuthRefreshToken string `mapstructure:"JIRA_OAUTH_REFRESH_TOKEN"`
-	Username          string `mapstructure:"JIRA_USERNAME"`
-	Token             string `mapstructure:"JIRA_TOKEN"`
+	BaseDomain        string `mapstructure:"JIRA_BASE_DOMAIN"         env:"JIRA_BASE_DOMAIN"         desc:"Jira base domain"              example:"mycompany.atlassian.net"  flag:"jira-base-domain"`
+	ProjectKey        string `mapstructure:"JIRA_PROJECT_KEY"         env:"JIRA_PROJECT_KEY"         desc:"Jira project key for tickets"  example:"PROJ"                     flag:"jira-project-key"`
+	OAuthClientID     string `mapstructure:"JIRA_OAUTH_CLIENT_ID"     env:"JIRA_OAUTH_CLIENT_ID"     desc:"Jira OAuth client ID"          example:"jira_oauth_client_id"     flag:"jira-oauth-client-id"`
+	OAuthClientSecret string `mapstructure:"JIRA_OAUTH_CLIENT_SECRET" env:"JIRA_OAUTH_CLIENT_SECRET" desc:"Jira OAuth client secret"      example:"jira_oauth_client_secret" flag:"jira-oauth-client-secret"`
+	OAuthAccessToken  string `mapstructure:"JIRA_OAUTH_ACCESS_TOKEN"  env:"JIRA_OAUTH_ACCESS_TOKEN"  desc:"Jira OAuth access token"       example:"jira_oauth_access_token"  flag:"jira-oauth-access-token"`
+	OAuthRefreshToken string `mapstructure:"JIRA_OAUTH_REFRESH_TOKEN" env:"JIRA_OAUTH_REFRESH_TOKEN" desc:"Jira OAuth refresh token"      example:"jira_oauth_refresh_token" flag:"jira-oauth-refresh-token"`
+	Username          string `mapstructure:"JIRA_USERNAME"            env:"JIRA_USERNAME"            desc:"Jira username for basic auth"  example:"user@company.com"         flag:"jira-username"`
+	Token             string `mapstructure:"JIRA_TOKEN"               env:"JIRA_TOKEN"               desc:"Jira API token for basic auth" example:"jira_api_token"           flag:"jira-token"`
 }
 
 // Option is a function that can be used to configure loading the config.
@@ -97,6 +91,7 @@ type Option func(*configOptions)
 type configOptions struct {
 	configFile string
 	viper      *viper.Viper
+	command    *cobra.Command
 }
 
 // WithConfigFile sets the exact config file to load.
@@ -106,10 +101,17 @@ func WithConfigFile(configFile string) Option {
 	}
 }
 
-// WithViper sets a custom viper instance to use. Useful for testing.
+// WithViper sets the viper instance to use. A new viper instance is created if not provided.
 func WithViper(v *viper.Viper) Option {
 	return func(cfg *configOptions) {
 		cfg.viper = v
+	}
+}
+
+// WithCommand sets the command to use for binding flags to config values.
+func WithCommand(cmd *cobra.Command) Option {
+	return func(cfg *configOptions) {
+		cfg.command = cmd
 	}
 }
 
@@ -117,7 +119,8 @@ func WithViper(v *viper.Viper) Option {
 func Load(options ...Option) (*Config, error) {
 	opts := &configOptions{
 		configFile: ".env",
-		viper:      viper.GetViper(), // Use the global viper instance by default
+		viper:      viper.New(),
+		command:    &cobra.Command{},
 	}
 	for _, opt := range options {
 		opt(opts)
@@ -126,15 +129,19 @@ func Load(options ...Option) (*Config, error) {
 	v := opts.viper
 	if v == nil {
 		v = viper.New()
-		// Set up defaults and env binding for new instance
-		setupViperDefaults(v)
 	}
+	err := BindFlagsAndEnvs(opts.command, v)
+	if err != nil {
+		return nil, err
+	}
+	v.AutomaticEnv()
 
 	if opts.configFile != "" {
 		v.SetConfigFile(opts.configFile)
 	}
 
-	if err := v.ReadInConfig(); err != nil {
+	err = v.ReadInConfig()
+	if err != nil {
 		// Ignore config file not found error
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
@@ -142,7 +149,8 @@ func Load(options ...Option) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	err = v.Unmarshal(&cfg)
+	if err != nil {
 		return nil, err
 	}
 
@@ -176,59 +184,4 @@ func init() {
 	if Commit == "" {
 		Commit = "dev"
 	}
-
-	// Set up defaults for global viper instance (for backward compatibility)
-	setupViperDefaults(viper.GetViper())
-}
-
-// setupViperDefaults configures viper with sensible defaults for all configuration fields
-func setupViperDefaults(v *viper.Viper) {
-	// Set only the essential defaults
-	v.SetDefault(EnvVarLogLevel, DefaultLogLevel)
-	v.SetDefault(EnvVarPort, DefaultPort)
-	v.SetDefault("GITHUB_BASE_URL", DefaultGitHubBaseURL)
-
-	// Handle dashes in CLI flags
-	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-
-	// Automatically bind all environment variables based on struct tags
-	if err := bindEnvsFromStruct(v, reflect.TypeOf(Config{})); err != nil {
-		panic(err)
-	}
-
-	// Handle dashes in CLI flags
-	v.AutomaticEnv()
-}
-
-// bindEnvsFromStruct binds environment variables to viper based on struct tags.
-// Avoids having to manually viper.BindEnv for each field.
-func bindEnvsFromStruct(v *viper.Viper, t reflect.Type) error {
-	if t.Kind() != reflect.Struct {
-		return fmt.Errorf("type %s is not a struct", t.Name())
-	}
-
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		tag := field.Tag.Get("mapstructure")
-		// Skip fields without a mapstructure tag
-		if tag == "" {
-			continue
-		}
-		if strings.Contains(tag, ",squash") {
-			// Handle embedded structs with squash
-			if err := bindEnvsFromStruct(v, field.Type); err != nil {
-				return err
-			}
-			continue
-		}
-		if tag == "-" {
-			// Skip ignored fields
-			continue
-		}
-		// Bind the environment variable
-		if err := v.BindEnv(tag); err != nil {
-			return fmt.Errorf("failed to bind env %s: %w", tag, err)
-		}
-	}
-	return nil
 }

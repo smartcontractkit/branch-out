@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTestCaseStatusChangedPayload_ParseRealPayload(t *testing.T) {
+func Test_Parse_TestCaseStatusChangedPayload(t *testing.T) {
 	t.Parallel()
 	payloadJSON := `{
 		"status_change": {

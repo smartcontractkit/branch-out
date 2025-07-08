@@ -35,10 +35,10 @@ func TestRoot_Config(t *testing.T) {
 		{
 			name: "env vars override default config",
 			envVars: map[string]string{
-				config.EnvVarLogLevel: "error",
-				config.EnvVarPort:     "8888",
-				"GITHUB_TOKEN":        "env-token",
-				"GITHUB_BASE_URL":     "https://api.github.com/test",
+				"LOG_LEVEL":       "error",
+				"PORT":            "8888",
+				"GITHUB_TOKEN":    "env-token",
+				"GITHUB_BASE_URL": "https://api.github.com/test",
 			},
 			expectedConfig: config.Config{
 				LogLevel: "error",
@@ -68,9 +68,9 @@ func TestRoot_Config(t *testing.T) {
 		{
 			name: "flags override env vars",
 			envVars: map[string]string{
-				config.EnvVarLogLevel: "error",
-				config.EnvVarPort:     "8888",
-				"GITHUB_TOKEN":        "env-token",
+				"LOG_LEVEL":    "error",
+				"PORT":         "8888",
+				"GITHUB_TOKEN": "env-token",
 			},
 			flags: []string{
 				"--log-level", "debug",
