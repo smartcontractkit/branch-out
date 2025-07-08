@@ -21,13 +21,6 @@ repos:
     - id: golangci-lint-full
   - repo: local
     hooks:
-    - id: go-unit-tests
-      name: go unit tests
-      entry: env gotestsum -- -short ./...
-      pass_filenames: false
-      types: [go]
-      language: golang
-      stages: [pre-push]
     - id: go-mod-tidy
       name: go mod tidy
       entry: go mod tidy
@@ -35,4 +28,11 @@ repos:
       types: [go]
       language: golang
       stages: [pre-commit]
+    - id: go-unit-tests
+      name: go unit tests
+      entry: env gotestsum -- -short ./...
+      pass_filenames: false
+      types: [go]
+      language: golang
+      stages: [pre-push]
 default_install_hook_types: [pre-commit, pre-push]

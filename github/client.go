@@ -1,13 +1,8 @@
 package github
 
 import (
-	"bytes"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
-	"strconv"
-	"time"
 
 	"github.com/gofri/go-github-ratelimit/v2/github_ratelimit"
 	"github.com/gofri/go-github-ratelimit/v2/github_ratelimit/github_primary_ratelimit"
@@ -17,16 +12,8 @@ import (
 	gh_graphql "github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 
+	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
-)
-
-const (
-	// RateLimitWarningThreshold is the number of remaining requests before a warning is logged.
-	RateLimitWarningThreshold = 5
-	// RateLimitWarningMsg is the message logged when the number of remaining requests is below the warning threshold.
-	RateLimitWarningMsg = "GitHub API requests nearing rate limit"
-	// RateLimitHitMsg is the message logged when the number of remaining requests is 0.
-	RateLimitHitMsg = "GitHub API rate limit hit, sleeping until limit reset"
 )
 
 // Client is a wrapper around the GitHub REST and GraphQL API clients
@@ -39,8 +26,6 @@ type Client struct {
 	BaseURL *url.URL
 	// tokenSource is the GitHub tokenSource used to authenticate requests.
 	tokenSource oauth2.TokenSource
-	// next is the next HTTP round tripper.
-	next http.RoundTripper
 }
 
 // ClientOption is a function that can be used to configure the GitHub client.
@@ -49,7 +34,6 @@ type ClientOption func(*clientOptions)
 type clientOptions struct {
 	baseURL     *url.URL
 	tokenSource oauth2.TokenSource
-	next        http.RoundTripper
 	config      *config.GitHub
 }
 
@@ -69,13 +53,6 @@ func WithConfig(githubConfig *config.GitHub) ClientOption {
 	}
 }
 
-// WithNext sets the next HTTP round tripper. Helpful for testing.
-func WithNext(next http.RoundTripper) ClientOption {
-	return func(c *clientOptions) {
-		c.next = next
-	}
-}
-
 // NewClient creates a new GitHub REST and GraphQL API client with the provided token and logger.
 // If optionalNext is provided, it will be used as the base client for both REST and GraphQL, handy for testing.
 func NewClient(
@@ -89,7 +66,6 @@ func NewClient(
 
 	client := &Client{
 		tokenSource: opts.tokenSource,
-		next:        opts.next,
 	}
 
 	var err error
@@ -112,7 +88,7 @@ func NewClient(
 		if ctx.ResetTime != nil {
 			l = l.Str("reset_time", ctx.ResetTime.String())
 		}
-		l.Msg(RateLimitHitMsg)
+		l.Msg(base.RateLimitHitMsg)
 	}
 
 	onSecondaryRateLimitHit := func(ctx *github_secondary_ratelimit.CallbackContext) {
@@ -129,26 +105,23 @@ func NewClient(
 		if ctx.TotalSleepTime != nil {
 			l = l.Str("total_sleep_time", ctx.TotalSleepTime.String())
 		}
-		l.Msg(RateLimitHitMsg)
+		l.Msg(base.RateLimitHitMsg)
 	}
 
-	var baseTransport = client.next
-	if baseTransport == nil {
-		baseTransport = http.DefaultTransport
-	}
+	// Create base HTTP client with logging transport
+	baseTransport := base.NewClient(base.WithLogger(l), base.WithComponent("github-rest"))
 
-	// Build the transport chain: OAuth2 (if needed) -> Logging -> Base
-	var restTransport = clientRoundTripper("REST", l, baseTransport)
+	// Add OAuth2 transport if token source is available
 	if client.tokenSource != nil {
-		restTransport = &oauth2.Transport{
+		baseTransport.Transport = &oauth2.Transport{
 			Source: client.tokenSource,
-			Base:   restTransport,
+			Base:   baseTransport.Transport,
 		}
 	}
 
 	// Create rate limiter with the transport chain
 	rateLimiter := github_ratelimit.NewClient(
-		restTransport,
+		baseTransport.Transport,
 		github_primary_ratelimit.WithLimitDetectedCallback(onPrimaryRateLimitHit),
 		github_secondary_ratelimit.WithLimitDetectedCallback(onSecondaryRateLimitHit),
 	)
@@ -158,146 +131,20 @@ func NewClient(
 	l = l.With().Str("base_url", client.Rest.BaseURL.String()).Logger()
 
 	// Setup GraphQL client with the same transport pattern
-	var graphqlTransport = clientRoundTripper("GraphQL", l, nil)
+	graphQLClient := base.NewClient(base.WithLogger(l), base.WithComponent("github-graphql"))
+
 	if client.tokenSource != nil {
-		graphqlTransport = &oauth2.Transport{
+		graphQLClient.Transport = &oauth2.Transport{
 			Source: client.tokenSource,
-			Base:   graphqlTransport,
+			Base:   graphQLClient.Transport,
 		}
 	}
 
-	graphqlClient := &http.Client{Transport: graphqlTransport}
-
 	if client.BaseURL != nil {
-		client.GraphQL = gh_graphql.NewEnterpriseClient(client.BaseURL.String(), graphqlClient)
+		client.GraphQL = gh_graphql.NewEnterpriseClient(client.BaseURL.String(), graphQLClient)
 	} else {
-		client.GraphQL = gh_graphql.NewClient(graphqlClient)
+		client.GraphQL = gh_graphql.NewClient(graphQLClient)
 	}
 
 	return client, nil
-}
-
-// clientRoundTripper returns a RoundTripper that logs requests and responses to the GitHub API.
-// You can pass a custom RoundTripper to use a different transport, or nil to use the default transport.
-func clientRoundTripper(clientType string, l zerolog.Logger, next http.RoundTripper) http.RoundTripper {
-	if next == nil {
-		next = http.DefaultTransport
-	}
-
-	return &loggingTransport{
-		transport:  next,
-		logger:     l,
-		clientType: clientType,
-	}
-}
-
-// loggingTransport is a RoundTripper that logs requests and responses to the GitHub API.
-type loggingTransport struct {
-	transport  http.RoundTripper
-	logger     zerolog.Logger
-	clientType string
-}
-
-// RoundTrip logs the request and response details.
-func (lt *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	var (
-		reqBody []byte
-		err     error
-		start   = time.Now()
-	)
-
-	l := lt.logger.With().
-		Str("client_type", lt.clientType).
-		Str("method", req.Method).
-		Str("request_url", req.URL.String()).
-		Str("user_agent", req.Header.Get("User-Agent")).
-		Logger()
-
-	if req.Body != nil {
-		reqBody, err = io.ReadAll(req.Body)
-		if err != nil {
-			l.Error().Err(err).Msg("Failed to read request body")
-		}
-	}
-	if reqBody != nil {
-		req.Body = io.NopCloser(bytes.NewBuffer(reqBody))
-	}
-	l.Trace().Bytes("request_body", reqBody).Msg("GitHub API request started")
-
-	resp, err := lt.transport.RoundTrip(req)
-	if err != nil {
-		l.Error().Err(err).Msg("GitHub API request failed")
-		// Probably a rate limit error, let the rate limit library handle it
-		return resp, err
-	}
-
-	duration := time.Since(start)
-
-	var respBody []byte
-	if resp.Body != nil {
-		respBody, err = io.ReadAll(resp.Body)
-		if err != nil {
-			l.Error().Err(err).Msg("Failed to read response body")
-		}
-	}
-	if respBody != nil {
-		resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
-	}
-	l = l.With().
-		Int("status", resp.StatusCode).
-		Str("duration", duration.String()).
-		Logger()
-
-	// Process rate limit headers
-	callsRemainingStr := resp.Header.Get("X-RateLimit-Remaining")
-	if callsRemainingStr == "" {
-		callsRemainingStr = "0"
-	}
-	callLimitStr := resp.Header.Get("X-RateLimit-Limit")
-	if callLimitStr == "" {
-		callLimitStr = "0"
-	}
-	callsUsedStr := resp.Header.Get("X-RateLimit-Used")
-	if callsUsedStr == "" {
-		callsUsedStr = "0"
-	}
-	limitResetStr := resp.Header.Get("X-RateLimit-Reset")
-	if limitResetStr == "" {
-		limitResetStr = "0"
-	}
-	callsRemaining, err := strconv.Atoi(callsRemainingStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert callsRemaining header to int: %w", err)
-	}
-	callLimit, err := strconv.Atoi(callLimitStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert callLimit header to int: %w", err)
-	}
-	callsUsed, err := strconv.Atoi(callsUsedStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert callsUsed header to int: %w", err)
-	}
-	limitReset, err := strconv.Atoi(limitResetStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert limitReset header to int: %w", err)
-	}
-	limitResetTime := time.Unix(int64(limitReset), 0)
-
-	l = l.With().
-		Int("calls_remaining", callsRemaining).
-		Int("call_limit", callLimit).
-		Int("calls_used", callsUsed).
-		Time("limit_reset", limitResetTime).
-		Logger()
-
-	if resp.Request != nil {
-		l = l.With().Str("response_request_url", resp.Request.URL.String()).Logger()
-	}
-
-	if callsRemaining <= RateLimitWarningThreshold {
-		l.Warn().Msg(RateLimitWarningMsg)
-	}
-
-	l.Trace().Bytes("response_body", respBody).Msg("GitHub API request completed")
-	return resp, nil
 }
