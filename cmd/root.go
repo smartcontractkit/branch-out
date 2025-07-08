@@ -16,6 +16,7 @@ import (
 )
 
 var (
+	v         = viper.New()
 	appConfig *config.Config
 	logger    zerolog.Logger
 )
@@ -24,7 +25,8 @@ var (
 var root = &cobra.Command{
 	Use:   "branch-out",
 	Short: "Branch Out accentuates the capabilities of Trunk.io's flaky test tools",
-	Long: `Branch Out accentuates the capabilities of Trunk.io's flaky test tools by branching out to other common services for a flaky test flow.
+	Long: `
+Branch Out accentuates the capabilities of Trunk.io's flaky test tools by branching out to other common services for a flaky test flow.
 
 It does so by running a server that listens for webhooks from Trunk.io's flaky test tool. When a test is marked as flaky, Branch Out will:
 
@@ -49,12 +51,11 @@ branch-out --github-token <github-token-value>
 branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 `,
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-		var (
-			err error
-			v   = viper.GetViper()
-		)
+		var err error
 
-		appConfig, err = config.Load(config.WithViper(v))
+		appConfig, err = config.Load(
+			config.WithViper(v),
+		)
 		if err != nil {
 			return err
 		}
@@ -86,7 +87,7 @@ branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 }
 
 func init() {
-	config.MustBindFlagsAndEnvs(root, viper.GetViper())
+	config.MustBindFlagsAndEnvs(root, v)
 }
 
 // Execute is the entry point for the CLI.

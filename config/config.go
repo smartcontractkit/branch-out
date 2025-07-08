@@ -58,31 +58,31 @@ type Config struct {
 
 // GitHub configures authentication to the GitHub API.
 type GitHub struct {
-	BaseURL string `mapstructure:"GITHUB_BASE_URL"         env:"GITHUB_BASE_URL"         desc:"GitHub API base URL"                                        example:"https://api.github.com"   flag:"github-base-url"         default:"https://api.github.com"`
+	BaseURL string `mapstructure:"GITHUB_BASE_URL"         desc:"GitHub API base URL"                                        example:"https://api.github.com"   flag:"github-base-url"         default:"https://api.github.com"`
 	// GitHub App configuration
-	AppID          string `mapstructure:"GITHUB_APP_ID"           env:"GITHUB_APP_ID"           desc:"GitHub App ID (alternative to token)"                       example:"123456"                   flag:"github-app-id"`
-	PrivateKey     string `mapstructure:"GITHUB_PRIVATE_KEY"      env:"GITHUB_PRIVATE_KEY"      desc:"GitHub App private key (PEM format)"                                                           flag:"github-private-key"`
-	PrivateKeyFile string `mapstructure:"GITHUB_PRIVATE_KEY_FILE" env:"GITHUB_PRIVATE_KEY_FILE" desc:"Path to GitHub App private key file"                        example:"/path/to/private-key.pem" flag:"github-private-key-file"`
-	InstallationID string `mapstructure:"GITHUB_INSTALLATION_ID"  env:"GITHUB_INSTALLATION_ID"  desc:"GitHub App installation ID"                                 example:"87654321"                 flag:"github-installation-id"`
+	AppID          string `mapstructure:"GITHUB_APP_ID"           desc:"GitHub App ID (alternative to token)"                       example:"123456"                   flag:"github-app-id"`
+	PrivateKey     string `mapstructure:"GITHUB_PRIVATE_KEY"      desc:"GitHub App private key (PEM format)"                                                           flag:"github-private-key"`
+	PrivateKeyFile string `mapstructure:"GITHUB_PRIVATE_KEY_FILE" desc:"Path to GitHub App private key file"                        example:"/path/to/private-key.pem" flag:"github-private-key-file"`
+	InstallationID string `mapstructure:"GITHUB_INSTALLATION_ID"  desc:"GitHub App installation ID"                                 example:"87654321"                 flag:"github-installation-id"`
 	// Or use a simple GitHub token
-	Token string `mapstructure:"GITHUB_TOKEN"            env:"GITHUB_TOKEN"            desc:"GitHub personal access token instead of using a GitHub App" example:"ghp_xxxxxxxxxxxxxxxxxxxx" flag:"github-token"`
+	Token string `mapstructure:"GITHUB_TOKEN"            desc:"GitHub personal access token instead of using a GitHub App" example:"ghp_xxxxxxxxxxxxxxxxxxxx" flag:"github-token"`
 }
 
 // Trunk configures authentication to the Trunk API.
 type Trunk struct {
-	Token string `mapstructure:"TRUNK_TOKEN" env:"TRUNK_TOKEN" desc:"Trunk API token" example:"trunk_xxxxxxxxxxxxxxxxxxxx" flag:"trunk-token"`
+	Token string `mapstructure:"TRUNK_TOKEN" desc:"Trunk API token" example:"trunk_xxxxxxxxxxxxxxxxxxxx" flag:"trunk-token"`
 }
 
 // Jira configures authentication to the Jira API.
 type Jira struct {
-	BaseDomain        string `mapstructure:"JIRA_BASE_DOMAIN"         env:"JIRA_BASE_DOMAIN"         desc:"Jira base domain"              example:"mycompany.atlassian.net"  flag:"jira-base-domain"`
-	ProjectKey        string `mapstructure:"JIRA_PROJECT_KEY"         env:"JIRA_PROJECT_KEY"         desc:"Jira project key for tickets"  example:"PROJ"                     flag:"jira-project-key"`
-	OAuthClientID     string `mapstructure:"JIRA_OAUTH_CLIENT_ID"     env:"JIRA_OAUTH_CLIENT_ID"     desc:"Jira OAuth client ID"          example:"jira_oauth_client_id"     flag:"jira-oauth-client-id"`
-	OAuthClientSecret string `mapstructure:"JIRA_OAUTH_CLIENT_SECRET" env:"JIRA_OAUTH_CLIENT_SECRET" desc:"Jira OAuth client secret"      example:"jira_oauth_client_secret" flag:"jira-oauth-client-secret"`
-	OAuthAccessToken  string `mapstructure:"JIRA_OAUTH_ACCESS_TOKEN"  env:"JIRA_OAUTH_ACCESS_TOKEN"  desc:"Jira OAuth access token"       example:"jira_oauth_access_token"  flag:"jira-oauth-access-token"`
-	OAuthRefreshToken string `mapstructure:"JIRA_OAUTH_REFRESH_TOKEN" env:"JIRA_OAUTH_REFRESH_TOKEN" desc:"Jira OAuth refresh token"      example:"jira_oauth_refresh_token" flag:"jira-oauth-refresh-token"`
-	Username          string `mapstructure:"JIRA_USERNAME"            env:"JIRA_USERNAME"            desc:"Jira username for basic auth"  example:"user@company.com"         flag:"jira-username"`
-	Token             string `mapstructure:"JIRA_TOKEN"               env:"JIRA_TOKEN"               desc:"Jira API token for basic auth" example:"jira_api_token"           flag:"jira-token"`
+	BaseDomain        string `mapstructure:"JIRA_BASE_DOMAIN"         desc:"Jira base domain"              example:"mycompany.atlassian.net"  flag:"jira-base-domain"`
+	ProjectKey        string `mapstructure:"JIRA_PROJECT_KEY"         desc:"Jira project key for tickets"  example:"PROJ"                     flag:"jira-project-key"`
+	OAuthClientID     string `mapstructure:"JIRA_OAUTH_CLIENT_ID"     desc:"Jira OAuth client ID"          example:"jira_oauth_client_id"     flag:"jira-oauth-client-id"`
+	OAuthClientSecret string `mapstructure:"JIRA_OAUTH_CLIENT_SECRET" desc:"Jira OAuth client secret"      example:"jira_oauth_client_secret" flag:"jira-oauth-client-secret"`
+	OAuthAccessToken  string `mapstructure:"JIRA_OAUTH_ACCESS_TOKEN"  desc:"Jira OAuth access token"       example:"jira_oauth_access_token"  flag:"jira-oauth-access-token"`
+	OAuthRefreshToken string `mapstructure:"JIRA_OAUTH_REFRESH_TOKEN" desc:"Jira OAuth refresh token"      example:"jira_oauth_refresh_token" flag:"jira-oauth-refresh-token"`
+	Username          string `mapstructure:"JIRA_USERNAME"            desc:"Jira username for basic auth"  example:"user@company.com"         flag:"jira-username"`
+	Token             string `mapstructure:"JIRA_TOKEN"               desc:"Jira API token for basic auth" example:"jira_api_token"           flag:"jira-token"`
 }
 
 // Option is a function that can be used to configure loading the config.
@@ -120,16 +120,13 @@ func Load(options ...Option) (*Config, error) {
 	opts := &configOptions{
 		configFile: ".env",
 		viper:      viper.New(),
-		command:    &cobra.Command{},
+		command:    nil,
 	}
 	for _, opt := range options {
 		opt(opts)
 	}
 
 	v := opts.viper
-	if v == nil {
-		v = viper.New()
-	}
 	err := BindFlagsAndEnvs(opts.command, v)
 	if err != nil {
 		return nil, err

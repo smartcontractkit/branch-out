@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -11,6 +12,30 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestProcessStruct(t *testing.T) {
+	t.Parallel()
+
+	type testStruct struct {
+		Field1 string `mapstructure:"FIELD1"  desc:"A string field" flag:"field1" shortflag:"f" default:"default_value"`
+		Field2 int    `mapstructure:"FIELD2"  desc:"An int field"   flag:"field2" shortflag:"f" default:"42"`
+		Field3 bool   `mapstructure:"FIELD3"  desc:"A bool field"   flag:"field3" shortflag:"f" default:"true"`
+		Nested struct {
+			Field4 string `mapstructure:"FIELD4" desc:"A string field" flag:"field4" shortflag:"f" default:"default_value"`
+		} `mapstructure:",squash"`
+	}
+
+	cmd := &cobra.Command{}
+	v := viper.New()
+
+	err := processStruct(reflect.TypeOf(testStruct{}), cmd, v)
+	require.NoError(t, err, "error processing struct")
+
+	assert.Equal(t, "default_value", v.GetString("FIELD1"), "default value should be set in viper")
+	assert.Equal(t, 42, v.GetInt("FIELD2"), "default value should be set in viper")
+	assert.True(t, v.GetBool("FIELD3"), "default value should be set in viper")
+	assert.Equal(t, "default_value", v.GetString("FIELD4"), "default value should be set in viper")
+}
 
 func TestProcessField(t *testing.T) {
 	t.Parallel()
@@ -23,6 +48,7 @@ func TestProcessField(t *testing.T) {
 		flag         string
 		shortflag    string
 		defaultValue string
+		expectError  bool
 	}
 
 	// helper function to build a struct field with the given tags
@@ -75,6 +101,39 @@ func TestProcessField(t *testing.T) {
 			shortflag:    "s",
 			defaultValue: "default_value",
 		},
+		{
+			name:         "int field",
+			valueType:    reflect.TypeOf(0),
+			mapstructure: "INT_FIELD",
+			desc:         "An int field",
+			flag:         "int-field",
+			shortflag:    "i",
+			defaultValue: "42",
+		},
+		{
+			name:         "bool field",
+			valueType:    reflect.TypeOf(false),
+			mapstructure: "BOOL_FIELD",
+			desc:         "A bool field",
+			flag:         "bool-field",
+			shortflag:    "b",
+			defaultValue: "true",
+		},
+		{
+			name:         "no flag field",
+			valueType:    reflect.TypeOf(""),
+			mapstructure: "NO_FLAG_FIELD",
+			defaultValue: "default_value",
+			expectError:  true,
+		},
+		{
+			name:         "no desc field",
+			valueType:    reflect.TypeOf(""),
+			mapstructure: "NO_DESC_FIELD",
+			flag:         "no-desc-field",
+			defaultValue: "default_value",
+			expectError:  true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -86,6 +145,10 @@ func TestProcessField(t *testing.T) {
 			v := viper.New()
 
 			err := processField(flagSet, v, field)
+			if tc.expectError {
+				require.Error(t, err, "expected error processing field")
+				return
+			}
 			require.NoError(t, err, "error processing field")
 
 			assert.Equal(t, tc.defaultValue, v.GetString(tc.mapstructure), "default value should be set in viper")
@@ -97,7 +160,7 @@ func TestProcessField(t *testing.T) {
 			)
 			assert.Equal(
 				t,
-				tc.desc,
+				fmt.Sprintf("%s (env: %s)", tc.desc, tc.mapstructure),
 				flagSet.Lookup(tc.flag).Usage,
 				"description should be set in flag set",
 			)
@@ -105,7 +168,7 @@ func TestProcessField(t *testing.T) {
 	}
 }
 
-func TestMustBind(t *testing.T) {
+func TestMustBindFlagsAndEnvs(t *testing.T) {
 	t.Parallel()
 
 	cmd := &cobra.Command{}
@@ -114,17 +177,9 @@ func TestMustBind(t *testing.T) {
 	require.NotPanics(t, func() {
 		MustBindFlagsAndEnvs(cmd, v)
 	}, "binding flags and envs should not panic")
-
-	require.NotPanics(t, func() {
-		MustBindFlags(cmd)
-	}, "binding flags should not panic")
-
-	require.NotPanics(t, func() {
-		MustBindEnvs(v)
-	}, "binding envs should not panic")
 }
 
-func TestBind(t *testing.T) {
+func TestBindFlagsAndEnvs(t *testing.T) {
 	t.Parallel()
 
 	cmd := &cobra.Command{}
@@ -133,10 +188,5 @@ func TestBind(t *testing.T) {
 	err := BindFlagsAndEnvs(cmd, v)
 	require.NoError(t, err, "binding flags and envs should not return an error")
 
-	err = BindFlags(cmd)
-	require.NoError(t, err, "binding flags should not return an error")
-
-	v = viper.New()
-	err = BindEnvs(v)
-	require.NoError(t, err, "binding envs should not return an error")
+	require.True(t, cmd.HasPersistentFlags(), "command should have persistent flags")
 }
