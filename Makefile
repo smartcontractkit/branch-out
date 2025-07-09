@@ -1,4 +1,4 @@
-.PHONY: build watch lint test test_race test_short test_integration test_example_project
+.PHONY: build watch watch_race lint test test_race test_short test_integration test_example_project
 
 build:
 	goreleaser build --snapshot --clean --single-target --single-target
