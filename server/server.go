@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -27,20 +26,29 @@ type Server struct {
 
 	logger  zerolog.Logger
 	server  *http.Server
+	config  *config.Config
 	version string
 
 	started atomic.Bool
 }
 
 type options struct {
+	config  *config.Config
 	logger  zerolog.Logger
-	port    int
 	version string
 }
 
 // Option is a functional option that configures the server.
 // Default options are used if no options are provided.
 type Option func(*options)
+
+// WithConfig sets the config for the server.
+// Default config is used if no config is provided.
+func WithConfig(cfg *config.Config) Option {
+	return func(opts *options) {
+		opts.config = cfg
+	}
+}
 
 // WithLogger sets the logger for the server.
 func WithLogger(logger zerolog.Logger) Option {
@@ -49,18 +57,10 @@ func WithLogger(logger zerolog.Logger) Option {
 	}
 }
 
-// WithPort sets the port for the server.
-func WithPort(port int) Option {
-	return func(opts *options) {
-		opts.port = port
-	}
-}
-
 // defaultOptions returns the default options for the server.
 func defaultOptions() *options {
 	return &options{
 		logger:  zerolog.Nop(),
-		port:    0, // 0 means to use a random free port
 		version: "unknown",
 	}
 }
@@ -71,10 +71,16 @@ func New(options ...Option) *Server {
 	for _, opt := range options {
 		opt(opts)
 	}
+	serverConfig := opts.config
+	if serverConfig == nil {
+		serverConfig = config.MustLoad()
+	}
 
 	return &Server{
+		Port: serverConfig.Port,
+
 		logger:  opts.logger,
-		Port:    opts.port,
+		config:  serverConfig,
 		version: config.Version,
 	}
 }
@@ -243,12 +249,9 @@ func (s *Server) Health() (HealthResponse, error) {
 	return response, nil
 }
 
-// WebhookEndpoint is the target endpoint that a webhook is sent to.
-type WebhookEndpoint string
-
 const (
 	// WebhookEndpointTrunk is the target endpoint for Trunk webhooks.
-	WebhookEndpointTrunk WebhookEndpoint = "trunk"
+	WebhookEndpointTrunk = "trunk"
 )
 
 // WebhookResponse represents the response from webhook processing
@@ -258,27 +261,21 @@ type WebhookResponse struct {
 	Error   error  `json:"error,omitempty"`
 }
 
-// WebhookRequest represents the structure of incoming webhook data
-type WebhookRequest struct {
-	Endpoint WebhookEndpoint   `json:"-"` // Path of the webhook endpoint
-	Payload  json.RawMessage   `json:"-"` // Raw payload for flexible handling
-	Headers  map[string]string `json:"-"` // Request headers
-}
-
 // ReceiveWebhook processes webhook data and returns the result.
-func (s *Server) ReceiveWebhook(req *WebhookRequest) (*WebhookResponse, error) {
+func (s *Server) ReceiveWebhook(req *http.Request) (*WebhookResponse, error) {
 	l := s.logger.With().
-		Str("endpoint", string(req.Endpoint)).
-		Int("payload_size_bytes", len(req.Payload)).
+		Str("endpoint", string(req.URL.Path)).
+		Int("payload_size_bytes", int(req.ContentLength)).
 		Logger()
 	l.Debug().Msg("Processing webhook call")
 
-	switch req.Endpoint {
+	switch req.URL.Path {
 	case WebhookEndpointTrunk:
+		trunkSigningSecret := s.config.Trunk.WebhookSecret
 		// Pass nil for jiraClient and trunkClient for now - these can be injected in the future
-		return nil, trunk.ReceiveWebhook(l, req.Payload, nil, nil)
+		return nil, trunk.ReceiveWebhook(l, req, trunkSigningSecret, nil, nil)
 	default:
-		return nil, fmt.Errorf("unknown webhook endpoint: %s", req.Endpoint)
+		return nil, fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)
 	}
 }
 
@@ -330,36 +327,8 @@ func webhookHandler(s *Server) http.HandlerFunc {
 			return
 		}
 
-		// Read the request body
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			l.Error().Err(err).Msg("Failed to read request body")
-			w.Header().Set("Content-Type", "application/json")
-			http.Error(w, "Failed to read request body", http.StatusBadRequest)
-			return
-		}
-		defer func() {
-			if err := r.Body.Close(); err != nil {
-				l.Error().Err(err).Msg("Failed to close request body")
-			}
-		}()
-
-		// Extract headers
-		headers := make(map[string]string)
-		for name, values := range r.Header {
-			if len(values) > 0 {
-				headers[name] = values[0]
-			}
-		}
-
-		// Create webhook request
-		webhookReq := &WebhookRequest{
-			Headers: headers,
-			Payload: body,
-		}
-
 		// Call the core webhook processing method
-		response, err := s.ReceiveWebhook(webhookReq)
+		response, err := s.ReceiveWebhook(r)
 		if err != nil {
 			l.Error().Err(err).Msg("Webhook processing failed")
 			w.Header().Set("Content-Type", "application/json")

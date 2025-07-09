@@ -59,7 +59,8 @@ type GitHub struct {
 
 // Trunk configures authentication to the Trunk API.
 type Trunk struct {
-	Token string `mapstructure:"TRUNK_TOKEN"`
+	Token         string `mapstructure:"TRUNK_TOKEN"`
+	WebhookSecret string `mapstructure:"TRUNK_WEBHOOK_SECRET"`
 }
 
 // Jira configures authentication to the Jira API.

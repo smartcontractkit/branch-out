@@ -10,6 +10,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
 )
 
@@ -51,8 +52,11 @@ func TestStart(t *testing.T) {
 func TestServer_Handlers(t *testing.T) {
 	t.Parallel()
 
+	config := &config.Config{
+		Port: 0,
+	}
 	logger := testhelpers.Logger(t)
-	server := New(WithLogger(logger), WithPort(0))
+	server := New(WithLogger(logger), WithConfig(config))
 	require.NotNil(t, server)
 
 	ctx, killServer := context.WithCancel(context.Background())

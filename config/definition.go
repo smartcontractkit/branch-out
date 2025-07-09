@@ -138,6 +138,13 @@ var (
 			Flag:        "trunk-token",
 			Type:        reflect.TypeOf(""),
 		},
+		{
+			EnvVar:      "TRUNK_WEBHOOK_SECRET",
+			Description: "Webhook signing secret used to verify webhooks from Trunk.io",
+			Example:     "trunk_webhook_secret",
+			Flag:        "trunk-webhook-secret",
+			Type:        reflect.TypeOf(""),
+		},
 	}
 
 	jiraFields = []Field{
