@@ -87,6 +87,10 @@ branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 	},
 }
 
+func init() {
+	config.MustBindConfig(root, v)
+}
+
 // Execute is the entry point for the CLI.
 func Execute() {
 	if err := fang.Execute(context.Background(), root, fang.WithVersion(config.VersionString())); err != nil {
