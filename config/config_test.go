@@ -77,8 +77,8 @@ func TestLoad_Viper(t *testing.T) {
 	v.Set("GITHUB_BASE_URL", "https://test-base-url.com")
 
 	cfg, err := Load(WithViper(v))
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
+	require.NoError(t, err, "error loading config from viper")
+	require.NotNil(t, cfg, "config should not be nil")
 
 	assert.Equal(t, "test_level", cfg.LogLevel)
 	assert.Equal(t, 9090, cfg.Port)
@@ -108,6 +108,7 @@ func TestLoad_EnvVars(t *testing.T) {
 		token      = "env-token-456"
 		trunkToken = "env-trunk-token-789"
 	)
+
 	t.Setenv("LOG_LEVEL", level)
 	t.Setenv("PORT", fmt.Sprint(port))
 	t.Setenv("GITHUB_TOKEN", token)
@@ -118,10 +119,10 @@ func TestLoad_EnvVars(t *testing.T) {
 	require.NotNil(t, cfg)
 
 	// Verify the values were loaded from environment variables
-	assert.Equal(t, level, cfg.LogLevel)
-	assert.Equal(t, port, cfg.Port)
-	assert.Equal(t, token, cfg.GitHub.Token)
-	assert.Equal(t, trunkToken, cfg.Trunk.Token)
+	assert.Equal(t, level, cfg.LogLevel, "log level should be set from env var")
+	assert.Equal(t, port, cfg.Port, "port should be set from env var")
+	assert.Equal(t, token, cfg.GitHub.Token, "github token should be set from env var")
+	assert.Equal(t, trunkToken, cfg.Trunk.Token, "trunk token should be set from env var")
 }
 
 func TestLoad_Defaults(t *testing.T) {
@@ -131,6 +132,13 @@ func TestLoad_Defaults(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
-	assert.Equal(t, DefaultLogLevel, cfg.LogLevel)
-	assert.Equal(t, DefaultPort, cfg.Port)
+	logLevelField, err := GetField("log-level")
+	require.NoError(t, err)
+
+	assert.Equal(t, logLevelField.Default, cfg.LogLevel)
+
+	portField, err := GetField("port")
+	require.NoError(t, err)
+
+	assert.Equal(t, portField.Default, cfg.Port)
 }

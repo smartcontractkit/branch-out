@@ -1,13 +1,16 @@
-.PHONY: build generate lint test test_race test_short test_integration test_example_project
+.PHONY: build watch lint test test_race test_short test_integration test_example_project
 
 build:
 	goreleaser build --snapshot --clean --single-target --single-target
 
-generate:
-	go generate ./...
-
 lint:
 	golangci-lint run ./... --fix
+
+watch:
+	go tool gotestsum --watch -- -cover ./...
+
+watch_race:
+	go tool gotestsum --watch -- -cover -race ./...
 
 test:
 	go tool gotestsum -- -cover ./...

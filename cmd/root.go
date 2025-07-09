@@ -50,11 +50,12 @@ branch-out --github-token <github-token-value>
 # Configure Jira integration
 branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 `,
-	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		var err error
 
 		appConfig, err = config.Load(
 			config.WithViper(v),
+			config.WithCommand(cmd),
 		)
 		if err != nil {
 			return err
@@ -84,10 +85,6 @@ branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 		}
 		return err
 	},
-}
-
-func init() {
-	config.MustBindFlagsAndEnvs(root, v)
 }
 
 // Execute is the entry point for the CLI.
