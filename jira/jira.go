@@ -31,7 +31,7 @@ type Option func(*jiraClientOptions)
 
 type jiraClientOptions struct {
 	baseURL *url.URL
-	config  *config.Config
+	secrets config.Jira
 	logger  zerolog.Logger
 }
 
@@ -43,9 +43,9 @@ func WithLogger(logger zerolog.Logger) Option {
 }
 
 // WithConfig sets the config to use for the Jira client.
-func WithConfig(config *config.Config) Option {
+func WithConfig(config config.Config) Option {
 	return func(cfg *jiraClientOptions) {
-		cfg.config = config
+		cfg.secrets = config.Jira
 	}
 }
 
@@ -73,29 +73,20 @@ func NewClient(options ...Option) (*Client, error) {
 		opt(opts)
 	}
 
-	var (
-		appConfig = opts.config
-		err       error
-	)
-	if appConfig == nil {
-		appConfig, err = config.Load()
-		if err != nil {
-			return nil, err
-		}
-	}
+	secrets := opts.secrets
 
-	if appConfig.Jira.BaseDomain == "" {
+	if secrets.BaseDomain == "" {
 		return nil, fmt.Errorf("jira base domain is required")
 	}
 
-	if appConfig.Jira.ProjectKey == "" {
+	if secrets.ProjectKey == "" {
 		return nil, fmt.Errorf("jira project key is required")
 	}
 
 	// Check if OAuth credentials are provided
-	hasOAuth := appConfig.Jira.OAuthClientID != "" && appConfig.Jira.OAuthClientSecret != "" &&
-		appConfig.Jira.OAuthAccessToken != ""
-	hasBasicAuth := appConfig.Jira.Username != "" && appConfig.Jira.Token != ""
+	hasOAuth := secrets.OAuthClientID != "" && secrets.OAuthClientSecret != "" &&
+		secrets.OAuthAccessToken != ""
+	hasBasicAuth := secrets.Username != "" && secrets.Token != ""
 
 	if !hasOAuth && !hasBasicAuth {
 		return nil, fmt.Errorf(
@@ -105,7 +96,7 @@ func NewClient(options ...Option) (*Client, error) {
 
 	baseURL := &url.URL{
 		Scheme: "https",
-		Host:   appConfig.Jira.BaseDomain,
+		Host:   secrets.BaseDomain,
 	}
 	tokenURL := baseURL.JoinPath("plugins/servlet/oauth/access-token")
 
@@ -117,16 +108,16 @@ func NewClient(options ...Option) (*Client, error) {
 	var httpClient *http.Client
 	if hasOAuth {
 		oauthConfig := &oauth2.Config{
-			ClientID:     appConfig.Jira.OAuthClientID,
-			ClientSecret: appConfig.Jira.OAuthClientSecret,
+			ClientID:     secrets.OAuthClientID,
+			ClientSecret: secrets.OAuthClientSecret,
 			Endpoint: oauth2.Endpoint{
 				TokenURL: tokenURL.String(),
 			},
 		}
 
 		token := &oauth2.Token{
-			AccessToken:  appConfig.Jira.OAuthAccessToken,
-			RefreshToken: appConfig.Jira.OAuthRefreshToken,
+			AccessToken:  secrets.OAuthAccessToken,
+			RefreshToken: secrets.OAuthRefreshToken,
 			TokenType:    "Bearer",
 		}
 
@@ -139,7 +130,7 @@ func NewClient(options ...Option) (*Client, error) {
 	return &Client{
 		BaseURL:    baseURL,
 		HTTPClient: httpClient,
-		secrets:    appConfig.Jira,
+		secrets:    secrets,
 		logger:     opts.logger,
 	}, nil
 }

@@ -31,11 +31,7 @@ var (
 // setupAppAuth enables authentication via a GitHub App if it is installed
 // and returns a token source for installation tokens.
 // Returns nil if no GitHub App is configured (missing GITHUB_APP_ID).
-func setupAuth(l zerolog.Logger, cfg *config.GitHub) (oauth2.TokenSource, error) {
-	if cfg == nil {
-		return nil, nil
-	}
-
+func setupAuth(l zerolog.Logger, cfg config.GitHub) (oauth2.TokenSource, error) {
 	if cfg.Token != "" {
 		l.Debug().Msg("Using simple GitHub token for authentication")
 		return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: cfg.Token}), nil

@@ -18,21 +18,21 @@ func TestSetupAuth(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		cfg              *config.GitHub
+		cfg              config.GitHub
 		expectedToken    string
 		expectedError    error
 		expectedErrorMsg string
 	}{
 		{
 			name: "simple token",
-			cfg: &config.GitHub{
+			cfg: config.GitHub{
 				Token: "test-token",
 			},
 			expectedToken: "test-token",
 		},
 		{
 			name: "valid github app",
-			cfg: &config.GitHub{
+			cfg: config.GitHub{
 				AppID:          "12345",
 				PrivateKey:     testPrivateKey,
 				InstallationID: "67890",
@@ -41,7 +41,7 @@ func TestSetupAuth(t *testing.T) {
 		},
 		{
 			name: "valid github app with private key file",
-			cfg: &config.GitHub{
+			cfg: config.GitHub{
 				AppID:          "12345",
 				PrivateKeyFile: "testdata/test_key.pem",
 				InstallationID: "67890",
@@ -50,7 +50,7 @@ func TestSetupAuth(t *testing.T) {
 		},
 		{
 			name: "simple token takes precedence over app",
-			cfg: &config.GitHub{
+			cfg: config.GitHub{
 				Token:          "test-token",
 				AppID:          "12345",
 				PrivateKey:     testPrivateKey,
@@ -60,22 +60,22 @@ func TestSetupAuth(t *testing.T) {
 		},
 		{
 			name:          "no app id",
-			cfg:           &config.GitHub{},
+			cfg:           config.GitHub{},
 			expectedError: ErrNoGitHubAppID,
 		},
 		{
 			name:          "no private key",
-			cfg:           &config.GitHub{AppID: "12345"},
+			cfg:           config.GitHub{AppID: "12345"},
 			expectedError: ErrNoGitHubPrivateKey,
 		},
 		{
 			name:          "no installation id",
-			cfg:           &config.GitHub{AppID: "12345", PrivateKey: testPrivateKey},
+			cfg:           config.GitHub{AppID: "12345", PrivateKey: testPrivateKey},
 			expectedError: ErrNoGitHubInstallationID,
 		},
 		{
 			name: "invalid app id",
-			cfg: &config.GitHub{
+			cfg: config.GitHub{
 				AppID:          "invalid",
 				PrivateKey:     testPrivateKey,
 				InstallationID: "12345",
@@ -84,17 +84,17 @@ func TestSetupAuth(t *testing.T) {
 		},
 		{
 			name:             "invalid private key",
-			cfg:              &config.GitHub{AppID: "12345", PrivateKey: "invalid", InstallationID: "12345"},
+			cfg:              config.GitHub{AppID: "12345", PrivateKey: "invalid", InstallationID: "12345"},
 			expectedErrorMsg: "invalid key",
 		},
 		{
 			name:          "invalid private key file",
-			cfg:           &config.GitHub{AppID: "12345", PrivateKeyFile: "invalid", InstallationID: "12345"},
+			cfg:           config.GitHub{AppID: "12345", PrivateKeyFile: "invalid", InstallationID: "12345"},
 			expectedError: os.ErrNotExist,
 		},
 		{
 			name:          "invalid installation id",
-			cfg:           &config.GitHub{AppID: "12345", PrivateKey: testPrivateKey, InstallationID: "invalid"},
+			cfg:           config.GitHub{AppID: "12345", PrivateKey: testPrivateKey, InstallationID: "invalid"},
 			expectedError: ErrInvalidGitHubInstallationID,
 		},
 	}

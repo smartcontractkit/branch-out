@@ -28,7 +28,7 @@ type Server struct {
 
 	logger  zerolog.Logger
 	server  *http.Server
-	config  *config.Config
+	config  config.Config
 	version string
 
 	jiraClient   jira.IClient
@@ -40,7 +40,7 @@ type Server struct {
 }
 
 type options struct {
-	config  *config.Config
+	config  config.Config
 	logger  zerolog.Logger
 	version string
 
@@ -82,7 +82,7 @@ func WithGitHubClient(client github.IClient) Option {
 
 // WithConfig sets the config for the server.
 // Default config is used if no config is provided.
-func WithConfig(cfg *config.Config) Option {
+func WithConfig(cfg config.Config) Option {
 	return func(opts *options) {
 		opts.config = cfg
 	}
@@ -109,16 +109,12 @@ func New(options ...Option) *Server {
 	for _, opt := range options {
 		opt(opts)
 	}
-	serverConfig := opts.config
-	if serverConfig == nil {
-		serverConfig = config.MustLoad()
-	}
 
 	return &Server{
-		Port: serverConfig.Port,
+		Port: opts.config.Port,
 
 		logger:  opts.logger,
-		config:  serverConfig,
+		config:  opts.config,
 		version: config.Version,
 
 		jiraClient:   opts.jiraClient,
@@ -181,7 +177,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Create the clients for reaching out to external services
 	if s.jiraClient == nil {
-		s.jiraClient, err = jira.NewClient(jira.WithConfig(s.config), jira.WithLogger(s.logger))
+		s.jiraClient, err = jira.NewClient(jira.WithLogger(s.logger), jira.WithConfig(s.config))
 		if err != nil {
 			s.err = fmt.Errorf("failed to create Jira client: %w", err)
 			return s.err
@@ -189,7 +185,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	if s.trunkClient == nil {
-		s.trunkClient, err = trunk.NewClient(trunk.WithConfig(s.config), trunk.WithLogger(s.logger))
+		s.trunkClient, err = trunk.NewClient(trunk.WithLogger(s.logger), trunk.WithConfig(s.config))
 		if err != nil {
 			s.err = fmt.Errorf("failed to create Trunk client: %w", err)
 			return s.err
@@ -197,7 +193,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	if s.githubClient == nil {
-		s.githubClient, err = github.NewClient(github.WithLogger(s.logger), github.WithConfig(&s.config.GitHub))
+		s.githubClient, err = github.NewClient(github.WithLogger(s.logger), github.WithConfig(s.config))
 		if err != nil {
 			s.err = fmt.Errorf("failed to create GitHub client: %w", err)
 			return s.err

@@ -122,7 +122,7 @@ func TestRoot_Config(t *testing.T) {
 			assert.Equal(
 				t,
 				tc.expectedConfig,
-				*appConfig,
+				appConfig,
 				"config should be properly set with flags > env vars > .env file > default values",
 			)
 		})

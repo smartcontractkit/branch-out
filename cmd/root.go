@@ -17,7 +17,7 @@ import (
 
 var (
 	v         = viper.New()
-	appConfig *config.Config
+	appConfig config.Config
 	logger    zerolog.Logger
 )
 

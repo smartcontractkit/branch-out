@@ -97,8 +97,8 @@ func TestLoad_BadFile(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg, err := Load(WithConfigFile(tempEnvFile))
-	require.Error(t, err)
-	require.Nil(t, cfg)
+	require.Error(t, err, "expected error loading config from bad file")
+	require.Empty(t, cfg)
 }
 
 func TestLoad_EnvVars(t *testing.T) {

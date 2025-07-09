@@ -14,7 +14,7 @@ import (
 	trunk_mock "github.com/smartcontractkit/branch-out/internal/testhelpers/mocks/trunk"
 )
 
-var testConfig = &config.Config{
+var testConfig = config.Config{
 	Port: 0, // Set to 0 to allow the server to start on a random port
 	GitHub: config.GitHub{
 		Token: "test-token",

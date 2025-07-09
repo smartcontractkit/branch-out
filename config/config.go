@@ -106,7 +106,7 @@ func WithCommand(cmd *cobra.Command) Option {
 }
 
 // Load loads config from environment variables and flags.
-func Load(options ...Option) (*Config, error) {
+func Load(options ...Option) (Config, error) {
 	opts := &configOptions{
 		configFile: ".env",
 		viper:      viper.New(),
@@ -118,7 +118,7 @@ func Load(options ...Option) (*Config, error) {
 
 	v := opts.viper
 	if err := BindConfig(opts.command, v); err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
 	if opts.configFile != "" {
@@ -129,21 +129,21 @@ func Load(options ...Option) (*Config, error) {
 	if err != nil {
 		// Ignore config file not found error
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok && !errors.Is(err, os.ErrNotExist) {
-			return nil, err
+			return Config{}, err
 		}
 	}
 
 	var cfg Config
 	err = v.Unmarshal(&cfg)
 	if err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
-	return &cfg, nil
+	return cfg, nil
 }
 
 // MustLoad is Load but panics if there is an error.
-func MustLoad(options ...Option) *Config {
+func MustLoad(options ...Option) Config {
 	cfg, err := Load(options...)
 	if err != nil {
 		panic(err)
