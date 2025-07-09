@@ -1,7 +1,5 @@
 package github
 
-//go:generate go tool mockery --name=IClient --output=../mocks --outpkg=mocks --filename=mock_github_client.go --structname=MockGitHubClient
-
 import (
 	"context"
 	"fmt"

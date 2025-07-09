@@ -1,8 +1,6 @@
 // Package trunk provides utilities for the Trunk.io API.
 package trunk
 
-//go:generate go tool mockery --name=IClient --output=../mocks --outpkg=mocks --filename=mock_trunk_client.go --structname=MockTrunkClient
-
 import (
 	"bytes"
 	"encoding/json"

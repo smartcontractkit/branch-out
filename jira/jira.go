@@ -1,8 +1,6 @@
 // Package jira provides utilities for the Jira API.
 package jira
 
-//go:generate go tool mockery --name=IClient --output=../mocks --outpkg=mocks --filename=mock_jira_client.go --structname=MockJiraClient
-
 import (
 	"bytes"
 	"context"
