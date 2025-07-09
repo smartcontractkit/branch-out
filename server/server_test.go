@@ -9,9 +9,9 @@ import (
 
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
-	github_mocks "github.com/smartcontractkit/branch-out/internal/testhelpers/mocks/github"
-	jira_mocks "github.com/smartcontractkit/branch-out/internal/testhelpers/mocks/jira"
-	trunk_mocks "github.com/smartcontractkit/branch-out/internal/testhelpers/mocks/trunk"
+	github_mock "github.com/smartcontractkit/branch-out/internal/testhelpers/mocks/github"
+	jira_mock "github.com/smartcontractkit/branch-out/internal/testhelpers/mocks/jira"
+	trunk_mock "github.com/smartcontractkit/branch-out/internal/testhelpers/mocks/trunk"
 )
 
 var testConfig = &config.Config{
@@ -49,9 +49,9 @@ func TestServer_Start(t *testing.T) {
 	server := New(
 		WithLogger(logger),
 		WithConfig(testConfig),
-		WithJiraClient(jira_mocks.NewMockIClient(t)),
-		WithGitHubClient(github_mocks.NewMockIClient(t)),
-		WithTrunkClient(trunk_mocks.NewMockIClient(t)),
+		WithJiraClient(jira_mock.NewIClient(t)),
+		WithGitHubClient(github_mock.NewIClient(t)),
+		WithTrunkClient(trunk_mock.NewIClient(t)),
 	)
 	require.NotNil(t, server)
 
