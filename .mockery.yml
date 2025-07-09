@@ -1,0 +1,17 @@
+all: true
+dir: 'internal/testhelpers/mocks/{{.SrcPackageName}}'
+filename: '{{.InterfaceName}}.go'
+force-file-write: true
+formatter: goimports
+include-auto-generated: false
+log-level: info
+structname: '{{.InterfaceName}}'
+pkgname: '{{.SrcPackageName}}_mock'
+recursive: false
+require-template-schema-exists: true
+template: testify
+template-schema: '{{.Template}}.schema.json'
+packages:
+  github.com/smartcontractkit/branch-out/jira:
+  github.com/smartcontractkit/branch-out/github:
+  github.com/smartcontractkit/branch-out/trunk:

@@ -3,9 +3,12 @@ package trunk
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 
 	"github.com/rs/zerolog"
+	svix "github.com/svix/svix-webhooks/go"
 
 	"github.com/smartcontractkit/branch-out/jira"
 )
@@ -14,11 +17,35 @@ import (
 // It will create a
 func ReceiveWebhook(
 	l zerolog.Logger,
-	payload []byte,
-	jiraClient jira.ClientInterface,
-	trunkClient ClientInterface,
+	req *http.Request,
+	signingSecret string,
+	jiraClient jira.IClient,
+	trunkClient IClient,
 ) error {
 	l.Info().Msg("Received trunk webhook")
+
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		l.Error().Err(err).Msg("Failed to read request body")
+		return fmt.Errorf("failed to read request body: %w", err)
+	}
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			l.Error().Err(err).Msg("Failed to close request body")
+		}
+	}()
+
+	// Verify the webhook signature
+	// https://docs.svix.com/receiving/verifying-payloads/how
+	wh, err := svix.NewWebhook(signingSecret)
+	if err != nil {
+		return fmt.Errorf("failed to create svix webhook: %w", err)
+	}
+
+	if err := wh.Verify(payload, req.Header); err != nil {
+		return fmt.Errorf("failed to verify svix webhook: %w", err)
+	}
+
 	var webhookData TestCaseStatusChangedPayload
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
 		l.Error().Err(err).Str("payload", string(payload)).Msg("Failed to parse test_case.status_changed payload")
@@ -32,8 +59,8 @@ func ReceiveWebhook(
 func handleTestCaseStatusChanged(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.ClientInterface,
-	trunkClient ClientInterface,
+	jiraClient jira.IClient,
+	trunkClient IClient,
 ) error {
 	l.Info().Msg("Processing test_case.status_changed event")
 
@@ -66,8 +93,8 @@ func handleTestCaseStatusChanged(
 func createJiraTicketForFlakyTest(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.ClientInterface,
-	trunkClient ClientInterface,
+	jiraClient jira.IClient,
+	trunkClient IClient,
 ) error {
 	testCase := webhookData.TestCase
 
@@ -133,8 +160,8 @@ func createJiraTicketForFlakyTest(
 func handleExistingTicketForFlakyTest(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.ClientInterface,
-	trunkClient ClientInterface,
+	jiraClient jira.IClient,
+	trunkClient IClient,
 ) error {
 	testCase := webhookData.TestCase
 	ticketURL := testCase.Ticket.HTMLURL
@@ -179,7 +206,7 @@ func handleExistingTicketForFlakyTest(
 func addFlakyTestUpdateComment(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.ClientInterface,
+	jiraClient jira.IClient,
 	ticketKey string,
 ) error {
 	testCase := webhookData.TestCase

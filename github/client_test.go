@@ -27,6 +27,12 @@ func TestRateLimit(t *testing.T) {
 		t.Skip("skipping rate limit test in short mode")
 	}
 
+	testConfig := config.Config{
+		GitHub: config.GitHub{
+			Token: "test-token",
+		},
+	}
+
 	tests := []struct {
 		name        string
 		statusCode  int
@@ -126,13 +132,13 @@ func TestRateLimit(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			client, err := NewClient(l)
-			require.NoError(t, err)
+			client, err := NewClient(WithLogger(l), WithConfig(testConfig))
+			require.NoError(t, err, "error creating github client")
 			require.NotNil(t, client)
 
 			// Point the client to our test server
 			client.Rest.BaseURL, err = url.Parse(ts.URL + "/")
-			require.NoError(t, err)
+			require.NoError(t, err, "error parsing url")
 
 			_, _, err = client.Rest.Users.Get(context.Background(), "testuser")
 
@@ -158,48 +164,58 @@ func TestNewClientWithGitHubApp(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		cfg         *config.GitHub
+		cfg         config.Config
 		expectError bool
 	}{
 		{
 			name: "github app with private key",
-			cfg: &config.GitHub{
-				AppID:          "12345",
-				PrivateKey:     testPrivateKey,
-				InstallationID: "67890",
+			cfg: config.Config{
+				GitHub: config.GitHub{
+					AppID:          "12345",
+					PrivateKey:     testPrivateKey,
+					InstallationID: "67890",
+				},
 			},
 			expectError: false,
 		},
 		{
 			name: "github app with private key file",
-			cfg: &config.GitHub{
-				AppID:          "12345",
-				PrivateKeyFile: "testdata/test_key.pem",
-				InstallationID: "67890",
+			cfg: config.Config{
+				GitHub: config.GitHub{
+					AppID:          "12345",
+					PrivateKeyFile: "testdata/test_key.pem",
+					InstallationID: "67890",
+				},
 			},
 			expectError: false,
 		},
 		{
 			name: "invalid app id",
-			cfg: &config.GitHub{
-				AppID:      "invalid",
-				PrivateKey: testPrivateKey,
+			cfg: config.Config{
+				GitHub: config.GitHub{
+					AppID:      "invalid",
+					PrivateKey: testPrivateKey,
+				},
 			},
 			expectError: true,
 		},
 		{
 			name: "missing private key",
-			cfg: &config.GitHub{
-				AppID: "12345",
+			cfg: config.Config{
+				GitHub: config.GitHub{
+					AppID: "12345",
+				},
 			},
 			expectError: true,
 		},
 		{
 			name: "token takes priority over app",
-			cfg: &config.GitHub{
-				Token:      "token-priority",
-				AppID:      "12345",
-				PrivateKey: testPrivateKey,
+			cfg: config.Config{
+				GitHub: config.GitHub{
+					Token:      "token-priority",
+					AppID:      "12345",
+					PrivateKey: testPrivateKey,
+				},
 			},
 			expectError: false,
 		},
@@ -211,7 +227,7 @@ func TestNewClientWithGitHubApp(t *testing.T) {
 
 			l := testhelpers.Logger(t)
 
-			client, err := NewClient(l, WithConfig(tt.cfg))
+			client, err := NewClient(WithLogger(l), WithConfig(tt.cfg))
 
 			if tt.expectError {
 				require.Error(t, err, "expected error")
@@ -225,9 +241,9 @@ func TestNewClientWithGitHubApp(t *testing.T) {
 
 			// Verify token source is set for auth cases
 			switch {
-			case tt.cfg.Token != "":
+			case tt.cfg.GitHub.Token != "":
 				assert.NotNil(t, client.tokenSource, "expected token source to be set")
-			case tt.cfg.AppID != "" && (tt.cfg.PrivateKey != "" || tt.cfg.PrivateKeyFile != ""):
+			case tt.cfg.GitHub.AppID != "" && (tt.cfg.GitHub.PrivateKey != "" || tt.cfg.GitHub.PrivateKeyFile != ""):
 				assert.NotNil(t, client.tokenSource, "expected token source to be set for GitHub App")
 			}
 		})

@@ -36,7 +36,7 @@ This is handy for generating quarantine PRs on demand rather than waiting for Tr
 			return fmt.Errorf("failed to parse repo URL: %w", err)
 		}
 
-		githubClient, err := github.NewClient(logger, github.WithConfig(&appConfig.GitHub))
+		githubClient, err := github.NewClient(github.WithLogger(logger), github.WithConfig(appConfig))
 		if err != nil {
 			return fmt.Errorf("failed to create GitHub client: %w", err)
 		}

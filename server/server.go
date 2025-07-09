@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -17,6 +16,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/smartcontractkit/branch-out/config"
+	"github.com/smartcontractkit/branch-out/github"
+	"github.com/smartcontractkit/branch-out/jira"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
@@ -27,20 +28,65 @@ type Server struct {
 
 	logger  zerolog.Logger
 	server  *http.Server
+	config  config.Config
 	version string
 
+	jiraClient   jira.IClient
+	trunkClient  trunk.IClient
+	githubClient github.IClient
+
 	started atomic.Bool
+	err     error
 }
 
 type options struct {
+	config  config.Config
 	logger  zerolog.Logger
-	port    int
 	version string
+
+	jiraClient   jira.IClient
+	trunkClient  trunk.IClient
+	githubClient github.IClient
 }
 
 // Option is a functional option that configures the server.
 // Default options are used if no options are provided.
 type Option func(*options)
+
+// WithJiraClient sets the Jira client for the server.
+// This overrides using the config to create a client.
+// Useful for testing.
+func WithJiraClient(client jira.IClient) Option {
+	return func(opts *options) {
+		opts.jiraClient = client
+	}
+}
+
+// WithTrunkClient sets the Trunk client for the server.
+// This overrides using the config to create a client.
+// Useful for testing.
+func WithTrunkClient(client trunk.IClient) Option {
+	return func(opts *options) {
+		opts.trunkClient = client
+	}
+}
+
+// WithGitHubClient sets the GitHub client for the server.
+// This overrides using the config to create a client.
+// Useful for testing.
+func WithGitHubClient(client github.IClient) Option {
+	return func(opts *options) {
+		opts.githubClient = client
+	}
+}
+
+// WithConfig sets the config for the server.
+// Default config is used if no config is provided.
+func WithConfig(cfg config.Config) Option {
+	return func(opts *options) {
+		opts.config = cfg
+	}
+}
 
 // WithLogger sets the logger for the server.
 func WithLogger(logger zerolog.Logger) Option {
@@ -49,18 +95,10 @@ func WithLogger(logger zerolog.Logger) Option {
 	}
 }
 
-// WithPort sets the port for the server.
-func WithPort(port int) Option {
-	return func(opts *options) {
-		opts.port = port
-	}
-}
-
 // defaultOptions returns the default options for the server.
 func defaultOptions() *options {
 	return &options{
 		logger:  zerolog.Nop(),
-		port:    0, // 0 means to use a random free port
 		version: "unknown",
 	}
 }
@@ -73,10 +111,22 @@ func New(options ...Option) *Server {
 	}
 
 	return &Server{
+		Port: opts.config.Port,
+
 		logger:  opts.logger,
-		Port:    opts.port,
+		config:  opts.config,
 		version: config.Version,
+
+		jiraClient:   opts.jiraClient,
+		trunkClient:  opts.trunkClient,
+		githubClient: opts.githubClient,
 	}
+}
+
+// Error returns the error that occurred during server startup.
+// It is nil if the server started successfully.
+func (s *Server) Error() error {
+	return s.err
 }
 
 // Start starts the server and blocks until shutdown.
@@ -95,7 +145,8 @@ func (s *Server) Start(ctx context.Context) error {
 
 	listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.Port))
 	if err != nil {
-		return fmt.Errorf("failed to create listener: %w", err)
+		s.err = fmt.Errorf("failed to create listener: %w", err)
+		return s.err
 	}
 	url = listener.Addr().String()
 	s.Addr = url
@@ -124,6 +175,31 @@ func (s *Server) Start(ctx context.Context) error {
 		s.started.Store(false)
 	})
 
+	// Create the clients for reaching out to external services
+	if s.jiraClient == nil {
+		s.jiraClient, err = jira.NewClient(jira.WithLogger(s.logger), jira.WithConfig(s.config))
+		if err != nil {
+			s.err = fmt.Errorf("failed to create Jira client: %w", err)
+			return s.err
+		}
+	}
+
+	if s.trunkClient == nil {
+		s.trunkClient, err = trunk.NewClient(trunk.WithLogger(s.logger), trunk.WithConfig(s.config))
+		if err != nil {
+			s.err = fmt.Errorf("failed to create Trunk client: %w", err)
+			return s.err
+		}
+	}
+
+	if s.githubClient == nil {
+		s.githubClient, err = github.NewClient(github.WithLogger(s.logger), github.WithConfig(s.config))
+		if err != nil {
+			s.err = fmt.Errorf("failed to create GitHub client: %w", err)
+			return s.err
+		}
+	}
+
 	// Listen for OS signals to shutdown the server
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -148,14 +224,20 @@ func (s *Server) Start(ctx context.Context) error {
 	select {
 	case err := <-serverErrChan:
 		s.logger.Error().Err(err).Msg("Server error")
-		return err
+		s.err = err
+		return s.err
 	case sig := <-sigChan:
 		s.logger.Warn().Str("signal", sig.String()).Msg("Received shutdown signal")
 	case <-ctx.Done():
 		s.logger.Warn().Msg("Context cancelled, server shutting down")
 	}
 
-	return s.shutdown()
+	err = s.shutdown()
+	if err != nil {
+		s.err = err
+		return s.err
+	}
+	return nil
 }
 
 // WaitHealthy blocks until the server is healthy or the context is done.
@@ -243,12 +325,9 @@ func (s *Server) Health() (HealthResponse, error) {
 	return response, nil
 }
 
-// WebhookEndpoint is the target endpoint that a webhook is sent to.
-type WebhookEndpoint string
-
 const (
 	// WebhookEndpointTrunk is the target endpoint for Trunk webhooks.
-	WebhookEndpointTrunk WebhookEndpoint = "trunk"
+	WebhookEndpointTrunk = "trunk"
 )
 
 // WebhookResponse represents the response from webhook processing
@@ -258,27 +337,21 @@ type WebhookResponse struct {
 	Error   error  `json:"error,omitempty"`
 }
 
-// WebhookRequest represents the structure of incoming webhook data
-type WebhookRequest struct {
-	Endpoint WebhookEndpoint   `json:"-"` // Path of the webhook endpoint
-	Payload  json.RawMessage   `json:"-"` // Raw payload for flexible handling
-	Headers  map[string]string `json:"-"` // Request headers
-}
-
 // ReceiveWebhook processes webhook data and returns the result.
-func (s *Server) ReceiveWebhook(req *WebhookRequest) (*WebhookResponse, error) {
+func (s *Server) ReceiveWebhook(req *http.Request) (*WebhookResponse, error) {
 	l := s.logger.With().
-		Str("endpoint", string(req.Endpoint)).
-		Int("payload_size_bytes", len(req.Payload)).
+		Str("endpoint", string(req.URL.Path)).
+		Int("payload_size_bytes", int(req.ContentLength)).
 		Logger()
 	l.Debug().Msg("Processing webhook call")
 
-	switch req.Endpoint {
+	switch req.URL.Path {
 	case WebhookEndpointTrunk:
+		trunkSigningSecret := s.config.Trunk.WebhookSecret
 		// Pass nil for jiraClient and trunkClient for now - these can be injected in the future
-		return nil, trunk.ReceiveWebhook(l, req.Payload, nil, nil)
+		return nil, trunk.ReceiveWebhook(l, req, trunkSigningSecret, nil, nil)
 	default:
-		return nil, fmt.Errorf("unknown webhook endpoint: %s", req.Endpoint)
+		return nil, fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)
 	}
 }
 
@@ -330,36 +403,8 @@ func webhookHandler(s *Server) http.HandlerFunc {
 			return
 		}
 
-		// Read the request body
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			l.Error().Err(err).Msg("Failed to read request body")
-			w.Header().Set("Content-Type", "application/json")
-			http.Error(w, "Failed to read request body", http.StatusBadRequest)
-			return
-		}
-		defer func() {
-			if err := r.Body.Close(); err != nil {
-				l.Error().Err(err).Msg("Failed to close request body")
-			}
-		}()
-
-		// Extract headers
-		headers := make(map[string]string)
-		for name, values := range r.Header {
-			if len(values) > 0 {
-				headers[name] = values[0]
-			}
-		}
-
-		// Create webhook request
-		webhookReq := &WebhookRequest{
-			Headers: headers,
-			Payload: body,
-		}
-
 		// Call the core webhook processing method
-		response, err := s.ReceiveWebhook(webhookReq)
+		response, err := s.ReceiveWebhook(r)
 		if err != nil {
 			l.Error().Err(err).Msg("Webhook processing failed")
 			w.Header().Set("Content-Type", "application/json")

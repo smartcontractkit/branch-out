@@ -1,4 +1,4 @@
-.PHONY: build watch watch_race lint test test_race test_short test_integration test_example_project
+.PHONY: build watch watch_race lint test test_race test_short test_integration test_example_project generate-mocks
 
 build:
 	goreleaser build --snapshot --clean --single-target --single-target
@@ -12,8 +12,11 @@ watch:
 watch_race:
 	go tool gotestsum --watch -- -cover -race ./...
 
+generate: ## Generate mocks for all interfaces
+	go generate ./...
+
 test:
-	go tool gotestsum -- -cover ./...
+	go tool gotestsum ./...
 
 test_race:
 	go tool gotestsum -- -cover -race ./...

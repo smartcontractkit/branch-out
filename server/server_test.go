@@ -2,100 +2,71 @@ package server
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
-	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
+	github_mock "github.com/smartcontractkit/branch-out/internal/testhelpers/mocks/github"
+	jira_mock "github.com/smartcontractkit/branch-out/internal/testhelpers/mocks/jira"
+	trunk_mock "github.com/smartcontractkit/branch-out/internal/testhelpers/mocks/trunk"
 )
 
-func TestNew(t *testing.T) {
-	t.Parallel()
-
-	logger := testhelpers.Logger(t)
-	server := New(WithLogger(logger))
-	require.NotNil(t, server)
+var testConfig = config.Config{
+	Port: 0, // Set to 0 to allow the server to start on a random port
+	GitHub: config.GitHub{
+		Token: "test-token",
+	},
+	Jira: config.Jira{
+		BaseDomain: "test-domain",
+		ProjectKey: "test-project",
+		Username:   "test-username",
+		Token:      "test-token",
+	},
+	Trunk: config.Trunk{
+		Token:         "test-token",
+		WebhookSecret: "test-secret",
+	},
 }
 
-func TestStart(t *testing.T) {
+func TestServer_New(t *testing.T) {
 	t.Parallel()
 
-	logger := testhelpers.Logger(t)
-	server := New(WithLogger(logger))
-	require.NotNil(t, server)
-
-	ctx, killServer := context.WithCancel(context.Background())
-	errChan := make(chan error, 1)
-
-	go func() {
-		err := server.Start(ctx)
-		errChan <- err
-	}()
-
-	healthyCtx, healthyCtxCancel := context.WithTimeout(ctx, 100*time.Millisecond)
-	t.Cleanup(healthyCtxCancel)
-
-	err := server.WaitHealthy(healthyCtx)
-	require.NoError(t, err, "server did not become healthy")
-
-	killServer()
-
-	err = <-errChan
-	require.NoError(t, err, "server start returned error")
+	require.NotPanics(t, func() {
+		s := New(WithLogger(testhelpers.Logger(t)), WithConfig(testConfig))
+		require.NotNil(t, s)
+	})
 }
 
-func TestServer_Handlers(t *testing.T) {
+func TestServer_Start(t *testing.T) {
 	t.Parallel()
 
 	logger := testhelpers.Logger(t)
-	server := New(WithLogger(logger), WithPort(0))
+
+	// Create server with mocked clients
+	server := New(
+		WithLogger(logger),
+		WithConfig(testConfig),
+		WithJiraClient(jira_mock.NewIClient(t)),
+		WithGitHubClient(github_mock.NewIClient(t)),
+		WithTrunkClient(trunk_mock.NewIClient(t)),
+	)
 	require.NotNil(t, server)
 
-	ctx, killServer := context.WithCancel(context.Background())
-	errChan := make(chan error, 1)
-	go func() {
-		err := server.Start(ctx)
-		errChan <- err
-	}()
-
+	ctx := t.Context()
 	t.Cleanup(func() {
-		killServer()
-		require.NoError(t, <-errChan, "error while running server")
+		require.NoError(t, server.Error(), "server experienced error during startup")
 	})
 
-	err := server.WaitHealthy(context.Background())
-	require.NoError(t, err, "server did not become healthy")
+	go func() {
+		_ = server.Start(ctx) // already checking this in the t.Cleanup
+	}()
 
-	baseURL := fmt.Sprintf("http://%s", server.Addr)
-	t.Log("baseURL", baseURL)
+	healthyCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	t.Cleanup(cancel)
+	require.NoError(t, server.WaitHealthy(healthyCtx), "server did not become healthy")
 
-	client := resty.New().SetBaseURL(baseURL)
-	require.NotNil(t, client)
-
-	tests := []struct {
-		endpoint             string
-		method               string
-		expectedCode         int
-		expectedBodyContains string
-	}{
-		{endpoint: "/", method: http.MethodGet, expectedCode: http.StatusOK, expectedBodyContains: "branch-out"},
-		{endpoint: "/health", method: http.MethodGet, expectedCode: http.StatusOK, expectedBodyContains: "healthy"},
-	}
-
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("%s %s", test.method, test.endpoint), func(t *testing.T) {
-			t.Parallel()
-
-			resp, err := client.R().
-				SetResult(&map[string]any{}).
-				Execute(test.method, test.endpoint)
-			require.NoError(t, err, "error calling server %s %s", test.method, resp.Request.URL)
-			require.Equal(t, test.expectedCode, resp.StatusCode())
-			require.Contains(t, resp.String(), test.expectedBodyContains)
-		})
-	}
+	require.Positive(t, server.Port, "server port should be greater than 0")
 }

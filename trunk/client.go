@@ -25,9 +25,9 @@ type Client struct {
 	logger  zerolog.Logger
 }
 
-// ClientInterface is the interface that wraps the basic Trunk.io client methods.
+// IClient is the interface that wraps the basic Trunk.io client methods.
 // Helpful for mocking in tests.
-type ClientInterface interface {
+type IClient interface {
 	LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResponse, repoURL string) error
 }
 
@@ -36,7 +36,7 @@ type Option func(*trunkClientOptions)
 
 type trunkClientOptions struct {
 	baseURL *url.URL
-	cfg     *config.Config
+	secrets config.Trunk
 	logger  zerolog.Logger
 }
 
@@ -48,9 +48,9 @@ func WithLogger(logger zerolog.Logger) Option {
 }
 
 // WithConfig sets the config to use for the Trunk.io client.
-func WithConfig(config *config.Config) Option {
+func WithConfig(config config.Config) Option {
 	return func(opts *trunkClientOptions) {
-		opts.cfg = config
+		opts.secrets = config.Trunk
 	}
 }
 
@@ -71,24 +71,13 @@ func NewClient(options ...Option) (*Client, error) {
 		opt(opts)
 	}
 
-	var (
-		appConfig = opts.cfg
-		err       error
-	)
-	if appConfig == nil {
-		appConfig, err = config.Load()
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return &Client{
 		BaseURL: opts.baseURL,
 		HTTPClient: base.NewClient(
 			base.WithLogger(opts.logger),
 			base.WithComponent("trunk"),
 		),
-		secrets: appConfig.Trunk,
+		secrets: opts.secrets,
 		logger:  opts.logger,
 	}, nil
 }

@@ -17,7 +17,7 @@ import (
 
 var (
 	v         = viper.New()
-	appConfig *config.Config
+	appConfig config.Config
 	logger    zerolog.Logger
 )
 
@@ -77,7 +77,7 @@ branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		srv := server.New(
 			server.WithLogger(logger),
-			server.WithPort(appConfig.Port),
+			server.WithConfig(appConfig),
 		)
 		err := srv.Start(cmd.Context())
 		if err != nil {
