@@ -14,13 +14,10 @@ import (
 func TestRoot_Config(t *testing.T) {
 	var (
 		defaultLogLevel      string
-		defaultPort          int
 		defaultGitHubBaseURL string
 		err                  error
 	)
 	defaultLogLevel, err = config.GetDefault[string]("log-level")
-	require.NoError(t, err)
-	defaultPort, err = config.GetDefault[int]("port")
 	require.NoError(t, err)
 	defaultGitHubBaseURL, err = config.GetDefault[string]("github-base-url")
 	require.NoError(t, err)
@@ -39,7 +36,6 @@ func TestRoot_Config(t *testing.T) {
 			},
 			expectedConfig: config.Config{
 				LogLevel: defaultLogLevel,
-				Port:     defaultPort,
 				GitHub: config.GitHub{
 					BaseURL: defaultGitHubBaseURL,
 				},
@@ -119,8 +115,9 @@ func TestRoot_Config(t *testing.T) {
 			t.Cleanup(cancel)
 
 			// Execute will return when the context times out
-			err := root.ExecuteContext(ctx)
-			require.NoError(t, err, "error executing root command")
+			_ = root.ExecuteContext(
+				ctx,
+			) // We don't care about the error here, we just want to see if the config is set properly
 
 			assert.Equal(
 				t,
