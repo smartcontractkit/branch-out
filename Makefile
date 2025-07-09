@@ -1,7 +1,16 @@
-.PHONY: lint test test_race test_short test_integration test_example_project
+.PHONY: build watch watch_race lint test test_race test_short test_integration test_example_project
+
+build:
+	goreleaser build --snapshot --clean --single-target --single-target
 
 lint:
 	golangci-lint run ./... --fix
+
+watch:
+	go tool gotestsum --watch -- -cover ./...
+
+watch_race:
+	go tool gotestsum --watch -- -cover -race ./...
 
 test:
 	go tool gotestsum -- -cover ./...

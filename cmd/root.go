@@ -16,6 +16,7 @@ import (
 )
 
 var (
+	v         = viper.New()
 	appConfig *config.Config
 	logger    zerolog.Logger
 )
@@ -24,13 +25,38 @@ var (
 var root = &cobra.Command{
 	Use:   "branch-out",
 	Short: "Branch Out accentuates the capabilities of Trunk.io's flaky test tools",
-	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-		var (
-			err error
-			v   = viper.GetViper()
-		)
+	Long: `
+Branch Out accentuates the capabilities of Trunk.io's flaky test tools by branching out to other common services for a flaky test flow.
 
-		appConfig, err = config.Load(config.WithViper(v))
+It does so by running a server that listens for webhooks from Trunk.io's flaky test tool. When a test is marked as flaky, Branch Out will:
+
+1. Create a new Jira ticket to fix the flaky test
+2. Create PR to quarantine the flaky test on GitHub
+
+When a test is marked as not flaky, Branch Out will:
+
+1. Update the Jira ticket to reflect the test is no longer flaky
+2. Make a PR to un-quarantine the flaky test on GitHub
+
+Configuration is read from CLI flags > environment variables > a .env file.
+`,
+	Example: `
+# Default run
+branch-out
+# Run with debug logging, log to file, and bind on 8080
+branch-out --log-level debug --log-path branch-out.log --port 8080
+# Provide GitHub Token config via CLI flag
+branch-out --github-token <github-token-value>
+# Configure Jira integration
+branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
+`,
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		var err error
+
+		appConfig, err = config.Load(
+			config.WithViper(v),
+			config.WithCommand(cmd),
+		)
 		if err != nil {
 			return err
 		}
@@ -62,27 +88,7 @@ var root = &cobra.Command{
 }
 
 func init() {
-	root.PersistentFlags().
-		StringP("github-token", "t", "", "The GitHub token to use for the GitHub API (try using 'gh auth token') (reads from GITHUB_TOKEN environment variable if not provided)")
-	root.PersistentFlags().
-		StringP("log-level", "l", "", "The log level to use (error, warn, info, debug, trace, disabled)")
-	root.PersistentFlags().
-		StringP("log-path", "f", "", "Also logs to a file at the given path")
-
-	root.Flags().IntP("port", "p", config.DefaultPort, "The port for the server to listen on")
-
-	if err := viper.BindPFlag("LOG_LEVEL", root.PersistentFlags().Lookup("log-level")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("LOG_PATH", root.PersistentFlags().Lookup("log-path")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("PORT", root.Flags().Lookup("port")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("GITHUB_TOKEN", root.PersistentFlags().Lookup("github-token")); err != nil {
-		panic(err)
-	}
+	config.MustBindConfig(root, v)
 }
 
 // Execute is the entry point for the CLI.

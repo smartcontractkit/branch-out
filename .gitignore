@@ -7,6 +7,9 @@
 branch-out.log
 branch-out.log.*
 *.log.json
+dist/
+branch-out
+
 # Generated test debugging output
 Test*/
 !test_package/

@@ -5,28 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"runtime"
 	"runtime/debug"
-	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-)
-
-// DefaultPort is the default port for the server to listen on.
-const (
-	// DefaultPort is the default port for the server to listen on.
-	DefaultPort = 8080
-	// DefaultLogLevel is the default log level for the server.
-	DefaultLogLevel = "info"
-	// DefaultGitHubBaseURL is the default base URL for the GitHub API.
-	DefaultGitHubBaseURL = "https://api.github.com"
-
-	// EnvVarLogLevel is the environment variable for the log level.
-	EnvVarLogLevel = "LOG_LEVEL"
-	// EnvVarPort is the environment variable for the port.
-	EnvVarPort = "PORT"
 )
 
 // These variables are set at build time and describe the version and build of the application
@@ -64,14 +48,13 @@ type Config struct {
 
 // GitHub configures authentication to the GitHub API.
 type GitHub struct {
+	Token   string `mapstructure:"GITHUB_TOKEN"`
 	BaseURL string `mapstructure:"GITHUB_BASE_URL"`
 	// GitHub App configuration
 	AppID          string `mapstructure:"GITHUB_APP_ID"`
 	PrivateKey     string `mapstructure:"GITHUB_PRIVATE_KEY"`
 	PrivateKeyFile string `mapstructure:"GITHUB_PRIVATE_KEY_FILE"`
 	InstallationID string `mapstructure:"GITHUB_INSTALLATION_ID"`
-	// Or use a simple GitHub token
-	Token string `mapstructure:"GITHUB_TOKEN"`
 }
 
 // Trunk configures authentication to the Trunk API.
@@ -97,6 +80,7 @@ type Option func(*configOptions)
 type configOptions struct {
 	configFile string
 	viper      *viper.Viper
+	command    *cobra.Command
 }
 
 // WithConfigFile sets the exact config file to load.
@@ -106,10 +90,17 @@ func WithConfigFile(configFile string) Option {
 	}
 }
 
-// WithViper sets a custom viper instance to use. Useful for testing.
+// WithViper sets the viper instance to use. A new viper instance is created if not provided.
 func WithViper(v *viper.Viper) Option {
 	return func(cfg *configOptions) {
 		cfg.viper = v
+	}
+}
+
+// WithCommand sets the command to use for binding flags to config values.
+func WithCommand(cmd *cobra.Command) Option {
+	return func(cfg *configOptions) {
+		cfg.command = cmd
 	}
 }
 
@@ -117,24 +108,24 @@ func WithViper(v *viper.Viper) Option {
 func Load(options ...Option) (*Config, error) {
 	opts := &configOptions{
 		configFile: ".env",
-		viper:      viper.GetViper(), // Use the global viper instance by default
+		viper:      viper.New(),
+		command:    nil,
 	}
 	for _, opt := range options {
 		opt(opts)
 	}
 
 	v := opts.viper
-	if v == nil {
-		v = viper.New()
-		// Set up defaults and env binding for new instance
-		setupViperDefaults(v)
+	if err := BindConfig(opts.command, v); err != nil {
+		return nil, err
 	}
 
 	if opts.configFile != "" {
 		v.SetConfigFile(opts.configFile)
 	}
 
-	if err := v.ReadInConfig(); err != nil {
+	err := v.ReadInConfig()
+	if err != nil {
 		// Ignore config file not found error
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
@@ -142,7 +133,8 @@ func Load(options ...Option) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	err = v.Unmarshal(&cfg)
+	if err != nil {
 		return nil, err
 	}
 
@@ -176,59 +168,4 @@ func init() {
 	if Commit == "" {
 		Commit = "dev"
 	}
-
-	// Set up defaults for global viper instance (for backward compatibility)
-	setupViperDefaults(viper.GetViper())
-}
-
-// setupViperDefaults configures viper with sensible defaults for all configuration fields
-func setupViperDefaults(v *viper.Viper) {
-	// Set only the essential defaults
-	v.SetDefault(EnvVarLogLevel, DefaultLogLevel)
-	v.SetDefault(EnvVarPort, DefaultPort)
-	v.SetDefault("GITHUB_BASE_URL", DefaultGitHubBaseURL)
-
-	// Handle dashes in CLI flags
-	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-
-	// Automatically bind all environment variables based on struct tags
-	if err := bindEnvsFromStruct(v, reflect.TypeOf(Config{})); err != nil {
-		panic(err)
-	}
-
-	// Handle dashes in CLI flags
-	v.AutomaticEnv()
-}
-
-// bindEnvsFromStruct binds environment variables to viper based on struct tags.
-// Avoids having to manually viper.BindEnv for each field.
-func bindEnvsFromStruct(v *viper.Viper, t reflect.Type) error {
-	if t.Kind() != reflect.Struct {
-		return fmt.Errorf("type %s is not a struct", t.Name())
-	}
-
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		tag := field.Tag.Get("mapstructure")
-		// Skip fields without a mapstructure tag
-		if tag == "" {
-			continue
-		}
-		if strings.Contains(tag, ",squash") {
-			// Handle embedded structs with squash
-			if err := bindEnvsFromStruct(v, field.Type); err != nil {
-				return err
-			}
-			continue
-		}
-		if tag == "-" {
-			// Skip ignored fields
-			continue
-		}
-		// Bind the environment variable
-		if err := v.BindEnv(tag); err != nil {
-			return fmt.Errorf("failed to bind env %s: %w", tag, err)
-		}
-	}
-	return nil
 }

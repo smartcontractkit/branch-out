@@ -5,7 +5,7 @@ repos:
     - id: check-yaml
     - id: detect-aws-credentials
     - id: detect-private-key
-      exclude: testdata/test_key\.pem$
+      exclude: (testdata/test_key\.pem$|config/definition\.go$)
     - id: end-of-file-fixer
     - id: trailing-whitespace
     - id: check-merge-conflict
