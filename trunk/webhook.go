@@ -19,8 +19,8 @@ func ReceiveWebhook(
 	l zerolog.Logger,
 	req *http.Request,
 	signingSecret string,
-	jiraClient jira.ClientInterface,
-	trunkClient ClientInterface,
+	jiraClient jira.IClient,
+	trunkClient IClient,
 ) error {
 	l.Info().Msg("Received trunk webhook")
 
@@ -59,8 +59,8 @@ func ReceiveWebhook(
 func handleTestCaseStatusChanged(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.ClientInterface,
-	trunkClient ClientInterface,
+	jiraClient jira.IClient,
+	trunkClient IClient,
 ) error {
 	l.Info().Msg("Processing test_case.status_changed event")
 
@@ -93,8 +93,8 @@ func handleTestCaseStatusChanged(
 func createJiraTicketForFlakyTest(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.ClientInterface,
-	trunkClient ClientInterface,
+	jiraClient jira.IClient,
+	trunkClient IClient,
 ) error {
 	testCase := webhookData.TestCase
 
@@ -160,8 +160,8 @@ func createJiraTicketForFlakyTest(
 func handleExistingTicketForFlakyTest(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.ClientInterface,
-	trunkClient ClientInterface,
+	jiraClient jira.IClient,
+	trunkClient IClient,
 ) error {
 	testCase := webhookData.TestCase
 	ticketURL := testCase.Ticket.HTMLURL
@@ -206,7 +206,7 @@ func handleExistingTicketForFlakyTest(
 func addFlakyTestUpdateComment(
 	l zerolog.Logger,
 	webhookData TestCaseStatusChangedPayload,
-	jiraClient jira.ClientInterface,
+	jiraClient jira.IClient,
 	ticketKey string,
 ) error {
 	testCase := webhookData.TestCase

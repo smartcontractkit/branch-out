@@ -16,6 +16,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/smartcontractkit/branch-out/config"
+	"github.com/smartcontractkit/branch-out/github"
+	"github.com/smartcontractkit/branch-out/jira"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
@@ -29,18 +31,54 @@ type Server struct {
 	config  *config.Config
 	version string
 
+	jiraClient   jira.IClient
+	trunkClient  trunk.IClient
+	githubClient github.IClient
+
 	started atomic.Bool
+	err     error
 }
 
 type options struct {
 	config  *config.Config
 	logger  zerolog.Logger
 	version string
+
+	jiraClient   jira.IClient
+	trunkClient  trunk.IClient
+	githubClient github.IClient
 }
 
 // Option is a functional option that configures the server.
 // Default options are used if no options are provided.
 type Option func(*options)
+
+// WithJiraClient sets the Jira client for the server.
+// This overrides using the config to create a client.
+// Useful for testing.
+func WithJiraClient(client jira.IClient) Option {
+	return func(opts *options) {
+		opts.jiraClient = client
+	}
+}
+
+// WithTrunkClient sets the Trunk client for the server.
+// This overrides using the config to create a client.
+// Useful for testing.
+func WithTrunkClient(client trunk.IClient) Option {
+	return func(opts *options) {
+		opts.trunkClient = client
+	}
+}
+
+// WithGitHubClient sets the GitHub client for the server.
+// This overrides using the config to create a client.
+// Useful for testing.
+func WithGitHubClient(client github.IClient) Option {
+	return func(opts *options) {
+		opts.githubClient = client
+	}
+}
 
 // WithConfig sets the config for the server.
 // Default config is used if no config is provided.
@@ -82,7 +120,17 @@ func New(options ...Option) *Server {
 		logger:  opts.logger,
 		config:  serverConfig,
 		version: config.Version,
+
+		jiraClient:   opts.jiraClient,
+		trunkClient:  opts.trunkClient,
+		githubClient: opts.githubClient,
 	}
+}
+
+// Error returns the error that occurred during server startup.
+// It is nil if the server started successfully.
+func (s *Server) Error() error {
+	return s.err
 }
 
 // Start starts the server and blocks until shutdown.
@@ -101,7 +149,8 @@ func (s *Server) Start(ctx context.Context) error {
 
 	listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.Port))
 	if err != nil {
-		return fmt.Errorf("failed to create listener: %w", err)
+		s.err = fmt.Errorf("failed to create listener: %w", err)
+		return s.err
 	}
 	url = listener.Addr().String()
 	s.Addr = url
@@ -130,6 +179,31 @@ func (s *Server) Start(ctx context.Context) error {
 		s.started.Store(false)
 	})
 
+	// Create the clients for reaching out to external services
+	if s.jiraClient == nil {
+		s.jiraClient, err = jira.NewClient(jira.WithConfig(s.config), jira.WithLogger(s.logger))
+		if err != nil {
+			s.err = fmt.Errorf("failed to create Jira client: %w", err)
+			return s.err
+		}
+	}
+
+	if s.trunkClient == nil {
+		s.trunkClient, err = trunk.NewClient(trunk.WithConfig(s.config), trunk.WithLogger(s.logger))
+		if err != nil {
+			s.err = fmt.Errorf("failed to create Trunk client: %w", err)
+			return s.err
+		}
+	}
+
+	if s.githubClient == nil {
+		s.githubClient, err = github.NewClient(github.WithLogger(s.logger), github.WithConfig(&s.config.GitHub))
+		if err != nil {
+			s.err = fmt.Errorf("failed to create GitHub client: %w", err)
+			return s.err
+		}
+	}
+
 	// Listen for OS signals to shutdown the server
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -154,14 +228,20 @@ func (s *Server) Start(ctx context.Context) error {
 	select {
 	case err := <-serverErrChan:
 		s.logger.Error().Err(err).Msg("Server error")
-		return err
+		s.err = err
+		return s.err
 	case sig := <-sigChan:
 		s.logger.Warn().Str("signal", sig.String()).Msg("Received shutdown signal")
 	case <-ctx.Done():
 		s.logger.Warn().Msg("Context cancelled, server shutting down")
 	}
 
-	return s.shutdown()
+	err = s.shutdown()
+	if err != nil {
+		s.err = err
+		return s.err
+	}
+	return nil
 }
 
 // WaitHealthy blocks until the server is healthy or the context is done.

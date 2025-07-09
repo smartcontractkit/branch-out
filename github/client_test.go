@@ -126,7 +126,7 @@ func TestRateLimit(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			client, err := NewClient(l)
+			client, err := NewClient(WithLogger(l))
 			require.NoError(t, err)
 			require.NotNil(t, client)
 
@@ -211,7 +211,7 @@ func TestNewClientWithGitHubApp(t *testing.T) {
 
 			l := testhelpers.Logger(t)
 
-			client, err := NewClient(l, WithConfig(tt.cfg))
+			client, err := NewClient(WithLogger(l), WithConfig(tt.cfg))
 
 			if tt.expectError {
 				require.Error(t, err, "expected error")

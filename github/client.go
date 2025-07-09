@@ -1,6 +1,9 @@
 package github
 
+//go:generate go tool mockery --name=IClient --output=../mocks --outpkg=mocks --filename=mock_github_client.go --structname=MockGitHubClient
+
 import (
+	"context"
 	"fmt"
 	"net/url"
 
@@ -14,7 +17,19 @@ import (
 
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
+	"github.com/smartcontractkit/branch-out/golang"
 )
+
+// IClient is the interface for the GitHub client.
+type IClient interface {
+	QuarantineTests(
+		ctx context.Context,
+		l zerolog.Logger,
+		owner, repo string,
+		targets []golang.QuarantineTarget,
+		options ...QuarantineOption,
+	) error
+}
 
 // Client is a wrapper around the GitHub REST and GraphQL API clients
 type Client struct {
@@ -32,18 +47,9 @@ type Client struct {
 type ClientOption func(*clientOptions)
 
 type clientOptions struct {
-	baseURL     *url.URL
 	tokenSource oauth2.TokenSource
 	config      *config.GitHub
-}
-
-// WithBaseURL sets the base URL of the GitHub API.
-func WithBaseURL(baseURL *url.URL) ClientOption {
-	return func(c *clientOptions) {
-		if baseURL != nil {
-			c.baseURL = baseURL
-		}
-	}
+	logger      zerolog.Logger
 }
 
 // WithConfig uses a GitHub config to setup authentication.
@@ -53,10 +59,16 @@ func WithConfig(githubConfig *config.GitHub) ClientOption {
 	}
 }
 
+// WithLogger sets the logger for the GitHub client.
+func WithLogger(logger zerolog.Logger) ClientOption {
+	return func(c *clientOptions) {
+		c.logger = logger
+	}
+}
+
 // NewClient creates a new GitHub REST and GraphQL API client with the provided token and logger.
 // If optionalNext is provided, it will be used as the base client for both REST and GraphQL, handy for testing.
 func NewClient(
-	l zerolog.Logger,
 	options ...ClientOption,
 ) (*Client, error) {
 	opts := &clientOptions{}
@@ -64,18 +76,22 @@ func NewClient(
 		opt(opts)
 	}
 
+	if opts.config == nil {
+		opts.config = &config.MustLoad().GitHub
+	}
+
 	client := &Client{
 		tokenSource: opts.tokenSource,
 	}
 
 	var err error
-	client.tokenSource, err = setupAuth(l, opts.config)
+	client.tokenSource, err = setupAuth(opts.logger, opts.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup authentication: %w", err)
 	}
 
 	onPrimaryRateLimitHit := func(ctx *github_primary_ratelimit.CallbackContext) {
-		l := l.Warn().Str("limit", "primary")
+		l := opts.logger.Warn().Str("limit", "primary")
 		if ctx.Request != nil {
 			l = l.Str("request_url", ctx.Request.URL.String())
 		}
@@ -92,7 +108,7 @@ func NewClient(
 	}
 
 	onSecondaryRateLimitHit := func(ctx *github_secondary_ratelimit.CallbackContext) {
-		l := l.Warn().Str("limit", "secondary")
+		l := opts.logger.Warn().Str("limit", "secondary")
 		if ctx.Request != nil {
 			l = l.Str("request_url", ctx.Request.URL.String())
 		}
@@ -109,7 +125,7 @@ func NewClient(
 	}
 
 	// Create base HTTP client with logging transport
-	baseTransport := base.NewClient(base.WithLogger(l), base.WithComponent("github-rest"))
+	baseTransport := base.NewClient(base.WithLogger(opts.logger), base.WithComponent("github-rest"))
 
 	// Add OAuth2 transport if token source is available
 	if client.tokenSource != nil {
@@ -128,10 +144,10 @@ func NewClient(
 
 	client.Rest = github.NewClient(rateLimiter)
 
-	l = l.With().Str("base_url", client.Rest.BaseURL.String()).Logger()
+	opts.logger = opts.logger.With().Str("base_url", client.Rest.BaseURL.String()).Logger()
 
 	// Setup GraphQL client with the same transport pattern
-	graphQLClient := base.NewClient(base.WithLogger(l), base.WithComponent("github-graphql"))
+	graphQLClient := base.NewClient(base.WithLogger(opts.logger), base.WithComponent("github-graphql"))
 
 	if client.tokenSource != nil {
 		graphQLClient.Transport = &oauth2.Transport{

@@ -1,6 +1,8 @@
 // Package jira provides utilities for the Jira API.
 package jira
 
+//go:generate go tool mockery --name=IClient --output=../mocks --outpkg=mocks --filename=mock_jira_client.go --structname=MockJiraClient
+
 import (
 	"bytes"
 	"context"
@@ -56,9 +58,9 @@ func WithBaseURL(baseURL *url.URL) Option {
 	}
 }
 
-// ClientInterface is the interface that wraps the basic Jira client methods.
+// IClient is the interface that wraps the basic Jira client methods.
 // Helpful for mocking in tests.
-type ClientInterface interface {
+type IClient interface {
 	CreateFlakyTestTicket(req FlakyTestTicketRequest) (*TicketResponse, error)
 	GetTicketStatus(ticketKey string) (*TicketStatus, error)
 	AddCommentToTicket(ticketKey string, comment string) error

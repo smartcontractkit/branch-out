@@ -49,13 +49,11 @@ func TestRoot_Config(t *testing.T) {
 			name: "env vars override default config",
 			envVars: map[string]string{
 				"LOG_LEVEL":       "error",
-				"PORT":            "8888",
 				"GITHUB_TOKEN":    "env-token",
 				"GITHUB_BASE_URL": "https://api.github.com/test",
 			},
 			expectedConfig: config.Config{
 				LogLevel: "error",
-				Port:     8888,
 				GitHub: config.GitHub{
 					BaseURL: "https://api.github.com/test",
 					Token:   "env-token",
@@ -66,13 +64,11 @@ func TestRoot_Config(t *testing.T) {
 			name: "just flags",
 			flags: []string{
 				"--log-level", "error",
-				"--port", "8888",
 				"--github-token", "test-github-token",
 				"--trunk-token", "test-trunk-token",
 			},
 			expectedConfig: config.Config{
 				LogLevel: "error",
-				Port:     8888,
 				GitHub: config.GitHub{
 					BaseURL: defaultGitHubBaseURL,
 					Token:   "test-github-token",
@@ -86,18 +82,16 @@ func TestRoot_Config(t *testing.T) {
 			name: "flags override env vars",
 			envVars: map[string]string{
 				"LOG_LEVEL":    "error",
-				"PORT":         "8888",
 				"GITHUB_TOKEN": "env-token",
+				"TRUNK_TOKEN":  "env-trunk-token",
 			},
 			flags: []string{
 				"--log-level", "debug",
-				"--port", "9999",
 				"--github-token", "test-github-token",
 				"--trunk-token", "test-trunk-token",
 			},
 			expectedConfig: config.Config{
 				LogLevel: "debug",
-				Port:     9999,
 				GitHub: config.GitHub{
 					BaseURL: defaultGitHubBaseURL,
 					Token:   "test-github-token",
@@ -115,6 +109,8 @@ func TestRoot_Config(t *testing.T) {
 				t.Setenv(key, value)
 			}
 
+			// Set port to 0 to allow the server to start on a random port
+			tc.flags = append(tc.flags, "--port", "0")
 			// Set flags, which should override env vars
 			root.SetArgs(tc.flags)
 

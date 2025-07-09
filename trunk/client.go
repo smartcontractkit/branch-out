@@ -1,6 +1,8 @@
 // Package trunk provides utilities for the Trunk.io API.
 package trunk
 
+//go:generate go tool mockery --name=IClient --output=../mocks --outpkg=mocks --filename=mock_trunk_client.go --structname=MockTrunkClient
+
 import (
 	"bytes"
 	"encoding/json"
@@ -25,9 +27,9 @@ type Client struct {
 	logger  zerolog.Logger
 }
 
-// ClientInterface is the interface that wraps the basic Trunk.io client methods.
+// IClient is the interface that wraps the basic Trunk.io client methods.
 // Helpful for mocking in tests.
-type ClientInterface interface {
+type IClient interface {
 	LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResponse, repoURL string) error
 }
 
