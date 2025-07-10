@@ -102,7 +102,7 @@ func createJiraTicketForFlakyTest(
 	repoName := extractRepoNameFromURL(testCase.Repository.HTMLURL)
 
 	// Create details JSON from test case data
-	details, err := json.Marshal(map[string]interface{}{
+	details, err := json.Marshal(map[string]any{
 		"failure_rate_last_7d":           testCase.FailureRateLast7D,
 		"pull_requests_impacted_last_7d": testCase.PullRequestsImpactedLast7D,
 		"codeowners":                     testCase.Codeowners,

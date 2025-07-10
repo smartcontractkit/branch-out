@@ -1,0 +1,42 @@
+{
+    "status_change": {
+        "current_status": {
+            "reason": " Inconsistent results on main",
+            "timestamp": "2024-11-22T20:04:33.127Z",
+            "value": "flaky"
+        },
+        "previous_status": "healthy"
+    },
+    "test_case": {
+        "codeowners": [
+            "@backend"
+        ],
+        "failure_rate_last_7d": 0.1,
+        "file_path": "trunk/services/__tests__/distributed_lock.test.js",
+        "html_url": "https://app.trunk.io/trunk/flaky-tests/test/77681877-1608-5871-bf95-e02f8baa5a9a?repo=trunk-io%2Fanalytics-cli",
+        "id": "2bfedccc-7fda-442c-bcf9-5e01c6d046d3",
+        "most_common_failures": [
+            {
+                "last_occurrence": "2024-11-22T20:04:33.127Z",
+                "occurrence_count": 42,
+                "summary": "timeout"
+            }
+        ],
+        "name": "DistributedLock #tryLock default throws on double unlock",
+        "pull_requests_impacted_last_7d": 42,
+        "quarantine": true,
+        "repository": {
+            "html_url": "https://github.com/trunk-io/analytics-cli"
+        },
+        "status": {
+            "reason": " Inconsistent results on main",
+            "timestamp": "2024-11-22T20:04:33.127Z",
+            "value": "flaky"
+        },
+        "test_suite": "DistributedLock",
+        "ticket": {
+            "html_url": "https://trunk-io.atlassian.net/browse/KAN-130"
+        },
+        "variant": "linux-x86_64"
+    }
+}

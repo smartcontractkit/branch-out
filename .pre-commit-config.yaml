@@ -28,6 +28,13 @@ repos:
       types: [go]
       language: golang
       stages: [pre-commit]
+    - id: go-generate
+      name: go generate
+      entry: go generate ./...
+      pass_filenames: false
+      types: [go]
+      language: golang
+      stages: [pre-commit]
     - id: go-unit-tests
       name: go unit tests
       entry: env gotestsum -- -short ./...
