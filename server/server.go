@@ -271,8 +271,6 @@ func (s *Server) WaitHealthy(ctx context.Context) error {
 
 // shutdown gracefully shuts down the server.
 func (s *Server) shutdown() error {
-	s.logger.Debug().Msg("Initiating graceful shutdown")
-
 	// Create a context with timeout for graceful shutdown
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -320,15 +318,10 @@ func (s *Server) Health() (HealthResponse, error) {
 		Timestamp: time.Now(),
 	}
 
-	s.logger.Debug().Str("status", response.Status).Msg("Sever healthy")
+	s.logger.Debug().Str("status", response.Status).Msg("Server healthy")
 
 	return response, nil
 }
-
-const (
-	// WebhookEndpointTrunk is the target endpoint for Trunk webhooks.
-	WebhookEndpointTrunk = "trunk"
-)
 
 // WebhookResponse represents the response from webhook processing
 type WebhookResponse struct {
@@ -346,10 +339,10 @@ func (s *Server) ReceiveWebhook(req *http.Request) (*WebhookResponse, error) {
 	l.Debug().Msg("Processing webhook call")
 
 	switch req.URL.Path {
-	case WebhookEndpointTrunk:
+	case "/webhooks/trunk":
 		trunkSigningSecret := s.config.Trunk.WebhookSecret
 		// Pass nil for jiraClient and trunkClient for now - these can be injected in the future
-		return nil, trunk.ReceiveWebhook(l, req, trunkSigningSecret, nil, nil)
+		return nil, trunk.ReceiveWebhook(l, req, trunkSigningSecret, s.jiraClient, s.trunkClient)
 	default:
 		return nil, fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)
 	}

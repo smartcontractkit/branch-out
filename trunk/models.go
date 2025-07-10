@@ -1,4 +1,3 @@
-// Package trunk provides models for the Trunk.io API.
 package trunk
 
 import (
@@ -86,31 +85,6 @@ func (q QuarantiningSettingChanged) GetTestCase() TestCase {
 	return q.TestCase
 }
 
-// StatusChanged is the event type for when a test case's status is changed.
-// https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
-type StatusChanged struct {
-	StatusChange struct {
-		CurrentStatus struct {
-			Reason    string    `json:"reason"`
-			Timestamp time.Time `json:"timestamp"`
-			Value     string    `json:"value"`
-		} `json:"current_status"`
-		PreviousStatus string `json:"previous_status"`
-	} `json:"status_change"`
-	TestCase TestCase `json:"test_case"`
-	Type     string   `json:"type"` // Added missing Type field
-}
-
-// GetType implements the WebhookEvent interface
-func (s StatusChanged) GetType() WebhookType {
-	return WebhookTypeStatusChanged
-}
-
-// GetTestCase implements the WebhookEvent interface
-func (s StatusChanged) GetTestCase() TestCase {
-	return s.TestCase
-}
-
 // ParseWebhookEvent parses raw JSON into the appropriate webhook event type
 func ParseWebhookEvent(data []byte) (WebhookEvent, error) {
 	// First, parse just the type field
@@ -131,7 +105,7 @@ func ParseWebhookEvent(data []byte) (WebhookEvent, error) {
 		return event, nil
 
 	case WebhookTypeStatusChanged:
-		var event StatusChanged
+		var event TestCaseStatusChange
 		if err := json.Unmarshal(data, &event); err != nil {
 			return nil, fmt.Errorf("failed to parse status changed event: %w", err)
 		}
@@ -155,18 +129,36 @@ func GetWebhookType(data []byte) (WebhookType, error) {
 	return WebhookType(envelope.Type), nil
 }
 
-// TestCaseStatusChangedPayload represents the payload for test_case.status_changed events from Trunk.io
+// TestCaseStatusChange represents the payload for test_case.status_changed events from Trunk.io
 // See: https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
-type TestCaseStatusChangedPayload struct {
-	StatusChange struct {
-		CurrentStatus struct {
-			Reason    string `json:"reason"`
-			Timestamp string `json:"timestamp"`
-			Value     string `json:"value"`
-		} `json:"current_status"`
-		PreviousStatus string `json:"previous_status"`
-	} `json:"status_change"`
-	TestCase TestCase `json:"test_case"` // Reuse the existing TestCase struct
+type TestCaseStatusChange struct {
+	StatusChange StatusChange `json:"status_change"`
+	TestCase     TestCase     `json:"test_case"` // Reuse the existing TestCase struct
+}
+
+// GetType implements the WebhookEvent interface
+func (s TestCaseStatusChange) GetType() WebhookType {
+	return WebhookTypeStatusChanged
+}
+
+// GetTestCase implements the WebhookEvent interface
+func (s TestCaseStatusChange) GetTestCase() TestCase {
+	return s.TestCase
+}
+
+// StatusChange represents the status change event from Trunk.io
+// See: https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
+type StatusChange struct {
+	CurrentStatus  CurrentStatus `json:"current_status"`
+	PreviousStatus string        `json:"previous_status"`
+}
+
+// CurrentStatus represents the current status of a test case
+// See: https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
+type CurrentStatus struct {
+	Reason    string `json:"reason"`
+	Timestamp string `json:"timestamp"`
+	Value     string `json:"value"`
 }
 
 // LinkTicketRequest represents the request to link a Jira ticket to a test case in Trunk.io
