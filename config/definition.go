@@ -67,7 +67,6 @@ var (
 			Description: "Port to listen on",
 			Example:     8080,
 			Flag:        "port",
-			ShortFlag:   "p",
 			Type:        reflect.TypeOf(0),
 			Default:     8080,
 			Persistent:  true,

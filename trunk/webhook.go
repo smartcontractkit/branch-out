@@ -1,16 +1,28 @@
 package trunk
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 	svix "github.com/svix/svix-webhooks/go"
 
+	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/jira"
+)
+
+const (
+	// TestCaseStatusHealthy is the status of a test that is healthy.
+	TestCaseStatusHealthy = "healthy"
+	// TestCaseStatusFlaky is the status of a test that is flaky.
+	TestCaseStatusFlaky = "flaky"
+	// TestCaseStatusBroken is the status of a test that is broken.
+	TestCaseStatusBroken = "broken"
 )
 
 // ReceiveWebhook processes a Trunk webhook, typically triggered by a test being marked/unmarked as flaky.
@@ -21,12 +33,10 @@ func ReceiveWebhook(
 	signingSecret string,
 	jiraClient jira.IClient,
 	trunkClient IClient,
+	githubClient github.IClient,
 ) error {
-	if jiraClient == nil {
-		return fmt.Errorf("jira client is nil")
-	}
-	if trunkClient == nil {
-		return fmt.Errorf("trunk client is nil")
+	if err := verifyClients(jiraClient, trunkClient, githubClient); err != nil {
+		return err
 	}
 
 	l.Info().Msg("Received trunk webhook")
@@ -43,13 +53,7 @@ func ReceiveWebhook(
 	}()
 
 	// Verify the webhook signature
-	// https://docs.svix.com/receiving/verifying-payloads/how
-	wh, err := svix.NewWebhook(signingSecret)
-	if err != nil {
-		return fmt.Errorf("failed to create svix webhook: %w", err)
-	}
-
-	if err := wh.Verify(payload, req.Header); err != nil {
+	if err := VerifyWebhookRequest(l, req, signingSecret); err != nil {
 		return fmt.Errorf("failed to verify svix webhook: %w", err)
 	}
 
@@ -59,28 +63,27 @@ func ReceiveWebhook(
 		return fmt.Errorf("failed to parse test_case.status_changed payload: %w", err)
 	}
 
-	return handleTestCaseStatusChanged(l, webhookData, jiraClient, trunkClient)
+	return HandleTestCaseStatusChanged(l, webhookData, jiraClient, trunkClient, githubClient)
 }
 
-// handleTestCaseStatusChanged processes test_case.status_changed events
-func handleTestCaseStatusChanged(
+// HandleTestCaseStatusChanged processes when a test case's status changes.
+// This can be one of: healthy, flaky, or broken.
+func HandleTestCaseStatusChanged(
 	l zerolog.Logger,
-	webhookData TestCaseStatusChange,
+	statusChange TestCaseStatusChange,
 	jiraClient jira.IClient,
 	trunkClient IClient,
+	githubClient github.IClient,
 ) error {
-	if jiraClient == nil {
-		return fmt.Errorf("jira client is nil")
-	}
-	if trunkClient == nil {
-		return fmt.Errorf("trunk client is nil")
+	if err := verifyClients(jiraClient, trunkClient, githubClient); err != nil {
+		return err
 	}
 
 	l.Info().Msg("Processing test_case.status_changed event")
 
-	testCase := webhookData.TestCase
-	currentStatus := webhookData.StatusChange.CurrentStatus.Value
-	previousStatus := webhookData.StatusChange.PreviousStatus
+	testCase := statusChange.TestCase
+	currentStatus := statusChange.StatusChange.CurrentStatus.Value
+	previousStatus := statusChange.StatusChange.PreviousStatus
 
 	l.Info().
 		Str("test_id", testCase.ID).
@@ -90,16 +93,86 @@ func handleTestCaseStatusChanged(
 		Str("previous_status", previousStatus).
 		Msg("Test status changed")
 
-	// If test status changed to "flaky" and we have a Jira client, create a ticket
-	if currentStatus == "flaky" {
-		if testCase.Ticket.HTMLURL == "" {
-			// No existing ticket, create a new one
-			return createJiraTicketForFlakyTest(l, webhookData, jiraClient, trunkClient)
-		}
-		// Existing ticket found, check its status
-		return handleExistingTicketForFlakyTest(l, webhookData, jiraClient, trunkClient)
+	switch currentStatus {
+	case TestCaseStatusFlaky:
+		return handleFlakyTest(l, statusChange, jiraClient, trunkClient, githubClient)
+	case TestCaseStatusBroken:
+		return handleBrokenTest(l, statusChange, jiraClient, trunkClient, githubClient)
+	case TestCaseStatusHealthy:
+		return handleHealthyTest(l, statusChange, jiraClient, trunkClient, githubClient)
 	}
 
+	return nil
+}
+
+func handleFlakyTest(
+	l zerolog.Logger,
+	statusChange TestCaseStatusChange,
+	jiraClient jira.IClient,
+	trunkClient IClient,
+	githubClient github.IClient,
+) error {
+	if err := verifyClients(jiraClient, trunkClient, githubClient); err != nil {
+		return err
+	}
+	testCase := statusChange.TestCase
+	currentStatus := statusChange.StatusChange.CurrentStatus.Value
+	previousStatus := statusChange.StatusChange.PreviousStatus
+
+	l = l.With().
+		Str("test_id", testCase.ID).
+		Str("test_name", testCase.Name).
+		Str("file_path", testCase.FilePath).
+		Str("current_status", currentStatus).
+		Str("previous_status", previousStatus).
+		Logger()
+
+	l.Info().
+		Msg("Quarantining flaky test")
+
+	return nil
+}
+
+func handleBrokenTest(
+	_ zerolog.Logger,
+	_ TestCaseStatusChange,
+	jiraClient jira.IClient,
+	trunkClient IClient,
+	githubClient github.IClient,
+) error {
+	if err := verifyClients(jiraClient, trunkClient, githubClient); err != nil {
+		return err
+	}
+
+	return fmt.Errorf("broken test handling not implemented")
+}
+
+// handleHealthyTest handles the case where a test is marked as healthy.
+// This is a no-op for now.
+func handleHealthyTest(
+	_ zerolog.Logger,
+	_ TestCaseStatusChange,
+	jiraClient jira.IClient,
+	trunkClient IClient,
+	githubClient github.IClient,
+) error {
+	if err := verifyClients(jiraClient, trunkClient, githubClient); err != nil {
+		return err
+	}
+
+	return fmt.Errorf("healthy test handling not implemented")
+}
+
+func verifyClients(jiraClient jira.IClient, trunkClient IClient, githubClient github.IClient) error {
+	if jiraClient == nil {
+		return fmt.Errorf("jira client is nil")
+	}
+	if trunkClient == nil {
+		return fmt.Errorf("trunk client is nil")
+	}
+	if githubClient == nil {
+		return fmt.Errorf("github client is nil")
+	}
 	return nil
 }
 
@@ -317,4 +390,72 @@ func extractRepoInfoFromURL(url string) (owner, repoName string) {
 		return parts[3], parts[4] // Return owner and repo name
 	}
 	return "unknown", "unknown" // Fallback if parsing fails
+}
+
+// SelfSignWebhookRequest self-signs a request to create a valid svix webhook call.
+// This is useful for testing and for the webhook command.
+func SelfSignWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret string) (*http.Request, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is nil")
+	}
+
+	if req.Body == nil {
+		return nil, fmt.Errorf("request body is nil")
+	}
+
+	// Create svix webhook for signing
+	wh, err := svix.NewWebhook(signingSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create svix webhook: %w", err)
+	}
+
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+
+	// Generate headers (svix will add the signature)
+	req.Header.Set("webhook-id", "self_signed_webhook_id")
+	req.Header.Set("webhook-timestamp", fmt.Sprintf("%d", time.Now().Unix()))
+
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read request body: %w", err)
+	}
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			l.Error().Err(err).Msg("Failed to close request body")
+		}
+	}()
+	req.Body = io.NopCloser(bytes.NewBuffer(payload))
+
+	// Sign the payload
+	signature, err := wh.Sign(req.Header.Get("webhook-id"), time.Now(), payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign webhook payload: %w", err)
+	}
+	req.Header.Set("webhook-signature", signature)
+
+	return req, nil
+}
+
+// VerifyWebhookRequest verifies a request as a valid svix webhook call.
+// https://docs.svix.com/receiving/verifying-payloads/how
+func VerifyWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret string) error {
+	wh, err := svix.NewWebhook(signingSecret)
+	if err != nil {
+		return fmt.Errorf("failed to create svix webhook: %w", err)
+	}
+
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read request body: %w", err)
+	}
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			l.Error().Err(err).Msg("Failed to close request body")
+		}
+	}()
+	req.Body = io.NopCloser(bytes.NewBuffer(payload))
+
+	return wh.Verify(payload, req.Header)
 }

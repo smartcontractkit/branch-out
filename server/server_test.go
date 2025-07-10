@@ -33,8 +33,9 @@ func TestServer_New(t *testing.T) {
 	t.Parallel()
 
 	require.NotPanics(t, func() {
-		s := New(WithLogger(testhelpers.Logger(t)), WithConfig(testConfig))
+		s, err := New(WithLogger(testhelpers.Logger(t)), WithConfig(testConfig))
 		require.NotNil(t, s)
+		require.NoError(t, err)
 	})
 }
 
@@ -48,13 +49,14 @@ func TestServer_Start(t *testing.T) {
 	githubClient := mock.NewGithubIClient(t)
 
 	// Create server with mocked clients
-	server := New(
+	server, err := New(
 		WithLogger(logger),
 		WithConfig(testConfig),
 		WithJiraClient(jiraClient),
 		WithGitHubClient(githubClient),
 		WithTrunkClient(trunkClient),
 	)
+	require.NoError(t, err)
 	require.NotNil(t, server)
 
 	ctx := t.Context()

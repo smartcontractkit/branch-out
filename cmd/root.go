@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/charmbracelet/fang"
@@ -75,11 +76,15 @@ branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		srv := server.New(
+		srv, err := server.New(
 			server.WithLogger(logger),
 			server.WithConfig(appConfig),
 		)
-		err := srv.Start(cmd.Context())
+		if err != nil {
+			return fmt.Errorf("failed to create server: %w", err)
+		}
+
+		err = srv.Start(cmd.Context())
 		if err != nil {
 			logger.Error().Err(err).Msg("Server failure")
 		}

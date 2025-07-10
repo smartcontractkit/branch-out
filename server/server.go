@@ -49,6 +49,23 @@ type options struct {
 	githubClient github.IClient
 }
 
+// CreateClients creates the clients for reaching out to external services.
+func CreateClients(logger zerolog.Logger, config config.Config) (jira.IClient, trunk.IClient, github.IClient, error) {
+	jiraClient, err := jira.NewClient(jira.WithLogger(logger), jira.WithConfig(config))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create Jira client: %w", err)
+	}
+	trunkClient, err := trunk.NewClient(trunk.WithLogger(logger), trunk.WithConfig(config))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create Trunk client: %w", err)
+	}
+	githubClient, err := github.NewClient(github.WithLogger(logger), github.WithConfig(config))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create GitHub client: %w", err)
+	}
+	return jiraClient, trunkClient, githubClient, nil
+}
+
 // Option is a functional option that configures the server.
 // Default options are used if no options are provided.
 type Option func(*options)
@@ -104,10 +121,33 @@ func defaultOptions() *options {
 }
 
 // New creates a new Server.
-func New(options ...Option) *Server {
+func New(options ...Option) (*Server, error) {
 	opts := defaultOptions()
 	for _, opt := range options {
 		opt(opts)
+	}
+
+	var (
+		jiraClient   jira.IClient
+		trunkClient  trunk.IClient
+		githubClient github.IClient
+		err          error
+	)
+
+	if opts.jiraClient == nil || opts.trunkClient == nil || opts.githubClient == nil {
+		jiraClient, trunkClient, githubClient, err = CreateClients(opts.logger, opts.config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create clients: %w", err)
+		}
+		if opts.jiraClient == nil {
+			opts.jiraClient = jiraClient
+		}
+		if opts.trunkClient == nil {
+			opts.trunkClient = trunkClient
+		}
+		if opts.githubClient == nil {
+			opts.githubClient = githubClient
+		}
 	}
 
 	return &Server{
@@ -120,7 +160,7 @@ func New(options ...Option) *Server {
 		jiraClient:   opts.jiraClient,
 		trunkClient:  opts.trunkClient,
 		githubClient: opts.githubClient,
-	}
+	}, nil
 }
 
 // Error returns the error that occurred during server startup.
@@ -174,31 +214,6 @@ func (s *Server) Start(ctx context.Context) error {
 	s.server.RegisterOnShutdown(func() {
 		s.started.Store(false)
 	})
-
-	// Create the clients for reaching out to external services
-	if s.jiraClient == nil {
-		s.jiraClient, err = jira.NewClient(jira.WithLogger(s.logger), jira.WithConfig(s.config))
-		if err != nil {
-			s.err = fmt.Errorf("failed to create Jira client: %w", err)
-			return s.err
-		}
-	}
-
-	if s.trunkClient == nil {
-		s.trunkClient, err = trunk.NewClient(trunk.WithLogger(s.logger), trunk.WithConfig(s.config))
-		if err != nil {
-			s.err = fmt.Errorf("failed to create Trunk client: %w", err)
-			return s.err
-		}
-	}
-
-	if s.githubClient == nil {
-		s.githubClient, err = github.NewClient(github.WithLogger(s.logger), github.WithConfig(s.config))
-		if err != nil {
-			s.err = fmt.Errorf("failed to create GitHub client: %w", err)
-			return s.err
-		}
-	}
 
 	// Listen for OS signals to shutdown the server
 	sigChan := make(chan os.Signal, 1)
@@ -342,7 +357,7 @@ func (s *Server) ReceiveWebhook(req *http.Request) (*WebhookResponse, error) {
 	case "/webhooks/trunk":
 		trunkSigningSecret := s.config.Trunk.WebhookSecret
 		// Pass nil for jiraClient and trunkClient for now - these can be injected in the future
-		return nil, trunk.ReceiveWebhook(l, req, trunkSigningSecret, s.jiraClient, s.trunkClient)
+		return nil, trunk.ReceiveWebhook(l, req, trunkSigningSecret, s.jiraClient, s.trunkClient, s.githubClient)
 	default:
 		return nil, fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)
 	}
