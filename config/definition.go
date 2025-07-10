@@ -85,7 +85,7 @@ var (
 	githubFields = []Field{
 		{
 			EnvVar:      "GITHUB_TOKEN",
-			Description: "GitHub personal access token, alternative to using a GitHub App",
+			Description: "GitHub personal access token, alternative to using a GitHub App. Try using (gh auth token) to generate a token.",
 			Example:     "ghp_xxxxxxxxxxxxxxxxxxxx",
 			Flag:        "github-token",
 			Type:        reflect.TypeOf(""),

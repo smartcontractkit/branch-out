@@ -24,10 +24,10 @@ This is useful for testing or for manually triggering a test status change that 
 
 The status can be one of: flaky, healthy, or broken.`,
 	Example: `# Mark a test as flaky
-branch-out mark flaky --package github.com/smartcontractkit/branch-out/package --name TestName
+branch-out mark flaky --package github.com/smartcontractkit/branch-out/package --name TestName --repo https://github.com/smartcontractkit/branch-out
 
 # Mark a test as healthy
-branch-out mark healthy --package github.com/smartcontractkit/branch-out/package --name TestName`,
+branch-out mark healthy --package github.com/smartcontractkit/branch-out/package --name TestName --repo https://github.com/smartcontractkit/branch-out`,
 	Args:      cobra.ExactArgs(1),
 	ValidArgs: []string{trunk.TestCaseStatusFlaky, trunk.TestCaseStatusHealthy, trunk.TestCaseStatusBroken},
 	RunE: func(_ *cobra.Command, args []string) error {
