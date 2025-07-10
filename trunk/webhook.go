@@ -148,17 +148,10 @@ func handleFlakyTest(
 	}
 
 	// Quarantine the test in GitHub
-	owner, repo, err := github.ParseRepoURL(testCase.Repository.HTMLURL)
-	if err != nil {
-		l.Warn().Err(err).Msg("Failed to parse repo URL, will skip quarantine")
-		return fmt.Errorf("failed to parse repo URL: %w", err)
-	}
-
 	err = githubClient.QuarantineTests(
 		context.Background(),
 		l,
-		owner,
-		repo,
+		testCase.Repository.HTMLURL,
 		[]golang.QuarantineTarget{
 			{
 				Package: testCase.TestSuite,
@@ -224,6 +217,12 @@ func createJiraTicketForFlakyTest(
 	jiraClient jira.IClient,
 	trunkClient IClient,
 ) (*jira.TicketResponse, error) {
+	if jiraClient == nil {
+		return nil, fmt.Errorf("jira client is nil")
+	}
+	if trunkClient == nil {
+		return nil, fmt.Errorf("trunk client is nil")
+	}
 
 	testCase := webhookData.TestCase
 
@@ -255,24 +254,11 @@ func createJiraTicketForFlakyTest(
 		Details:         string(details),
 	}
 
-	l.Info().
-		Str("repo_name", req.RepoName).
-		Str("test_name", req.TestPackageName).
-		Str("file_path", req.FilePath).
-		Str("trunk_id", req.TrunkID).
-		Msg("Creating Jira ticket for flaky test")
-
 	ticket, err := jiraClient.CreateFlakyTestTicket(req)
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to create Jira ticket for flaky test")
 		return nil, fmt.Errorf("failed to create Jira ticket: %w", err)
 	}
-
-	l.Info().
-		Str("ticket_key", ticket.Key).
-		Str("ticket_id", ticket.ID).
-		Str("ticket_url", fmt.Sprintf("https://%s/browse/%s", extractDomainFromJiraURL(ticket.Self), ticket.Key)).
-		Msg("Successfully created Jira ticket for flaky test")
 
 	// Link the Jira ticket back to the Trunk test case
 	if err := trunkClient.LinkTicketToTestCase(testCase.ID, ticket, testCase.Repository.HTMLURL); err != nil {

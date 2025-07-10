@@ -20,10 +20,17 @@ const (
 	RateLimitHitMsg = "API rate limit hit, sleeping until limit reset"
 )
 
+type basicAuth struct {
+	username string
+	password string
+}
+
 type baseOptions struct {
 	logger    zerolog.Logger
 	component string
 	base      http.RoundTripper
+	basicAuth *basicAuth
+	header    http.Header
 }
 
 // Option can modify how the base client works
@@ -47,6 +54,30 @@ func WithBaseTransport(base http.RoundTripper) Option {
 func WithComponent(component string) Option {
 	return func(opts *baseOptions) {
 		opts.component = component
+	}
+}
+
+// WithBasicAuth sets the basic authentication credentials to use for the client
+func WithBasicAuth(username, password string) Option {
+	return func(opts *baseOptions) {
+		opts.basicAuth = &basicAuth{
+			username: username,
+			password: password,
+		}
+	}
+}
+
+// WithHeaders sets a header to use for all requests
+func WithHeaders(headers http.Header) Option {
+	return func(opts *baseOptions) {
+		if opts.header == nil {
+			opts.header = make(http.Header)
+		}
+		for key, values := range headers {
+			for _, value := range values {
+				opts.header.Add(key, value)
+			}
+		}
 	}
 }
 
@@ -74,31 +105,57 @@ func NewTransport(options ...Option) http.RoundTripper {
 		opts.logger = opts.logger.With().Str("component", opts.component).Logger()
 	}
 
-	return &LoggingTransport{
+	if opts.basicAuth != nil {
+		opts.base = &Transport{
+			Base:      opts.base,
+			Logger:    opts.logger,
+			Component: opts.component,
+			BasicAuth: opts.basicAuth,
+		}
+	}
+
+	return &Transport{
 		Base:      opts.base,
 		Logger:    opts.logger,
 		Component: opts.component,
+		Header:    opts.header,
 	}
 }
 
-// LoggingTransport is an HTTP transport that logs requests and responses
-type LoggingTransport struct {
+// Transport is an HTTP transport that logs requests and responses
+type Transport struct {
 	// Base is the underlying HTTP transport
 	Base http.RoundTripper
 	// Logger is the logger to use for logging
 	Logger zerolog.Logger
 	// Component identifies the service making the request
 	Component string
+	// BasicAuth is the basic authentication credentials to use for the client, if set.
+	BasicAuth *basicAuth
+	// Header is the headers to use for all requests, if set.
+	Header http.Header
 }
 
-// RoundTrip implements the http.RoundTripper interface
-func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+// RoundTrip implements the http.RoundTripper interface to log requests and responses, and handle basic authentication if set.
+func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
 	l := t.Logger.With().
 		Str("method", req.Method).
 		Str("url", req.URL.String()).
 		Logger()
 	l.Trace().Msg("HTTP client request")
+
+	if t.BasicAuth != nil {
+		req.SetBasicAuth(t.BasicAuth.username, t.BasicAuth.password)
+	}
+
+	if t.Header != nil {
+		for key, values := range t.Header {
+			for _, value := range values {
+				req.Header.Add(key, value)
+			}
+		}
+	}
 
 	// Make the request
 	resp, err := t.Base.RoundTrip(req)
@@ -118,7 +175,7 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		return resp, err
 	}
 	resp.Body = io.NopCloser(bytes.NewBuffer(body))
-	l.Trace().Int("status_code", resp.StatusCode).Str("body", string(body)).Msg("HTTP client response")
+	l = l.With().Int("status_code", resp.StatusCode).Str("body", string(body)).Logger()
 
 	// Process rate limit headers (GitHub style)
 	if callLimitStr := resp.Header.Get("X-RateLimit-Limit"); callLimitStr != "" {

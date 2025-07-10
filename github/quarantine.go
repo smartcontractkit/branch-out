@@ -40,7 +40,7 @@ func WithBuildFlags(buildFlags []string) QuarantineOption {
 func (c *Client) QuarantineTests(
 	ctx context.Context,
 	l zerolog.Logger,
-	owner, repo string,
+	repoURL string,
 	targets []golang.QuarantineTarget,
 	options ...QuarantineOption,
 ) error {
@@ -49,9 +49,14 @@ func (c *Client) QuarantineTests(
 		opt(opts)
 	}
 
+	host, owner, repo, err := ParseRepoURL(repoURL)
+	if err != nil {
+		return fmt.Errorf("failed to parse repo URL: %w", err)
+	}
+
 	start := time.Now()
 
-	l = l.With().Str("owner", owner).Str("repo", repo).Logger()
+	l = l.With().Str("host", host).Str("owner", owner).Str("repo", repo).Logger()
 
 	repoPath, err := c.cloneRepo(owner, repo)
 	if err != nil {
@@ -243,23 +248,25 @@ func (c *Client) createPullRequest(
 }
 
 // ParseRepoURL parses a GitHub repository URL and returns owner and repo name
-func ParseRepoURL(repoURL string) (owner, repo string, err error) {
+func ParseRepoURL(repoURL string) (host, owner, repo string, err error) {
 	if repoURL == "" {
-		return "", "", fmt.Errorf("repository URL is required")
+		return "", "", "", fmt.Errorf("repository URL is required")
 	}
 
 	// Parse the URL
 	u, err := url.Parse(repoURL)
 	if err != nil {
-		return "", "", fmt.Errorf("invalid repository URL: %w", err)
+		return "", "", "", fmt.Errorf("invalid repository URL: %w", err)
 	}
+
+	host = u.Host
 
 	// Extract owner and repo from path
 	path := strings.Trim(u.Path, "/")
 	parts := strings.Split(path, "/")
 
 	if len(parts) < 2 {
-		return "", "", fmt.Errorf("invalid repository URL format, expected: https://github.com/owner/repo")
+		return "", "", "", fmt.Errorf("invalid repository URL format, expected: https://github.com/owner/repo")
 	}
 
 	owner = parts[0]
@@ -268,7 +275,7 @@ func ParseRepoURL(repoURL string) (owner, repo string, err error) {
 	// Remove .git suffix if present
 	repo = strings.TrimSuffix(repo, ".git")
 
-	return owner, repo, nil
+	return host, owner, repo, nil
 }
 
 // cloneRepo clones a repo to a temp directory and returns the path to it

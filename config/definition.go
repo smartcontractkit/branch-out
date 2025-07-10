@@ -69,7 +69,6 @@ var (
 			Flag:        "port",
 			Type:        reflect.TypeOf(0),
 			Default:     8080,
-			Persistent:  true,
 		},
 		{
 			EnvVar:      "LOG_PATH",
@@ -89,6 +88,7 @@ var (
 			Example:     "ghp_xxxxxxxxxxxxxxxxxxxx",
 			Flag:        "github-token",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "GITHUB_BASE_URL",
@@ -97,6 +97,7 @@ var (
 			Flag:        "github-base-url",
 			Type:        reflect.TypeOf(""),
 			Default:     "https://api.github.com",
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "GITHUB_APP_ID",
@@ -104,6 +105,7 @@ var (
 			Example:     "123456",
 			Flag:        "github-app-id",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "GITHUB_PRIVATE_KEY",
@@ -112,6 +114,7 @@ var (
 			Flag:        "github-private-key",
 			Type:        reflect.TypeOf(""),
 			Default:     "",
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "GITHUB_PRIVATE_KEY_FILE",
@@ -119,6 +122,7 @@ var (
 			Example:     "/path/to/private-key.pem",
 			Flag:        "github-private-key-file",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "GITHUB_INSTALLATION_ID",
@@ -126,6 +130,7 @@ var (
 			Example:     "123456",
 			Flag:        "github-installation-id",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 	}
 
@@ -136,6 +141,7 @@ var (
 			Example:     "trunk_xxxxxxxxxxxxxxxxxxxx",
 			Flag:        "trunk-token",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "TRUNK_WEBHOOK_SECRET",
@@ -143,6 +149,7 @@ var (
 			Example:     "trunk_webhook_secret",
 			Flag:        "trunk-webhook-secret",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 	}
 
@@ -153,6 +160,7 @@ var (
 			Example:     "mycompany.atlassian.net",
 			Flag:        "jira-base-domain",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "JIRA_PROJECT_KEY",
@@ -160,6 +168,7 @@ var (
 			Example:     "PROJ",
 			Flag:        "jira-project-key",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "JIRA_OAUTH_CLIENT_ID",
@@ -167,6 +176,7 @@ var (
 			Example:     "jira_oauth_client_id",
 			Flag:        "jira-oauth-client-id",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "JIRA_OAUTH_CLIENT_SECRET",
@@ -174,6 +184,7 @@ var (
 			Example:     "jira_oauth_client_secret",
 			Flag:        "jira-oauth-client-secret",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "JIRA_OAUTH_ACCESS_TOKEN",
@@ -181,6 +192,7 @@ var (
 			Example:     "jira_oauth_access_token",
 			Flag:        "jira-oauth-access-token",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "JIRA_OAUTH_REFRESH_TOKEN",
@@ -188,6 +200,7 @@ var (
 			Example:     "jira_oauth_refresh_token",
 			Flag:        "jira-oauth-refresh-token",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "JIRA_USERNAME",
@@ -195,6 +208,7 @@ var (
 			Example:     "user@company.com",
 			Flag:        "jira-username",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 		{
 			EnvVar:      "JIRA_TOKEN",
@@ -202,6 +216,7 @@ var (
 			Example:     "jira_api_token",
 			Flag:        "jira-token",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
 		},
 	}
 )

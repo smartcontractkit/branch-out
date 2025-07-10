@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
-	"github.com/smartcontractkit/branch-out/internal/testhelpers/mock"
-	"github.com/smartcontractkit/branch-out/jira"
 )
 
 var (
@@ -58,47 +56,6 @@ var (
 	// We use it to sign our own payloads and make them valid for testing.
 	webhookSecret = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
 )
-
-func TestReceiveWebhook_FlakyTest(t *testing.T) {
-	t.Parallel()
-	t.Skip("Skipping webhook test, needs to have better mocking to work well")
-
-	l := testhelpers.Logger(t)
-
-	jiraClient := mock.NewJiraIClient(t)
-	trunkClient := mock.NewTrunkIClient(t)
-	githubClient := mock.NewGithubIClient(t)
-
-	expectedJiraTicketRequest := jira.FlakyTestTicketRequest{
-		RepoName:        "test/repo",
-		TestPackageName: "test/package",
-		FilePath:        "test/file.go",
-		TrunkID:         "test_trunk_id",
-		Details:         "test_details",
-	}
-
-	quarantinedPayloadJSON, err := json.Marshal(quarantinedPayload)
-	require.NoError(t, err, "failed to marshal payload")
-
-	// Generate valid svix signature
-	webhookRequest, err := SelfSignWebhookRequest(l, &http.Request{
-		Method: "POST",
-		URL:    &url.URL{Path: "/webhooks/trunk"},
-		Body:   io.NopCloser(bytes.NewBuffer(quarantinedPayloadJSON)),
-	}, webhookSecret)
-	require.NoError(t, err, "failed to sign webhook request")
-
-	jiraClient.EXPECT().CreateFlakyTestTicket(expectedJiraTicketRequest).Return(&jira.TicketResponse{
-		Key: "BRANCH-1",
-	}, nil).Times(1)
-
-	jiraClient.EXPECT().GetTicketStatus("BRANCH-1").Return(&jira.TicketStatus{
-		Key: "BRANCH-1",
-	}, nil).Times(1)
-
-	err = ReceiveWebhook(l, webhookRequest, webhookSecret, jiraClient, trunkClient, githubClient)
-	require.NoError(t, err, "failed to receive webhook")
-}
 
 func TestSignWebhookRequest(t *testing.T) {
 	t.Parallel()

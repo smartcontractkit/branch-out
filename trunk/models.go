@@ -180,3 +180,36 @@ type RepoReference struct {
 	Owner string `json:"owner"`
 	Name  string `json:"name"`
 }
+
+// QuarantinedTestsRequest represents the request to list quarantined tests in Trunk.io
+// See: https://docs.trunk.io/references/apis/flaky-tests#post-flaky-tests-list-quarantined-tests
+type QuarantinedTestsRequest struct {
+	Repo       RepoReference `json:"repo"`
+	OrgURLSlug string        `json:"org_url_slug"`
+	PageQuery  PageQuery     `json:"page_query"`
+}
+
+// QuarantinedTestsResponse represents the response from the Trunk.io API for quarantined tests
+// See: https://docs.trunk.io/references/apis/flaky-tests#post-flaky-tests-list-quarantined-tests
+type QuarantinedTestsResponse struct {
+	QuarantinedTests []TestCase   `json:"quarantined_tests"`
+	PageResponse     PageResponse `json:"page_response"`
+}
+
+// PageQuery represents the pagination query parameters for Trunk.io API
+// See: https://docs.trunk.io/references/apis/flaky-tests
+type PageQuery struct {
+	PageToken string `json:"page_token"`
+	PageSize  int    `json:"page_size"`
+}
+
+// PageResponse represents the pagination response from the Trunk.io API
+// See: https://docs.trunk.io/references/apis/flaky-tests
+type PageResponse struct {
+	TotalRows         int    `json:"total_rows"`
+	TotalPages        int    `json:"total_pages"`
+	NextPageToken     string `json:"next_page_token"`
+	PreviousPageToken string `json:"previous_page_token"`
+	LastPageToken     string `json:"last_page_token"`
+	PageIndex         int    `json:"page_index"`
+}

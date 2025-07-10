@@ -23,7 +23,7 @@ type IClient interface {
 	QuarantineTests(
 		ctx context.Context,
 		l zerolog.Logger,
-		owner, repo string,
+		repoURL string,
 		targets []golang.QuarantineTarget,
 		options ...QuarantineOption,
 	) error
