@@ -35,6 +35,7 @@ var (
 		TestCase: flakyTestCase,
 	}
 
+	// Unused for now, but keeping for reference.
 	// healthyTestCase = TestCase{
 	// 	ID:         trunkID,
 	// 	Codeowners: codeowners,
