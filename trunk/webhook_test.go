@@ -27,7 +27,7 @@ var (
 
 	quarantinedPayload = TestCaseStatusChange{
 		StatusChange: StatusChange{
-			CurrentStatus: CurrentStatus{
+			CurrentStatus: Status{
 				Value: "flaky",
 			},
 			PreviousStatus: "healthy",

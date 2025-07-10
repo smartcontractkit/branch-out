@@ -30,32 +30,37 @@ type WebhookEvent interface {
 
 // TestCase is the common structure for all test case events.
 type TestCase struct {
-	Codeowners         []string `json:"codeowners"`
-	FailureRateLast7D  float64  `json:"failure_rate_last_7d"`
-	FilePath           string   `json:"file_path"`
-	HTMLURL            string   `json:"html_url"`
-	ID                 string   `json:"id"`
-	MostCommonFailures []struct {
-		LastOccurrence  string `json:"last_occurrence"`
-		OccurrenceCount int    `json:"occurrence_count"`
-		Summary         string `json:"summary"`
-	} `json:"most_common_failures"`
-	Name                       string `json:"name"`
-	PullRequestsImpactedLast7D int    `json:"pull_requests_impacted_last_7d"`
-	Quarantine                 bool   `json:"quarantine"`
-	Repository                 struct {
-		HTMLURL string `json:"html_url"`
-	} `json:"repository"`
-	Status struct {
-		Reason    string `json:"reason"`
-		Timestamp string `json:"timestamp"`
-		Value     string `json:"value"`
-	} `json:"status"`
-	TestSuite string `json:"test_suite"`
-	Ticket    struct {
-		HTMLURL string `json:"html_url"`
-	} `json:"ticket"`
-	Variant string `json:"variant"`
+	Codeowners                 []string            `json:"codeowners"`
+	FailureRateLast7D          float64             `json:"failure_rate_last_7d"`
+	FilePath                   string              `json:"file_path"`
+	HTMLURL                    string              `json:"html_url"`
+	ID                         string              `json:"id"`
+	MostCommonFailures         []MostCommonFailure `json:"most_common_failures"`
+	Name                       string              `json:"name"`
+	PullRequestsImpactedLast7D int                 `json:"pull_requests_impacted_last_7d"`
+	Quarantine                 bool                `json:"quarantine"`
+	Repository                 Repository          `json:"repository"`
+	Status                     Status              `json:"status"`
+	TestSuite                  string              `json:"test_suite"`
+	Ticket                     Ticket              `json:"ticket"`
+	Variant                    string              `json:"variant"`
+}
+
+// Repository represents the repository URL associated with a test case.
+type Repository struct {
+	HTMLURL string `json:"html_url"`
+}
+
+// MostCommonFailure represents the most common failure for a test case.
+type MostCommonFailure struct {
+	LastOccurrence  string `json:"last_occurrence"`
+	OccurrenceCount int    `json:"occurrence_count"`
+	Summary         string `json:"summary"`
+}
+
+// Ticket represents the Jira ticket associated with a test case.
+type Ticket struct {
+	HTMLURL string `json:"html_url"`
 }
 
 // QuarantiningSettingChanged is the event type for when a test case's quarantining setting is changed.
@@ -149,13 +154,13 @@ func (s TestCaseStatusChange) GetTestCase() TestCase {
 // StatusChange represents the status change event from Trunk.io
 // See: https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
 type StatusChange struct {
-	CurrentStatus  CurrentStatus `json:"current_status"`
-	PreviousStatus string        `json:"previous_status"`
+	CurrentStatus  Status `json:"current_status"`
+	PreviousStatus string `json:"previous_status"`
 }
 
-// CurrentStatus represents the current status of a test case
+// Status represents the current status of a test case
 // See: https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
-type CurrentStatus struct {
+type Status struct {
 	Reason    string `json:"reason"`
 	Timestamp string `json:"timestamp"`
 	Value     string `json:"value"`
