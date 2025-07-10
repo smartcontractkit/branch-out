@@ -104,16 +104,17 @@ func NewClient(options ...Option) (*Client, error) {
 			Scheme: "https",
 			Host:   jiraConfig.BaseDomain,
 		}
-		oauthTokenURL     = baseURL.JoinPath("plugins/servlet/oauth/access-token")
-		baseTransportOpts = []base.Option{
-			base.WithComponent("jira"),
-		}
-		httpClient *http.Client
+		oauthTokenURL = baseURL.JoinPath("plugins/servlet/oauth/access-token")
+		httpClient    *http.Client
 	)
 
 	if hasOAuth {
 		l = l.With().Str("auth_type", "OAuth").Logger()
-		baseTransportOpts = append(baseTransportOpts, base.WithLogger(l))
+	} else if hasBasicAuth {
+		l = l.With().Str("auth_type", "Basic").Logger()
+	}
+
+	if hasOAuth {
 		oauthConfig := &oauth2.Config{
 			ClientID:     jiraConfig.OAuthClientID,
 			ClientSecret: jiraConfig.OAuthClientSecret,
@@ -129,12 +130,19 @@ func NewClient(options ...Option) (*Client, error) {
 		}
 
 		// Use context to pass the base transport to the oauth2 client
-		clientCtx := context.WithValue(context.Background(), oauth2.HTTPClient, base.NewTransport(baseTransportOpts...))
+		clientCtx := context.WithValue(
+			context.Background(),
+			oauth2.HTTPClient,
+			base.NewTransport("jira", base.WithLogger(l)),
+		)
 		httpClient = oauthConfig.Client(clientCtx, token)
 	} else if hasBasicAuth {
 		l = l.With().Str("auth_type", "Basic").Logger()
-		baseTransportOpts = append(baseTransportOpts, base.WithLogger(l), base.WithBasicAuth(jiraConfig.Username, jiraConfig.Token))
-		httpClient = base.NewClient(baseTransportOpts...)
+		httpClient = base.NewClient(
+			"jira",
+			base.WithLogger(l),
+			base.WithBasicAuth(jiraConfig.Username, jiraConfig.Token),
+		)
 	}
 
 	return &Client{

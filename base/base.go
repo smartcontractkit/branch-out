@@ -50,13 +50,6 @@ func WithBaseTransport(base http.RoundTripper) Option {
 	}
 }
 
-// WithComponent sets the component used
-func WithComponent(component string) Option {
-	return func(opts *baseOptions) {
-		opts.component = component
-	}
-}
-
 // WithBasicAuth sets the basic authentication credentials to use for the client
 func WithBasicAuth(username, password string) Option {
 	return func(opts *baseOptions) {
@@ -67,8 +60,8 @@ func WithBasicAuth(username, password string) Option {
 	}
 }
 
-// WithHeaders sets a header to use for all requests
-func WithHeaders(headers http.Header) Option {
+// WithRequestHeaders sets a header to use for all requests
+func WithRequestHeaders(headers http.Header) Option {
 	return func(opts *baseOptions) {
 		if opts.header == nil {
 			opts.header = make(http.Header)
@@ -82,8 +75,8 @@ func WithHeaders(headers http.Header) Option {
 }
 
 // NewClient creates a new base HTTP client with logging middleware
-func NewClient(options ...Option) *http.Client {
-	transport := NewTransport(options...)
+func NewClient(component string, options ...Option) *http.Client {
+	transport := NewTransport(component, options...)
 
 	return &http.Client{
 		Timeout:   30 * time.Second,
@@ -92,18 +85,17 @@ func NewClient(options ...Option) *http.Client {
 }
 
 // NewTransport creates a new base transport with logging middleware for use as the base transport for other clients
-func NewTransport(options ...Option) http.RoundTripper {
+func NewTransport(component string, options ...Option) http.RoundTripper {
 	opts := &baseOptions{
-		logger: zerolog.Nop(),
-		base:   http.DefaultTransport,
+		logger:    zerolog.Nop(),
+		base:      http.DefaultTransport,
+		component: component,
 	}
 	for _, opt := range options {
 		opt(opts)
 	}
 
-	if opts.component != "" {
-		opts.logger = opts.logger.With().Str("component", opts.component).Logger()
-	}
+	opts.logger = opts.logger.With().Str("component", opts.component).Logger()
 
 	if opts.basicAuth != nil {
 		opts.base = &Transport{
@@ -115,10 +107,10 @@ func NewTransport(options ...Option) http.RoundTripper {
 	}
 
 	return &Transport{
-		Base:      opts.base,
-		Logger:    opts.logger,
-		Component: opts.component,
-		Header:    opts.header,
+		Base:          opts.base,
+		Logger:        opts.logger,
+		Component:     opts.component,
+		RequestHeader: opts.header,
 	}
 }
 
@@ -132,8 +124,10 @@ type Transport struct {
 	Component string
 	// BasicAuth is the basic authentication credentials to use for the client, if set.
 	BasicAuth *basicAuth
-	// Header is the headers to use for all requests, if set.
-	Header http.Header
+	// RequestHeader is the headers to use for all requests, if set.
+	RequestHeader http.Header
+	// ResponseHeader is the headers to use for all responses, if set.
+	ResponseHeader http.Header
 }
 
 // RoundTrip implements the http.RoundTripper interface to log requests and responses, and handle basic authentication if set.
@@ -149,8 +143,8 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		req.SetBasicAuth(t.BasicAuth.username, t.BasicAuth.password)
 	}
 
-	if t.Header != nil {
-		for key, values := range t.Header {
+	if t.RequestHeader != nil {
+		for key, values := range t.RequestHeader {
 			for _, value := range values {
 				req.Header.Add(key, value)
 			}

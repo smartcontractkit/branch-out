@@ -77,9 +77,9 @@ func NewClient(options ...Option) (*Client, error) {
 	return &Client{
 		BaseURL: opts.baseURL,
 		HTTPClient: base.NewClient(
+			"trunk",
 			base.WithLogger(opts.logger),
-			base.WithComponent("trunk"),
-			base.WithHeaders(http.Header{
+			base.WithRequestHeaders(http.Header{
 				"x-api-token": []string{opts.secrets.Token},
 			}),
 		),

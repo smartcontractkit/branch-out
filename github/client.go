@@ -119,7 +119,7 @@ func NewClient(
 	}
 
 	// Create base HTTP client with logging transport
-	baseTransport := base.NewClient(base.WithLogger(opts.logger), base.WithComponent("github-rest"))
+	baseTransport := base.NewClient("github-rest", base.WithLogger(opts.logger))
 
 	// Add OAuth2 transport if token source is available
 	if client.tokenSource != nil {
@@ -141,7 +141,7 @@ func NewClient(
 	opts.logger = opts.logger.With().Str("base_url", client.Rest.BaseURL.String()).Logger()
 
 	// Setup GraphQL client with the same transport pattern
-	graphQLClient := base.NewClient(base.WithLogger(opts.logger), base.WithComponent("github-graphql"))
+	graphQLClient := base.NewClient("github-graphql", base.WithLogger(opts.logger))
 
 	if client.tokenSource != nil {
 		graphQLClient.Transport = &oauth2.Transport{
