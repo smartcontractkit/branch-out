@@ -1,4 +1,3 @@
-// Package trunk provides models for the Trunk.io API.
 package trunk
 
 import (
@@ -31,32 +30,37 @@ type WebhookEvent interface {
 
 // TestCase is the common structure for all test case events.
 type TestCase struct {
-	Codeowners         []string `json:"codeowners"`
-	FailureRateLast7D  float64  `json:"failure_rate_last_7d"`
-	FilePath           string   `json:"file_path"`
-	HTMLURL            string   `json:"html_url"`
-	ID                 string   `json:"id"`
-	MostCommonFailures []struct {
-		LastOccurrence  string `json:"last_occurrence"`
-		OccurrenceCount int    `json:"occurrence_count"`
-		Summary         string `json:"summary"`
-	} `json:"most_common_failures"`
-	Name                       string `json:"name"`
-	PullRequestsImpactedLast7D int    `json:"pull_requests_impacted_last_7d"`
-	Quarantine                 bool   `json:"quarantine"`
-	Repository                 struct {
-		HTMLURL string `json:"html_url"`
-	} `json:"repository"`
-	Status struct {
-		Reason    string `json:"reason"`
-		Timestamp string `json:"timestamp"`
-		Value     string `json:"value"`
-	} `json:"status"`
-	TestSuite string `json:"test_suite"`
-	Ticket    struct {
-		HTMLURL string `json:"html_url"`
-	} `json:"ticket"`
-	Variant string `json:"variant"`
+	Codeowners                 []string            `json:"codeowners"`
+	FailureRateLast7D          float64             `json:"failure_rate_last_7d"`
+	FilePath                   string              `json:"file_path"`
+	HTMLURL                    string              `json:"html_url"`
+	ID                         string              `json:"id"`
+	MostCommonFailures         []MostCommonFailure `json:"most_common_failures"`
+	Name                       string              `json:"name"`
+	PullRequestsImpactedLast7D int                 `json:"pull_requests_impacted_last_7d"`
+	Quarantine                 bool                `json:"quarantine"`
+	Repository                 Repository          `json:"repository"`
+	Status                     Status              `json:"status"`
+	TestSuite                  string              `json:"test_suite"`
+	Ticket                     Ticket              `json:"ticket"`
+	Variant                    string              `json:"variant"`
+}
+
+// Repository represents the repository URL associated with a test case.
+type Repository struct {
+	HTMLURL string `json:"html_url"`
+}
+
+// MostCommonFailure represents the most common failure for a test case.
+type MostCommonFailure struct {
+	LastOccurrence  string `json:"last_occurrence"`
+	OccurrenceCount int    `json:"occurrence_count"`
+	Summary         string `json:"summary"`
+}
+
+// Ticket represents the Jira ticket associated with a test case.
+type Ticket struct {
+	HTMLURL string `json:"html_url"`
 }
 
 // QuarantiningSettingChanged is the event type for when a test case's quarantining setting is changed.
@@ -86,31 +90,6 @@ func (q QuarantiningSettingChanged) GetTestCase() TestCase {
 	return q.TestCase
 }
 
-// StatusChanged is the event type for when a test case's status is changed.
-// https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
-type StatusChanged struct {
-	StatusChange struct {
-		CurrentStatus struct {
-			Reason    string    `json:"reason"`
-			Timestamp time.Time `json:"timestamp"`
-			Value     string    `json:"value"`
-		} `json:"current_status"`
-		PreviousStatus string `json:"previous_status"`
-	} `json:"status_change"`
-	TestCase TestCase `json:"test_case"`
-	Type     string   `json:"type"` // Added missing Type field
-}
-
-// GetType implements the WebhookEvent interface
-func (s StatusChanged) GetType() WebhookType {
-	return WebhookTypeStatusChanged
-}
-
-// GetTestCase implements the WebhookEvent interface
-func (s StatusChanged) GetTestCase() TestCase {
-	return s.TestCase
-}
-
 // ParseWebhookEvent parses raw JSON into the appropriate webhook event type
 func ParseWebhookEvent(data []byte) (WebhookEvent, error) {
 	// First, parse just the type field
@@ -131,7 +110,7 @@ func ParseWebhookEvent(data []byte) (WebhookEvent, error) {
 		return event, nil
 
 	case WebhookTypeStatusChanged:
-		var event StatusChanged
+		var event TestCaseStatusChange
 		if err := json.Unmarshal(data, &event); err != nil {
 			return nil, fmt.Errorf("failed to parse status changed event: %w", err)
 		}
@@ -155,18 +134,36 @@ func GetWebhookType(data []byte) (WebhookType, error) {
 	return WebhookType(envelope.Type), nil
 }
 
-// TestCaseStatusChangedPayload represents the payload for test_case.status_changed events from Trunk.io
+// TestCaseStatusChange represents the payload for test_case.status_changed events from Trunk.io
 // See: https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
-type TestCaseStatusChangedPayload struct {
-	StatusChange struct {
-		CurrentStatus struct {
-			Reason    string `json:"reason"`
-			Timestamp string `json:"timestamp"`
-			Value     string `json:"value"`
-		} `json:"current_status"`
-		PreviousStatus string `json:"previous_status"`
-	} `json:"status_change"`
-	TestCase TestCase `json:"test_case"` // Reuse the existing TestCase struct
+type TestCaseStatusChange struct {
+	StatusChange StatusChange `json:"status_change"`
+	TestCase     TestCase     `json:"test_case"` // Reuse the existing TestCase struct
+}
+
+// GetType implements the WebhookEvent interface
+func (s TestCaseStatusChange) GetType() WebhookType {
+	return WebhookTypeStatusChanged
+}
+
+// GetTestCase implements the WebhookEvent interface
+func (s TestCaseStatusChange) GetTestCase() TestCase {
+	return s.TestCase
+}
+
+// StatusChange represents the status change event from Trunk.io
+// See: https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
+type StatusChange struct {
+	CurrentStatus  Status `json:"current_status"`
+	PreviousStatus string `json:"previous_status"`
+}
+
+// Status represents the current status of a test case
+// See: https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
+type Status struct {
+	Reason    string `json:"reason"`
+	Timestamp string `json:"timestamp"`
+	Value     string `json:"value"`
 }
 
 // LinkTicketRequest represents the request to link a Jira ticket to a test case in Trunk.io

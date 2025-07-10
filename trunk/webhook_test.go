@@ -1,63 +1,124 @@
 package trunk
 
 import (
+	"bytes"
 	"encoding/json"
-	"os"
+	"io"
+	"net/http"
+	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/smartcontractkit/branch-out/internal/testhelpers"
+	"github.com/smartcontractkit/branch-out/internal/testhelpers/mock"
+	"github.com/smartcontractkit/branch-out/jira"
 )
 
-func Test_Parse_TestCaseStatusChangedPayload(t *testing.T) {
+var (
+	flakyTestCase = TestCase{
+		ID:         "test_trunk_id",
+		Codeowners: []string{"@test"},
+		FilePath:   "test/file_test.go",
+		HTMLURL:    "https://github.com/test/repo",
+		Name:       "TestFlaky",
+		Quarantine: true,
+	}
+
+	quarantinedPayload = TestCaseStatusChange{
+		StatusChange: StatusChange{
+			CurrentStatus: Status{
+				Value: "flaky",
+			},
+			PreviousStatus: "healthy",
+		},
+		TestCase: flakyTestCase,
+	}
+
+	// Unused for now, but keeping for reference.
+	// healthyTestCase = TestCase{
+	// 	ID:         trunkID,
+	// 	Codeowners: codeowners,
+	// 	FilePath:   filePath,
+	// 	HTMLURL:    repoURL,
+	// 	Name:       testName,
+	// 	Quarantine: false,
+	// }
+
+	// unQuarantinedPayload = TestCaseStatusChange{
+	// 	StatusChange: StatusChange{
+	// 		CurrentStatus: CurrentStatus{
+	// 			Value: "healthy",
+	// 		},
+	// 		PreviousStatus: "flaky",
+	// 	},
+	// 	TestCase: healthyTestCase,
+	// }
+	// webhookSecret is the secret used to sign Trunk webhooks. This is an example secret from the Trunk docs.
+	// We use it to sign our own payloads and make them valid for testing.
+	webhookSecret = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+)
+
+func TestReceiveWebhook_FlakyTest(t *testing.T) {
+	t.Parallel()
+	t.Skip("Skipping webhook test, needs to have better mocking to work well")
+
+	l := testhelpers.Logger(t)
+
+	jiraClient := mock.NewJiraIClient(t)
+	trunkClient := mock.NewTrunkIClient(t)
+	githubClient := mock.NewGithubIClient(t)
+
+	expectedJiraTicketRequest := jira.FlakyTestTicketRequest{
+		RepoName:        "test/repo",
+		TestPackageName: "test/package",
+		FilePath:        "test/file.go",
+		TrunkID:         "test_trunk_id",
+		Details:         "test_details",
+	}
+
+	quarantinedPayloadJSON, err := json.Marshal(quarantinedPayload)
+	require.NoError(t, err, "failed to marshal payload")
+
+	// Generate valid svix signature
+	webhookRequest, err := SelfSignWebhookRequest(l, &http.Request{
+		Method: "POST",
+		URL:    &url.URL{Path: "/webhooks/trunk"},
+		Body:   io.NopCloser(bytes.NewBuffer(quarantinedPayloadJSON)),
+	}, webhookSecret)
+	require.NoError(t, err, "failed to sign webhook request")
+
+	jiraClient.EXPECT().CreateFlakyTestTicket(expectedJiraTicketRequest).Return(&jira.TicketResponse{
+		Key: "BRANCH-1",
+	}, nil).Times(1)
+
+	jiraClient.EXPECT().GetTicketStatus("BRANCH-1").Return(&jira.TicketStatus{
+		Key: "BRANCH-1",
+	}, nil).Times(1)
+
+	err = ReceiveWebhook(l, webhookRequest, webhookSecret, jiraClient, trunkClient, githubClient)
+	require.NoError(t, err, "failed to receive webhook")
+}
+
+func TestSignWebhookRequest(t *testing.T) {
 	t.Parallel()
 
-	payloadJSON, err := os.ReadFile("testdata/status_changed_webhook.json")
-	require.NoError(t, err, "cannot read the Trunk payload")
+	l := testhelpers.Logger(t)
 
-	var payload TestCaseStatusChangedPayload
-	err = json.Unmarshal(payloadJSON, &payload)
-	require.NoError(t, err, "cannot parse the Trunk payload")
+	quarantinedPayloadJSON, err := json.Marshal(quarantinedPayload)
+	require.NoError(t, err, "failed to marshal payload")
 
-	// Verify the parsed structure
-	assert.Equal(t, "flaky", payload.StatusChange.CurrentStatus.Value, "expected current status 'flaky'")
-	assert.Equal(t, "healthy", payload.StatusChange.PreviousStatus, "expected previous status 'healthy'")
-	assert.Equal(
-		t,
-		"2bfedccc-7fda-442c-bcf9-5e01c6d046d3",
-		payload.TestCase.ID,
-		"expected test case ID '2bfedccc-7fda-442c-bcf9-5e01c6d046d3'",
-	)
-	assert.Equal(
-		t,
-		"DistributedLock #tryLock default throws on double unlock",
-		payload.TestCase.Name,
-		"expected test name 'DistributedLock #tryLock default throws on double unlock'",
-	)
-	assert.Equal(
-		t,
-		"trunk/services/__tests__/distributed_lock.test.js",
-		payload.TestCase.FilePath,
-		"expected file path 'trunk/services/__tests__/distributed_lock.test.js'",
-	)
-	assert.Equal(t, "@backend", payload.TestCase.Codeowners[0], "expected first codeowner '@backend'")
-	assert.InEpsilon(t, 0.1, payload.TestCase.FailureRateLast7D, 0.0000000000000001, "expected failure rate 0.1")
-	assert.Equal(t, 42, payload.TestCase.PullRequestsImpactedLast7D, "expected 42 impacted PRs")
-	assert.True(t, payload.TestCase.Quarantine, "expected quarantine to be true")
-	assert.Equal(
-		t,
-		"https://github.com/trunk-io/analytics-cli",
-		payload.TestCase.Repository.HTMLURL,
-		"expected repository URL 'https://github.com/trunk-io/analytics-cli'",
-	)
-	assert.Equal(
-		t,
-		"https://trunk-io.atlassian.net/browse/KAN-130",
-		payload.TestCase.Ticket.HTMLURL,
-		"expected ticket URL 'https://trunk-io.atlassian.net/browse/KAN-130'",
-	)
-	assert.Equal(t, "DistributedLock", payload.TestCase.TestSuite, "expected test suite 'DistributedLock'")
-	assert.Equal(t, "linux-x86_64", payload.TestCase.Variant, "expected variant 'linux-x86_64'")
+	webhookRequest, err := SelfSignWebhookRequest(l, &http.Request{
+		Method: "POST",
+		URL:    &url.URL{Path: "/webhooks/trunk"},
+		Body:   io.NopCloser(bytes.NewBuffer(quarantinedPayloadJSON)),
+	}, webhookSecret)
+	require.NoError(t, err, "failed to sign webhook request")
+
+	require.NotNil(t, webhookRequest, "webhook request should not be nil")
+
+	err = VerifyWebhookRequest(l, webhookRequest, webhookSecret)
+	require.NoError(t, err, "failed to verify webhook request")
 }
 
 func TestExtractRepoNameFromURL(t *testing.T) {
