@@ -49,7 +49,9 @@ func WithConfig(config config.Config) Option {
 // IClient is the interface that wraps the basic Jira client methods.
 // Helpful for mocking in tests.
 type IClient interface {
-	CreateFlakyTestTicket(req FlakyTestTicketRequest) (*go_jira.Issue, error)
+	CreateFlakyTestIssue(req FlakyTestIssueRequest) (*go_jira.Issue, error)
+	GetOpenFlakyTestIssues() ([]go_jira.Issue, error)
+	GetOpenFlakyTestIssue(packageName, testName string) (*go_jira.Issue, error)
 }
 
 // NewClient creates a new Jira client with configuration from environment variables
@@ -142,8 +144,8 @@ func NewClient(options ...Option) (*Client, error) {
 	return c, nil
 }
 
-// FlakyTestTicketRequest represents the data needed to create a Jira ticket for a flaky test
-type FlakyTestTicketRequest struct {
+// FlakyTestIssueRequest represents the data needed to create a Jira ticket for a flaky test
+type FlakyTestIssueRequest struct {
 	RepoURL           string `json:"repo_url"`
 	Package           string `json:"package"`
 	Test              string `json:"test"`
@@ -152,8 +154,8 @@ type FlakyTestTicketRequest struct {
 	AdditionalDetails string `json:"additional_details"` // JSON string with additional details (trunk Payload for example)
 }
 
-// CreateFlakyTestTicket creates a new Jira ticket for a flaky test
-func (c *Client) CreateFlakyTestTicket(req FlakyTestTicketRequest) (*go_jira.Issue, error) {
+// CreateFlakyTestIssue creates a new Jira ticket for a flaky test
+func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (*go_jira.Issue, error) {
 	c.logger.Debug().
 		Str("repo_url", req.RepoURL).
 		Str("package", req.Package).
@@ -218,12 +220,13 @@ This ticket was automatically created by [branch-out](https://github.com/smartco
 	return ticket, nil
 }
 
-// GetOpenFlakyTestTickets returns all open flaky test tickets.
-func (c *Client) GetOpenFlakyTestTickets() ([]go_jira.Issue, error) {
+// GetOpenFlakyTestIssues returns all open flaky test tickets.
+func (c *Client) GetOpenFlakyTestIssues() ([]go_jira.Issue, error) {
 	jql := fmt.Sprintf(
 		`project = "%s" AND labels = "branch-out" AND status != "Closed"`,
 		c.jiraConfig.ProjectKey,
 	)
+	c.logger.Debug().Str("jql", jql).Msg("Searching for all open flaky test tickets")
 	issues, resp, err := c.Issue.Search(
 		jql,
 		&go_jira.SearchOptions{
@@ -236,6 +239,7 @@ func (c *Client) GetOpenFlakyTestTickets() ([]go_jira.Issue, error) {
 	if err := checkResponse(resp); err != nil {
 		return nil, err
 	}
+	c.logger.Debug().Int("num_issues", len(issues)).Msg("Finished searching for open flaky test tickets")
 	return issues, nil
 }
 
@@ -243,11 +247,16 @@ func (c *Client) GetOpenFlakyTestTickets() ([]go_jira.Issue, error) {
 // If no ticket is found, it returns nil.
 func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (*go_jira.Issue, error) {
 	jql := fmt.Sprintf(
-		`project = "%s" AND labels = "branch-out" AND summary ~ "%s" AND summary ~ "%s" AND status != "Closed"`,
+		`project = "%s" AND labels = "branch-out" AND summary ~ "%s.%s" AND status != "Closed"`,
 		c.jiraConfig.ProjectKey,
 		packageName,
 		testName,
 	)
+	c.logger.Debug().
+		Str("package_name", packageName).
+		Str("test_name", testName).
+		Str("jql", jql).
+		Msg("Searching for open flaky test ticket")
 	issues, resp, err := c.Issue.Search(
 		jql,
 		&go_jira.SearchOptions{
@@ -261,9 +270,16 @@ func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (*go_jira.I
 		return nil, err
 	}
 	if len(issues) == 0 {
+		c.logger.Debug().Msg("No open flaky test ticket found")
 		return nil, nil // No open flaky test ticket found
 	}
-	return &issues[0], nil // Return the first open flaky test ticket
+	issue := issues[0]
+	c.logger.Debug().
+		Str("ticket_key", issue.Key).
+		Str("ticket_id", issue.ID).
+		Str("ticket_url", issue.Self).
+		Msg("Found open flaky test ticket")
+	return &issue, nil // Return the first open flaky test ticket
 }
 
 // AuthType returns the type of authentication being used

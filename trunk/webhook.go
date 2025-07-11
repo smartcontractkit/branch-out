@@ -138,7 +138,7 @@ func handleFlakyTest(
 		Msg("Quarantining flaky test")
 
 	// Create a Jira ticket for the flaky test
-	_, err := createJiraTicketForFlakyTest(l, statusChange, jiraClient, trunkClient)
+	_, err := createJiraIssueForFlakyTest(l, statusChange, jiraClient, trunkClient)
 	if err != nil {
 		return fmt.Errorf("failed to create Jira ticket: %w", err)
 	}
@@ -204,8 +204,10 @@ func verifyClients(jiraClient jira.IClient, trunkClient IClient, githubClient gi
 	return nil
 }
 
-// createJiraTicketForFlakyTest creates a Jira ticket for a flaky test
-func createJiraTicketForFlakyTest(
+// createJiraIssueForFlakyTest looks for if there is an existing open ticket for the flaky test.
+// If it does, it returns the existing ticket.
+// If it doesn't, it creates a new ticket and returns it.
+func createJiraIssueForFlakyTest(
 	l zerolog.Logger,
 	statusChange TestCaseStatusChange,
 	jiraClient jira.IClient,
@@ -236,7 +238,7 @@ func createJiraTicketForFlakyTest(
 		return nil, fmt.Errorf("failed to marshal test case details: %w", err)
 	}
 
-	req := jira.FlakyTestTicketRequest{
+	req := jira.FlakyTestIssueRequest{
 		RepoURL:           testCase.Repository.HTMLURL,
 		Package:           testCase.TestSuite,
 		Test:              testCase.Name,
@@ -245,18 +247,28 @@ func createJiraTicketForFlakyTest(
 		AdditionalDetails: string(details),
 	}
 
-	ticket, err := jiraClient.CreateFlakyTestTicket(req)
+	var issue *go_jira.Issue
+
+	issue, err = jiraClient.GetOpenFlakyTestIssue(testCase.TestSuite, testCase.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Jira ticket: %w", err)
+		return nil, fmt.Errorf("failed to get existing Jira ticket: %w", err)
+	}
+	if issue == nil {
+		issue, err = jiraClient.CreateFlakyTestIssue(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Jira ticket: %w", err)
+		}
 	}
 
+	// TODO: Check for trunk ID in case of manual execution
+
 	// Link the Jira ticket back to the Trunk test case
-	if err := trunkClient.LinkTicketToTestCase(testCase.ID, ticket, testCase.Repository.HTMLURL); err != nil {
+	if err := trunkClient.LinkTicketToTestCase(testCase.ID, issue, testCase.Repository.HTMLURL); err != nil {
 		l.Warn().Err(err).Msg("Failed to link Jira ticket to Trunk test case (non-blocking)")
 		// Don't return error as the ticket was created successfully
 	}
 
-	return ticket, nil
+	return issue, nil
 }
 
 // Unused for now, but keeping for reference.
