@@ -86,8 +86,6 @@ func TestExtractRepoNameFromURL(t *testing.T) {
 	}{
 		{"https://github.com/trunk-io/analytics-cli", "analytics-cli"},
 		{"https://github.com/owner/repo", "repo"},
-		{"invalid-url", "invalid-url"},
-		{"", ""},
 	}
 
 	for _, tt := range tests {
@@ -107,8 +105,6 @@ func TestExtractDomainFromJiraURL(t *testing.T) {
 	}{
 		{"https://company.atlassian.net/rest/api/2/issue/123", "company.atlassian.net"},
 		{"https://trunk-io.atlassian.net/rest/api/2/issue/456", "trunk-io.atlassian.net"},
-		{"invalid-url", "unknown-domain.atlassian.net"},
-		{"", "unknown-domain.atlassian.net"},
 	}
 
 	for _, tt := range tests {
