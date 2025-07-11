@@ -121,7 +121,6 @@ func NewClient(options ...Option) (*Client, error) {
 		)
 		httpClient = oauthConfig.Client(clientCtx, token)
 	} else if hasBasicAuth {
-		l = l.With().Str("auth_type", "Basic").Logger()
 		httpClient = base.NewClient(
 			"jira",
 			base.WithLogger(l),

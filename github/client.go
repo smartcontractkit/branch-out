@@ -45,9 +45,8 @@ type Client struct {
 type ClientOption func(*clientOptions)
 
 type clientOptions struct {
-	tokenSource oauth2.TokenSource
-	secrets     config.GitHub
-	logger      zerolog.Logger
+	secrets config.GitHub
+	logger  zerolog.Logger
 }
 
 // WithConfig uses a GitHub config to setup authentication.
@@ -74,12 +73,10 @@ func NewClient(
 		opt(opts)
 	}
 
-	client := &Client{
-		tokenSource: opts.tokenSource,
-	}
+	client := &Client{}
 
 	var err error
-	client.tokenSource, err = setupAuth(opts.logger, opts.secrets)
+	client.tokenSource, err = setupAuth(opts.secrets)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup authentication: %w", err)
 	}

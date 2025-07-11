@@ -321,7 +321,7 @@ type HealthResponse struct {
 func (s *Server) Health() (HealthResponse, error) {
 	// Add additional health checks here as relevant.
 	if !s.started.Load() {
-		s.logger.Debug().Msg("Server unhealthy")
+		s.logger.Warn().Msg("Server unhealthy")
 		return HealthResponse{
 			Status:    "unhealthy",
 			Timestamp: time.Now(),
@@ -333,7 +333,7 @@ func (s *Server) Health() (HealthResponse, error) {
 		Timestamp: time.Now(),
 	}
 
-	s.logger.Debug().Str("status", response.Status).Msg("Server healthy")
+	s.logger.Trace().Str("status", response.Status).Msg("Server healthy")
 
 	return response, nil
 }

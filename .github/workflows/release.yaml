@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     tags:
       - "*"
@@ -37,6 +40,9 @@ jobs:
 
   docker-build-publish:
     name: Docker Build and Publish
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'build-and-publish'))
     permissions:
       contents: read
       id-token: write

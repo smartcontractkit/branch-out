@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/jferrl/go-githubauth"
-	"github.com/rs/zerolog"
 	"golang.org/x/oauth2"
 
 	"github.com/smartcontractkit/branch-out/config"
@@ -31,13 +30,11 @@ var (
 // setupAppAuth enables authentication via a GitHub App if it is installed
 // and returns a token source for installation tokens.
 // Returns nil if no GitHub App is configured (missing GITHUB_APP_ID).
-func setupAuth(l zerolog.Logger, cfg config.GitHub) (oauth2.TokenSource, error) {
+func setupAuth(cfg config.GitHub) (oauth2.TokenSource, error) {
 	if cfg.Token != "" {
-		l.Debug().Msg("Using simple GitHub token for authentication")
 		return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: cfg.Token}), nil
 	}
 
-	l.Debug().Msg("Using GitHub App authentication")
 	if cfg.AppID == "" {
 		return nil, ErrNoGitHubAppID
 	}
