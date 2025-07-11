@@ -20,7 +20,7 @@ func TestNewTransport_Logging(t *testing.T) {
 
 	logs := bytes.NewBuffer(nil)
 	logger := testhelpers.Logger(t, logging.WithSoleWriter(logs))
-	transport := NewTransport(WithLogger(logger), WithComponent("test"))
+	transport := NewTransport("test", WithLogger(logger))
 	require.NotNil(t, transport)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -41,7 +41,7 @@ func TestNewClient_Logging(t *testing.T) {
 
 	logs := bytes.NewBuffer(nil)
 	logger := testhelpers.Logger(t, logging.WithSoleWriter(logs))
-	client := NewClient(WithLogger(logger), WithComponent("test"))
+	client := NewClient("test", WithLogger(logger))
 	require.NotNil(t, client)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -160,7 +160,7 @@ func TestNewClient_RateLimitHeaders(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			client := NewClient(WithLogger(l), WithComponent("test"))
+			client := NewClient("test", WithLogger(l))
 			require.NotNil(t, client)
 
 			resp, err := client.Get(ts.URL)

@@ -13,6 +13,7 @@ func TestParseRepoURL(t *testing.T) {
 	tests := []struct {
 		name          string
 		repoURL       string
+		expectedHost  string
 		expectedOwner string
 		expectedRepo  string
 		expectedError string
@@ -20,26 +21,37 @@ func TestParseRepoURL(t *testing.T) {
 		{
 			name:          "https URL",
 			repoURL:       "https://github.com/owner/repo",
+			expectedHost:  "github.com",
 			expectedOwner: "owner",
 			expectedRepo:  "repo",
 		},
 		{
 			name:          "https URL with .git suffix",
 			repoURL:       "https://github.com/owner/repo.git",
+			expectedHost:  "github.com",
 			expectedOwner: "owner",
 			expectedRepo:  "repo",
 		},
 		{
 			name:          "URL with trailing slash",
 			repoURL:       "https://github.com/owner/repo/",
+			expectedHost:  "github.com",
 			expectedOwner: "owner",
 			expectedRepo:  "repo",
 		},
 		{
 			name:          "complex owner and repo names",
 			repoURL:       "https://github.com/my-org/my-complex-repo-name",
+			expectedHost:  "github.com",
 			expectedOwner: "my-org",
 			expectedRepo:  "my-complex-repo-name",
+		},
+		{
+			name:          "non-github URL",
+			repoURL:       "https://gitlab.com/owner/repo",
+			expectedHost:  "gitlab.com",
+			expectedOwner: "owner",
+			expectedRepo:  "repo",
 		},
 		{
 			name:          "empty URL",
@@ -67,7 +79,7 @@ func TestParseRepoURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			owner, repo, err := ParseRepoURL(tt.repoURL)
+			host, owner, repo, err := ParseRepoURL(tt.repoURL)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
@@ -76,6 +88,7 @@ func TestParseRepoURL(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+			assert.Equal(t, tt.expectedHost, host)
 			assert.Equal(t, tt.expectedOwner, owner)
 			assert.Equal(t, tt.expectedRepo, repo)
 		})

@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	go_jira "github.com/andygrunwald/go-jira"
 	"github.com/rs/zerolog"
 	svix "github.com/svix/svix-webhooks/go"
 
@@ -56,7 +58,7 @@ func ReceiveWebhook(
 
 	// Verify the webhook signature
 	if err := VerifyWebhookRequest(l, req, signingSecret); err != nil {
-		return fmt.Errorf("failed to verify svix webhook: %w", err)
+		return fmt.Errorf("webhook call cannot be verified: %w", err)
 	}
 
 	var webhookData TestCaseStatusChange
@@ -136,29 +138,16 @@ func handleFlakyTest(
 		Msg("Quarantining flaky test")
 
 	// Create a Jira ticket for the flaky test
-	ticket, err := createJiraTicketForFlakyTest(l, statusChange, jiraClient, trunkClient)
+	_, err := createJiraIssueForFlakyTest(l, statusChange, jiraClient, trunkClient)
 	if err != nil {
 		return fmt.Errorf("failed to create Jira ticket: %w", err)
 	}
 
-	// Link the Jira ticket to the Trunk test case
-	err = trunkClient.LinkTicketToTestCase(testCase.ID, ticket, testCase.Repository.HTMLURL)
-	if err != nil {
-		return fmt.Errorf("failed to link Jira ticket to Trunk test case: %w", err)
-	}
-
 	// Quarantine the test in GitHub
-	owner, repo, err := github.ParseRepoURL(testCase.Repository.HTMLURL)
-	if err != nil {
-		l.Warn().Err(err).Msg("Failed to parse repo URL, will skip quarantine")
-		return fmt.Errorf("failed to parse repo URL: %w", err)
-	}
-
 	err = githubClient.QuarantineTests(
 		context.Background(),
 		l,
-		owner,
-		repo,
+		testCase.Repository.HTMLURL,
 		[]golang.QuarantineTarget{
 			{
 				Package: testCase.TestSuite,
@@ -173,18 +162,16 @@ func handleFlakyTest(
 	return nil
 }
 
+// handleBrokenTest handles the case where a test is marked as broken.
+// Right now this is the same as handling a flaky test.
 func handleBrokenTest(
-	_ zerolog.Logger,
-	_ TestCaseStatusChange,
+	l zerolog.Logger,
+	statusChange TestCaseStatusChange,
 	jiraClient jira.IClient,
 	trunkClient IClient,
 	githubClient github.IClient,
 ) error {
-	if err := verifyClients(jiraClient, trunkClient, githubClient); err != nil {
-		return err
-	}
-
-	return fmt.Errorf("broken test handling not implemented")
+	return handleFlakyTest(l, statusChange, jiraClient, trunkClient, githubClient)
 }
 
 // handleHealthyTest handles the case where a test is marked as healthy.
@@ -217,18 +204,23 @@ func verifyClients(jiraClient jira.IClient, trunkClient IClient, githubClient gi
 	return nil
 }
 
-// createJiraTicketForFlakyTest creates a Jira ticket for a flaky test
-func createJiraTicketForFlakyTest(
+// createJiraIssueForFlakyTest looks for if there is an existing open ticket for the flaky test.
+// If it does, it returns the existing ticket.
+// If it doesn't, it creates a new ticket and returns it.
+func createJiraIssueForFlakyTest(
 	l zerolog.Logger,
-	webhookData TestCaseStatusChange,
+	statusChange TestCaseStatusChange,
 	jiraClient jira.IClient,
 	trunkClient IClient,
-) (*jira.TicketResponse, error) {
+) (*go_jira.Issue, error) {
+	if jiraClient == nil {
+		return nil, fmt.Errorf("jira client is nil")
+	}
+	if trunkClient == nil {
+		return nil, fmt.Errorf("trunk client is nil")
+	}
 
-	testCase := webhookData.TestCase
-
-	// Extract repo name from the HTML URL
-	repoName := extractRepoNameFromURL(testCase.Repository.HTMLURL)
+	testCase := statusChange.TestCase
 
 	// Create details JSON from test case data
 	details, err := json.Marshal(map[string]any{
@@ -237,50 +229,44 @@ func createJiraTicketForFlakyTest(
 		"codeowners":                     testCase.Codeowners,
 		"html_url":                       testCase.HTMLURL,
 		"repository_url":                 testCase.Repository.HTMLURL,
-		"current_status":                 webhookData.StatusChange.CurrentStatus,
-		"previous_status":                webhookData.StatusChange.PreviousStatus,
+		"current_status":                 statusChange.StatusChange.CurrentStatus,
+		"previous_status":                statusChange.StatusChange.PreviousStatus,
 		"test_suite":                     testCase.TestSuite,
 		"variant":                        testCase.Variant,
 	})
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to marshal test case details to JSON")
 		return nil, fmt.Errorf("failed to marshal test case details: %w", err)
 	}
 
-	req := jira.FlakyTestTicketRequest{
-		RepoName:        repoName,
-		TestPackageName: testCase.Name,
-		FilePath:        testCase.FilePath,
-		TrunkID:         testCase.ID,
-		Details:         string(details),
+	req := jira.FlakyTestIssueRequest{
+		RepoURL:           testCase.Repository.HTMLURL,
+		Package:           testCase.TestSuite,
+		Test:              testCase.Name,
+		FilePath:          testCase.FilePath,
+		TrunkID:           testCase.ID,
+		AdditionalDetails: string(details),
 	}
 
-	l.Info().
-		Str("repo_name", req.RepoName).
-		Str("test_name", req.TestPackageName).
-		Str("file_path", req.FilePath).
-		Str("trunk_id", req.TrunkID).
-		Msg("Creating Jira ticket for flaky test")
+	var issue *go_jira.Issue
 
-	ticket, err := jiraClient.CreateFlakyTestTicket(req)
+	issue, err = jiraClient.GetOpenFlakyTestIssue(testCase.TestSuite, testCase.Name)
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to create Jira ticket for flaky test")
-		return nil, fmt.Errorf("failed to create Jira ticket: %w", err)
+		return nil, fmt.Errorf("failed to get existing Jira ticket: %w", err)
 	}
-
-	l.Info().
-		Str("ticket_key", ticket.Key).
-		Str("ticket_id", ticket.ID).
-		Str("ticket_url", fmt.Sprintf("https://%s/browse/%s", extractDomainFromJiraURL(ticket.Self), ticket.Key)).
-		Msg("Successfully created Jira ticket for flaky test")
+	if issue == nil {
+		issue, err = jiraClient.CreateFlakyTestIssue(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Jira ticket: %w", err)
+		}
+	}
 
 	// Link the Jira ticket back to the Trunk test case
-	if err := trunkClient.LinkTicketToTestCase(testCase.ID, ticket, testCase.Repository.HTMLURL); err != nil {
+	if err := trunkClient.LinkTicketToTestCase(testCase.ID, issue, testCase.Repository.HTMLURL); err != nil {
 		l.Warn().Err(err).Msg("Failed to link Jira ticket to Trunk test case (non-blocking)")
 		// Don't return error as the ticket was created successfully
 	}
 
-	return ticket, nil
+	return issue, nil
 }
 
 // Unused for now, but keeping for reference.
@@ -417,21 +403,11 @@ func extractRepoNameFromURL(url string) string {
 // extractDomainFromJiraURL extracts the domain from a Jira self URL
 func extractDomainFromJiraURL(selfURL string) string {
 	// Example: https://your-company.atlassian.net/rest/api/2/issue/123
-	parts := strings.Split(selfURL, "/")
-	if len(parts) >= 3 {
-		return parts[2] // Return the domain part
+	url, err := url.Parse(selfURL)
+	if err != nil {
+		return ""
 	}
-	return "unknown-domain.atlassian.net" // Fallback
-}
-
-// extractRepoInfoFromURL extracts owner and repository name from a GitHub URL
-func extractRepoInfoFromURL(url string) (owner, repoName string) {
-	// Expected format: https://github.com/owner/repo
-	parts := strings.Split(url, "/")
-	if len(parts) >= 5 && parts[2] == "github.com" {
-		return parts[3], parts[4] // Return owner and repo name
-	}
-	return "unknown", "unknown" // Fallback if parsing fails
+	return url.Host
 }
 
 // SelfSignWebhookRequest self-signs a request to create a valid svix webhook call.

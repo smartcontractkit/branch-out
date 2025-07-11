@@ -41,12 +41,12 @@ func (_m *GithubIClient) EXPECT() *GithubIClient_Expecter {
 }
 
 // QuarantineTests provides a mock function for the type GithubIClient
-func (_mock *GithubIClient) QuarantineTests(ctx context.Context, l zerolog.Logger, owner string, repo string, targets []golang.QuarantineTarget, options ...github.QuarantineOption) error {
+func (_mock *GithubIClient) QuarantineTests(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.QuarantineTarget, options ...github.QuarantineOption) error {
 	var tmpRet mock.Arguments
 	if len(options) > 0 {
-		tmpRet = _mock.Called(ctx, l, owner, repo, targets, options)
+		tmpRet = _mock.Called(ctx, l, repoURL, targets, options)
 	} else {
-		tmpRet = _mock.Called(ctx, l, owner, repo, targets)
+		tmpRet = _mock.Called(ctx, l, repoURL, targets)
 	}
 	ret := tmpRet
 
@@ -55,8 +55,8 @@ func (_mock *GithubIClient) QuarantineTests(ctx context.Context, l zerolog.Logge
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, zerolog.Logger, string, string, []golang.QuarantineTarget, ...github.QuarantineOption) error); ok {
-		r0 = returnFunc(ctx, l, owner, repo, targets, options...)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, zerolog.Logger, string, []golang.QuarantineTarget, ...github.QuarantineOption) error); ok {
+		r0 = returnFunc(ctx, l, repoURL, targets, options...)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -71,16 +71,15 @@ type GithubIClient_QuarantineTests_Call struct {
 // QuarantineTests is a helper method to define mock.On call
 //   - ctx context.Context
 //   - l zerolog.Logger
-//   - owner string
-//   - repo string
+//   - repoURL string
 //   - targets []golang.QuarantineTarget
 //   - options ...github.QuarantineOption
-func (_e *GithubIClient_Expecter) QuarantineTests(ctx interface{}, l interface{}, owner interface{}, repo interface{}, targets interface{}, options ...interface{}) *GithubIClient_QuarantineTests_Call {
+func (_e *GithubIClient_Expecter) QuarantineTests(ctx interface{}, l interface{}, repoURL interface{}, targets interface{}, options ...interface{}) *GithubIClient_QuarantineTests_Call {
 	return &GithubIClient_QuarantineTests_Call{Call: _e.mock.On("QuarantineTests",
-		append([]interface{}{ctx, l, owner, repo, targets}, options...)...)}
+		append([]interface{}{ctx, l, repoURL, targets}, options...)...)}
 }
 
-func (_c *GithubIClient_QuarantineTests_Call) Run(run func(ctx context.Context, l zerolog.Logger, owner string, repo string, targets []golang.QuarantineTarget, options ...github.QuarantineOption)) *GithubIClient_QuarantineTests_Call {
+func (_c *GithubIClient_QuarantineTests_Call) Run(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.QuarantineTarget, options ...github.QuarantineOption)) *GithubIClient_QuarantineTests_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -94,27 +93,22 @@ func (_c *GithubIClient_QuarantineTests_Call) Run(run func(ctx context.Context, 
 		if args[2] != nil {
 			arg2 = args[2].(string)
 		}
-		var arg3 string
+		var arg3 []golang.QuarantineTarget
 		if args[3] != nil {
-			arg3 = args[3].(string)
+			arg3 = args[3].([]golang.QuarantineTarget)
 		}
-		var arg4 []golang.QuarantineTarget
-		if args[4] != nil {
-			arg4 = args[4].([]golang.QuarantineTarget)
-		}
-		var arg5 []github.QuarantineOption
+		var arg4 []github.QuarantineOption
 		var variadicArgs []github.QuarantineOption
-		if len(args) > 5 {
-			variadicArgs = args[5].([]github.QuarantineOption)
+		if len(args) > 4 {
+			variadicArgs = args[4].([]github.QuarantineOption)
 		}
-		arg5 = variadicArgs
+		arg4 = variadicArgs
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
-			arg4,
-			arg5...,
+			arg4...,
 		)
 	})
 	return _c
@@ -125,7 +119,7 @@ func (_c *GithubIClient_QuarantineTests_Call) Return(err error) *GithubIClient_Q
 	return _c
 }
 
-func (_c *GithubIClient_QuarantineTests_Call) RunAndReturn(run func(ctx context.Context, l zerolog.Logger, owner string, repo string, targets []golang.QuarantineTarget, options ...github.QuarantineOption) error) *GithubIClient_QuarantineTests_Call {
+func (_c *GithubIClient_QuarantineTests_Call) RunAndReturn(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.QuarantineTarget, options ...github.QuarantineOption) error) *GithubIClient_QuarantineTests_Call {
 	_c.Call.Return(run)
 	return _c
 }

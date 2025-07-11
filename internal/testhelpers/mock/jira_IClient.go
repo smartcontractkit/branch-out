@@ -5,6 +5,7 @@
 package mock
 
 import (
+	jira0 "github.com/andygrunwald/go-jira"
 	"github.com/smartcontractkit/branch-out/jira"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -36,36 +37,109 @@ func (_m *JiraIClient) EXPECT() *JiraIClient_Expecter {
 	return &JiraIClient_Expecter{mock: &_m.Mock}
 }
 
-// AddCommentToTicket provides a mock function for the type JiraIClient
-func (_mock *JiraIClient) AddCommentToTicket(ticketKey string, comment string) error {
-	ret := _mock.Called(ticketKey, comment)
+// CreateFlakyTestIssue provides a mock function for the type JiraIClient
+func (_mock *JiraIClient) CreateFlakyTestIssue(req jira.FlakyTestIssueRequest) (*jira0.Issue, error) {
+	ret := _mock.Called(req)
 
 	if len(ret) == 0 {
-		panic("no return value specified for AddCommentToTicket")
+		panic("no return value specified for CreateFlakyTestIssue")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) error); ok {
-		r0 = returnFunc(ticketKey, comment)
-	} else {
-		r0 = ret.Error(0)
+	var r0 *jira0.Issue
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(jira.FlakyTestIssueRequest) (*jira0.Issue, error)); ok {
+		return returnFunc(req)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(0).(func(jira.FlakyTestIssueRequest) *jira0.Issue); ok {
+		r0 = returnFunc(req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*jira0.Issue)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(jira.FlakyTestIssueRequest) error); ok {
+		r1 = returnFunc(req)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
-// JiraIClient_AddCommentToTicket_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddCommentToTicket'
-type JiraIClient_AddCommentToTicket_Call struct {
+// JiraIClient_CreateFlakyTestIssue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateFlakyTestIssue'
+type JiraIClient_CreateFlakyTestIssue_Call struct {
 	*mock.Call
 }
 
-// AddCommentToTicket is a helper method to define mock.On call
-//   - ticketKey string
-//   - comment string
-func (_e *JiraIClient_Expecter) AddCommentToTicket(ticketKey interface{}, comment interface{}) *JiraIClient_AddCommentToTicket_Call {
-	return &JiraIClient_AddCommentToTicket_Call{Call: _e.mock.On("AddCommentToTicket", ticketKey, comment)}
+// CreateFlakyTestIssue is a helper method to define mock.On call
+//   - req jira.FlakyTestIssueRequest
+func (_e *JiraIClient_Expecter) CreateFlakyTestIssue(req interface{}) *JiraIClient_CreateFlakyTestIssue_Call {
+	return &JiraIClient_CreateFlakyTestIssue_Call{Call: _e.mock.On("CreateFlakyTestIssue", req)}
 }
 
-func (_c *JiraIClient_AddCommentToTicket_Call) Run(run func(ticketKey string, comment string)) *JiraIClient_AddCommentToTicket_Call {
+func (_c *JiraIClient_CreateFlakyTestIssue_Call) Run(run func(req jira.FlakyTestIssueRequest)) *JiraIClient_CreateFlakyTestIssue_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 jira.FlakyTestIssueRequest
+		if args[0] != nil {
+			arg0 = args[0].(jira.FlakyTestIssueRequest)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *JiraIClient_CreateFlakyTestIssue_Call) Return(issue *jira0.Issue, err error) *JiraIClient_CreateFlakyTestIssue_Call {
+	_c.Call.Return(issue, err)
+	return _c
+}
+
+func (_c *JiraIClient_CreateFlakyTestIssue_Call) RunAndReturn(run func(req jira.FlakyTestIssueRequest) (*jira0.Issue, error)) *JiraIClient_CreateFlakyTestIssue_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetOpenFlakyTestIssue provides a mock function for the type JiraIClient
+func (_mock *JiraIClient) GetOpenFlakyTestIssue(packageName string, testName string) (*jira0.Issue, error) {
+	ret := _mock.Called(packageName, testName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetOpenFlakyTestIssue")
+	}
+
+	var r0 *jira0.Issue
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(string, string) (*jira0.Issue, error)); ok {
+		return returnFunc(packageName, testName)
+	}
+	if returnFunc, ok := ret.Get(0).(func(string, string) *jira0.Issue); ok {
+		r0 = returnFunc(packageName, testName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*jira0.Issue)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(string, string) error); ok {
+		r1 = returnFunc(packageName, testName)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// JiraIClient_GetOpenFlakyTestIssue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetOpenFlakyTestIssue'
+type JiraIClient_GetOpenFlakyTestIssue_Call struct {
+	*mock.Call
+}
+
+// GetOpenFlakyTestIssue is a helper method to define mock.On call
+//   - packageName string
+//   - testName string
+func (_e *JiraIClient_Expecter) GetOpenFlakyTestIssue(packageName interface{}, testName interface{}) *JiraIClient_GetOpenFlakyTestIssue_Call {
+	return &JiraIClient_GetOpenFlakyTestIssue_Call{Call: _e.mock.On("GetOpenFlakyTestIssue", packageName, testName)}
+}
+
+func (_c *JiraIClient_GetOpenFlakyTestIssue_Call) Run(run func(packageName string, testName string)) *JiraIClient_GetOpenFlakyTestIssue_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
@@ -83,136 +157,67 @@ func (_c *JiraIClient_AddCommentToTicket_Call) Run(run func(ticketKey string, co
 	return _c
 }
 
-func (_c *JiraIClient_AddCommentToTicket_Call) Return(err error) *JiraIClient_AddCommentToTicket_Call {
-	_c.Call.Return(err)
+func (_c *JiraIClient_GetOpenFlakyTestIssue_Call) Return(issue *jira0.Issue, err error) *JiraIClient_GetOpenFlakyTestIssue_Call {
+	_c.Call.Return(issue, err)
 	return _c
 }
 
-func (_c *JiraIClient_AddCommentToTicket_Call) RunAndReturn(run func(ticketKey string, comment string) error) *JiraIClient_AddCommentToTicket_Call {
+func (_c *JiraIClient_GetOpenFlakyTestIssue_Call) RunAndReturn(run func(packageName string, testName string) (*jira0.Issue, error)) *JiraIClient_GetOpenFlakyTestIssue_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// CreateFlakyTestTicket provides a mock function for the type JiraIClient
-func (_mock *JiraIClient) CreateFlakyTestTicket(req jira.FlakyTestTicketRequest) (*jira.TicketResponse, error) {
-	ret := _mock.Called(req)
+// GetOpenFlakyTestIssues provides a mock function for the type JiraIClient
+func (_mock *JiraIClient) GetOpenFlakyTestIssues() ([]jira0.Issue, error) {
+	ret := _mock.Called()
 
 	if len(ret) == 0 {
-		panic("no return value specified for CreateFlakyTestTicket")
+		panic("no return value specified for GetOpenFlakyTestIssues")
 	}
 
-	var r0 *jira.TicketResponse
+	var r0 []jira0.Issue
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(jira.FlakyTestTicketRequest) (*jira.TicketResponse, error)); ok {
-		return returnFunc(req)
+	if returnFunc, ok := ret.Get(0).(func() ([]jira0.Issue, error)); ok {
+		return returnFunc()
 	}
-	if returnFunc, ok := ret.Get(0).(func(jira.FlakyTestTicketRequest) *jira.TicketResponse); ok {
-		r0 = returnFunc(req)
+	if returnFunc, ok := ret.Get(0).(func() []jira0.Issue); ok {
+		r0 = returnFunc()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*jira.TicketResponse)
+			r0 = ret.Get(0).([]jira0.Issue)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(jira.FlakyTestTicketRequest) error); ok {
-		r1 = returnFunc(req)
+	if returnFunc, ok := ret.Get(1).(func() error); ok {
+		r1 = returnFunc()
 	} else {
 		r1 = ret.Error(1)
 	}
 	return r0, r1
 }
 
-// JiraIClient_CreateFlakyTestTicket_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateFlakyTestTicket'
-type JiraIClient_CreateFlakyTestTicket_Call struct {
+// JiraIClient_GetOpenFlakyTestIssues_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetOpenFlakyTestIssues'
+type JiraIClient_GetOpenFlakyTestIssues_Call struct {
 	*mock.Call
 }
 
-// CreateFlakyTestTicket is a helper method to define mock.On call
-//   - req jira.FlakyTestTicketRequest
-func (_e *JiraIClient_Expecter) CreateFlakyTestTicket(req interface{}) *JiraIClient_CreateFlakyTestTicket_Call {
-	return &JiraIClient_CreateFlakyTestTicket_Call{Call: _e.mock.On("CreateFlakyTestTicket", req)}
+// GetOpenFlakyTestIssues is a helper method to define mock.On call
+func (_e *JiraIClient_Expecter) GetOpenFlakyTestIssues() *JiraIClient_GetOpenFlakyTestIssues_Call {
+	return &JiraIClient_GetOpenFlakyTestIssues_Call{Call: _e.mock.On("GetOpenFlakyTestIssues")}
 }
 
-func (_c *JiraIClient_CreateFlakyTestTicket_Call) Run(run func(req jira.FlakyTestTicketRequest)) *JiraIClient_CreateFlakyTestTicket_Call {
+func (_c *JiraIClient_GetOpenFlakyTestIssues_Call) Run(run func()) *JiraIClient_GetOpenFlakyTestIssues_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 jira.FlakyTestTicketRequest
-		if args[0] != nil {
-			arg0 = args[0].(jira.FlakyTestTicketRequest)
-		}
-		run(
-			arg0,
-		)
+		run()
 	})
 	return _c
 }
 
-func (_c *JiraIClient_CreateFlakyTestTicket_Call) Return(ticketResponse *jira.TicketResponse, err error) *JiraIClient_CreateFlakyTestTicket_Call {
-	_c.Call.Return(ticketResponse, err)
+func (_c *JiraIClient_GetOpenFlakyTestIssues_Call) Return(issues []jira0.Issue, err error) *JiraIClient_GetOpenFlakyTestIssues_Call {
+	_c.Call.Return(issues, err)
 	return _c
 }
 
-func (_c *JiraIClient_CreateFlakyTestTicket_Call) RunAndReturn(run func(req jira.FlakyTestTicketRequest) (*jira.TicketResponse, error)) *JiraIClient_CreateFlakyTestTicket_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GetTicketStatus provides a mock function for the type JiraIClient
-func (_mock *JiraIClient) GetTicketStatus(ticketKey string) (*jira.TicketStatus, error) {
-	ret := _mock.Called(ticketKey)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetTicketStatus")
-	}
-
-	var r0 *jira.TicketStatus
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string) (*jira.TicketStatus, error)); ok {
-		return returnFunc(ticketKey)
-	}
-	if returnFunc, ok := ret.Get(0).(func(string) *jira.TicketStatus); ok {
-		r0 = returnFunc(ticketKey)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*jira.TicketStatus)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
-		r1 = returnFunc(ticketKey)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// JiraIClient_GetTicketStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTicketStatus'
-type JiraIClient_GetTicketStatus_Call struct {
-	*mock.Call
-}
-
-// GetTicketStatus is a helper method to define mock.On call
-//   - ticketKey string
-func (_e *JiraIClient_Expecter) GetTicketStatus(ticketKey interface{}) *JiraIClient_GetTicketStatus_Call {
-	return &JiraIClient_GetTicketStatus_Call{Call: _e.mock.On("GetTicketStatus", ticketKey)}
-}
-
-func (_c *JiraIClient_GetTicketStatus_Call) Run(run func(ticketKey string)) *JiraIClient_GetTicketStatus_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
-		if args[0] != nil {
-			arg0 = args[0].(string)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *JiraIClient_GetTicketStatus_Call) Return(ticketStatus *jira.TicketStatus, err error) *JiraIClient_GetTicketStatus_Call {
-	_c.Call.Return(ticketStatus, err)
-	return _c
-}
-
-func (_c *JiraIClient_GetTicketStatus_Call) RunAndReturn(run func(ticketKey string) (*jira.TicketStatus, error)) *JiraIClient_GetTicketStatus_Call {
+func (_c *JiraIClient_GetOpenFlakyTestIssues_Call) RunAndReturn(run func() ([]jira0.Issue, error)) *JiraIClient_GetOpenFlakyTestIssues_Call {
 	_c.Call.Return(run)
 	return _c
 }
