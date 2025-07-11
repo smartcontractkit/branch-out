@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/smartcontractkit/branch-out/config"
-	"github.com/smartcontractkit/branch-out/internal/testhelpers"
 )
 
 func TestSetupAuth(t *testing.T) {
@@ -103,9 +102,7 @@ func TestSetupAuth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			l := testhelpers.Logger(t)
-
-			tokenSource, err := setupAuth(l, tt.cfg)
+			tokenSource, err := setupAuth(tt.cfg)
 
 			if tt.expectedErrorMsg != "" {
 				require.Error(t, err, "expected an error with this config")
