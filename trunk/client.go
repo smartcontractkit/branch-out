@@ -10,12 +10,12 @@ import (
 	"net/url"
 	"time"
 
+	go_jira "github.com/andygrunwald/go-jira"
 	"github.com/rs/zerolog"
 
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/github"
-	"github.com/smartcontractkit/branch-out/jira"
 )
 
 // Client is the Trunk.io client.
@@ -31,7 +31,7 @@ type Client struct {
 // Helpful for mocking in tests.
 type IClient interface {
 	QuarantinedTests(repoURL string, orgURLSlug string) ([]TestCase, error)
-	LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResponse, repoURL string) error
+	LinkTicketToTestCase(testCaseID string, ticket *go_jira.Issue, repoURL string) error
 }
 
 // Option is a function that sets a configuration option for the Trunk.io client.
@@ -90,7 +90,7 @@ func NewClient(options ...Option) (*Client, error) {
 
 // LinkTicketToTestCase links a Jira ticket to a test case in Trunk.io
 // See: https://docs.trunk.io/references/apis/flaky-tests#post-flaky-tests-link-ticket-to-test-case
-func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResponse, repoURL string) error {
+func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *go_jira.Issue, repoURL string) error {
 	c.logger.Debug().
 		Str("test_case_id", testCaseID).
 		Str("jira_ticket_key", ticket.Key).

@@ -5,7 +5,7 @@
 package mock
 
 import (
-	"github.com/smartcontractkit/branch-out/jira"
+	"github.com/andygrunwald/go-jira"
 	"github.com/smartcontractkit/branch-out/trunk"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -38,7 +38,7 @@ func (_m *TrunkIClient) EXPECT() *TrunkIClient_Expecter {
 }
 
 // LinkTicketToTestCase provides a mock function for the type TrunkIClient
-func (_mock *TrunkIClient) LinkTicketToTestCase(testCaseID string, ticket *jira.TicketResponse, repoURL string) error {
+func (_mock *TrunkIClient) LinkTicketToTestCase(testCaseID string, ticket *jira.Issue, repoURL string) error {
 	ret := _mock.Called(testCaseID, ticket, repoURL)
 
 	if len(ret) == 0 {
@@ -46,7 +46,7 @@ func (_mock *TrunkIClient) LinkTicketToTestCase(testCaseID string, ticket *jira.
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, *jira.TicketResponse, string) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(string, *jira.Issue, string) error); ok {
 		r0 = returnFunc(testCaseID, ticket, repoURL)
 	} else {
 		r0 = ret.Error(0)
@@ -61,21 +61,21 @@ type TrunkIClient_LinkTicketToTestCase_Call struct {
 
 // LinkTicketToTestCase is a helper method to define mock.On call
 //   - testCaseID string
-//   - ticket *jira.TicketResponse
+//   - ticket *jira.Issue
 //   - repoURL string
 func (_e *TrunkIClient_Expecter) LinkTicketToTestCase(testCaseID interface{}, ticket interface{}, repoURL interface{}) *TrunkIClient_LinkTicketToTestCase_Call {
 	return &TrunkIClient_LinkTicketToTestCase_Call{Call: _e.mock.On("LinkTicketToTestCase", testCaseID, ticket, repoURL)}
 }
 
-func (_c *TrunkIClient_LinkTicketToTestCase_Call) Run(run func(testCaseID string, ticket *jira.TicketResponse, repoURL string)) *TrunkIClient_LinkTicketToTestCase_Call {
+func (_c *TrunkIClient_LinkTicketToTestCase_Call) Run(run func(testCaseID string, ticket *jira.Issue, repoURL string)) *TrunkIClient_LinkTicketToTestCase_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 *jira.TicketResponse
+		var arg1 *jira.Issue
 		if args[1] != nil {
-			arg1 = args[1].(*jira.TicketResponse)
+			arg1 = args[1].(*jira.Issue)
 		}
 		var arg2 string
 		if args[2] != nil {
@@ -95,7 +95,7 @@ func (_c *TrunkIClient_LinkTicketToTestCase_Call) Return(err error) *TrunkIClien
 	return _c
 }
 
-func (_c *TrunkIClient_LinkTicketToTestCase_Call) RunAndReturn(run func(testCaseID string, ticket *jira.TicketResponse, repoURL string) error) *TrunkIClient_LinkTicketToTestCase_Call {
+func (_c *TrunkIClient_LinkTicketToTestCase_Call) RunAndReturn(run func(testCaseID string, ticket *jira.Issue, repoURL string) error) *TrunkIClient_LinkTicketToTestCase_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	go_jira "github.com/andygrunwald/go-jira"
 	"github.com/rs/zerolog"
 	svix "github.com/svix/svix-webhooks/go"
 
@@ -136,15 +137,9 @@ func handleFlakyTest(
 		Msg("Quarantining flaky test")
 
 	// Create a Jira ticket for the flaky test
-	ticket, err := createJiraTicketForFlakyTest(l, statusChange, jiraClient, trunkClient)
+	_, err := createJiraTicketForFlakyTest(l, statusChange, jiraClient, trunkClient)
 	if err != nil {
 		return fmt.Errorf("failed to create Jira ticket: %w", err)
-	}
-
-	// Link the Jira ticket to the Trunk test case
-	err = trunkClient.LinkTicketToTestCase(testCase.ID, ticket, testCase.Repository.HTMLURL)
-	if err != nil {
-		return fmt.Errorf("failed to link Jira ticket to Trunk test case: %w", err)
 	}
 
 	// Quarantine the test in GitHub
@@ -213,10 +208,10 @@ func verifyClients(jiraClient jira.IClient, trunkClient IClient, githubClient gi
 // createJiraTicketForFlakyTest creates a Jira ticket for a flaky test
 func createJiraTicketForFlakyTest(
 	l zerolog.Logger,
-	webhookData TestCaseStatusChange,
+	statusChange TestCaseStatusChange,
 	jiraClient jira.IClient,
 	trunkClient IClient,
-) (*jira.TicketResponse, error) {
+) (*go_jira.Issue, error) {
 	if jiraClient == nil {
 		return nil, fmt.Errorf("jira client is nil")
 	}
@@ -224,10 +219,7 @@ func createJiraTicketForFlakyTest(
 		return nil, fmt.Errorf("trunk client is nil")
 	}
 
-	testCase := webhookData.TestCase
-
-	// Extract repo name from the HTML URL
-	repoName := extractRepoNameFromURL(testCase.Repository.HTMLURL)
+	testCase := statusChange.TestCase
 
 	// Create details JSON from test case data
 	details, err := json.Marshal(map[string]any{
@@ -236,27 +228,26 @@ func createJiraTicketForFlakyTest(
 		"codeowners":                     testCase.Codeowners,
 		"html_url":                       testCase.HTMLURL,
 		"repository_url":                 testCase.Repository.HTMLURL,
-		"current_status":                 webhookData.StatusChange.CurrentStatus,
-		"previous_status":                webhookData.StatusChange.PreviousStatus,
+		"current_status":                 statusChange.StatusChange.CurrentStatus,
+		"previous_status":                statusChange.StatusChange.PreviousStatus,
 		"test_suite":                     testCase.TestSuite,
 		"variant":                        testCase.Variant,
 	})
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to marshal test case details to JSON")
 		return nil, fmt.Errorf("failed to marshal test case details: %w", err)
 	}
 
 	req := jira.FlakyTestTicketRequest{
-		RepoName:        repoName,
-		TestPackageName: testCase.Name,
-		FilePath:        testCase.FilePath,
-		TrunkID:         testCase.ID,
-		Details:         string(details),
+		RepoURL:           testCase.Repository.HTMLURL,
+		Package:           testCase.TestSuite,
+		Test:              testCase.Name,
+		FilePath:          testCase.FilePath,
+		TrunkID:           testCase.ID,
+		AdditionalDetails: string(details),
 	}
 
 	ticket, err := jiraClient.CreateFlakyTestTicket(req)
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to create Jira ticket for flaky test")
 		return nil, fmt.Errorf("failed to create Jira ticket: %w", err)
 	}
 
