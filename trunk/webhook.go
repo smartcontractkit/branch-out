@@ -260,8 +260,6 @@ func createJiraIssueForFlakyTest(
 		}
 	}
 
-	// TODO: Check for trunk ID in case of manual execution
-
 	// Link the Jira ticket back to the Trunk test case
 	if err := trunkClient.LinkTicketToTestCase(testCase.ID, issue, testCase.Repository.HTMLURL); err != nil {
 		l.Warn().Err(err).Msg("Failed to link Jira ticket to Trunk test case (non-blocking)")

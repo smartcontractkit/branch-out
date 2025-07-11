@@ -82,18 +82,30 @@ func (c *Client) QuarantineTests(
 	}
 	l.Debug().Str("default_branch", defaultBranch).Msg("Got default branch")
 
-	branchName := fmt.Sprintf("branch-out/quarantine-tests-%s", time.Now().Format("20060102150405"))
-	newBranchHeadSHA, err := c.createBranch(ctx, l, owner, repo, branchName, defaultBranch)
+	// Use deterministic branch name based on date
+	branchName := fmt.Sprintf("branch-out/quarantine-tests-%s", time.Now().Format("2006-01-02"))
+	l = l.With().Str("branch", branchName).Logger()
+
+	// Check if branch already exists
+	branchHeadSHA, branchExists, err := c.getBranchHeadSHA(ctx, owner, repo, branchName)
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to create branch")
-		return fmt.Errorf("failed to create branch: %w", err)
+		l.Error().Err(err).Msg("Failed to check for existing branch")
+		return fmt.Errorf("failed to check for existing branch: %w", err)
 	}
 
-	// Build PR description
-	var (
-		commitMessage = strings.Builder{}
-	)
+	if branchExists {
+		l.Debug().Str("head_sha", branchHeadSHA).Msg("Found existing branch")
+	} else {
+		l.Debug().Msg("Branch does not exist, will create new one")
+		branchHeadSHA, err = c.createBranch(ctx, l, owner, repo, branchName, defaultBranch)
+		if err != nil {
+			l.Error().Err(err).Msg("Failed to create branch")
+			return fmt.Errorf("failed to create branch: %w", err)
+		}
+	}
 
+	// Build commit message
+	var commitMessage = strings.Builder{}
 	commitMessage.WriteString("branch-out quarantine tests\n")
 
 	allFileUpdates := make(map[string]string)
@@ -104,10 +116,9 @@ func (c *Client) QuarantineTests(
 			allFileUpdates[file.File] = file.ModifiedSourceCode
 		}
 	}
-	title := fmt.Sprintf("[Auto] Quarantine Flaky Tests: %s", time.Now().Format("2006-01-02"))
 
-	// Update files
-	sha, err := c.updateFiles(ctx, owner, repo, branchName, commitMessage.String(), newBranchHeadSHA, allFileUpdates)
+	// Update files on the branch
+	sha, err := c.updateFiles(ctx, owner, repo, branchName, commitMessage.String(), branchHeadSHA, allFileUpdates)
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to update files")
 		return fmt.Errorf("failed to update files: %w", err)
@@ -115,13 +126,38 @@ func (c *Client) QuarantineTests(
 	l = l.With().Str("commit_sha", sha).Logger()
 	l.Debug().Int("files_updated", len(allFileUpdates)).Msg("Updated files")
 
-	prURL, err := c.createPullRequest(ctx, owner, repo, branchName, defaultBranch, title, results.Markdown())
+	// Check for existing PR
+	title := fmt.Sprintf("[Auto] [branch-out] Quarantine Flaky Tests: %s", time.Now().Format("2006-01-02"))
+	prBody := results.Markdown()
+
+	existingPR, err := c.findExistingPR(ctx, owner, repo, branchName, defaultBranch)
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to create pull request")
-		return fmt.Errorf("failed to create pull request: %w", err)
+		l.Error().Err(err).Msg("Failed to check for existing PR")
+		return fmt.Errorf("failed to check for existing PR: %w", err)
 	}
 
-	l.Info().Str("pr_url", prURL).Str("commit_sha", sha).Dur("duration", time.Since(start)).Msg("Created pull request")
+	var prURL string
+	if existingPR != nil {
+		l.Debug().Int("pr_number", existingPR.GetNumber()).Msg("Found existing PR, updating")
+		prURL, err = c.updatePullRequest(ctx, owner, repo, existingPR.GetNumber(), title, prBody)
+		if err != nil {
+			l.Error().Err(err).Msg("Failed to update pull request")
+			return fmt.Errorf("failed to update pull request: %w", err)
+		}
+	} else {
+		l.Debug().Msg("No existing PR found, creating new one")
+		prURL, err = c.createPullRequest(ctx, owner, repo, branchName, defaultBranch, title, prBody)
+		if err != nil {
+			l.Error().Err(err).Msg("Failed to create pull request")
+			return fmt.Errorf("failed to create pull request: %w", err)
+		}
+	}
+
+	l.Info().
+		Str("pr_url", prURL).
+		Str("commit_sha", sha).
+		Dur("duration", time.Since(start)).
+		Msg("Created or updated pull request")
 	return nil
 }
 
@@ -245,6 +281,63 @@ func (c *Client) createPullRequest(
 
 	prURL := createdPR.GetHTMLURL()
 	return prURL, nil
+}
+
+// getBranchHeadSHA returns the HEAD SHA of a branch if it exists, along with a boolean indicating if it exists
+func (c *Client) getBranchHeadSHA(ctx context.Context, owner, repo, branchName string) (string, bool, error) {
+	ref, _, err := c.Rest.Git.GetRef(ctx, owner, repo, "refs/heads/"+branchName)
+	if err != nil {
+		// If branch doesn't exist, that's not an error for our purposes
+		if strings.Contains(err.Error(), "Not Found") {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("failed to get branch reference: %w", err)
+	}
+
+	return ref.GetObject().GetSHA(), true, nil
+}
+
+// findExistingPR finds an existing open PR from the given branch to the base branch
+func (c *Client) findExistingPR(
+	ctx context.Context,
+	owner, repo, headBranch, baseBranch string,
+) (*github.PullRequest, error) {
+	// List open PRs for the repository
+	prs, _, err := c.Rest.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{
+		State: "open",
+		Head:  fmt.Sprintf("%s:%s", owner, headBranch),
+		Base:  baseBranch,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pull requests: %w", err)
+	}
+
+	// Return the first matching PR (there should be at most one)
+	if len(prs) > 0 {
+		return prs[0], nil
+	}
+
+	return nil, nil
+}
+
+// updatePullRequest updates an existing pull request
+func (c *Client) updatePullRequest(
+	ctx context.Context,
+	owner, repo string,
+	prNumber int,
+	title, body string,
+) (string, error) {
+	pr := &github.PullRequest{
+		Title: github.Ptr(title),
+		Body:  github.Ptr(body),
+	}
+
+	updatedPR, _, err := c.Rest.PullRequests.Edit(ctx, owner, repo, prNumber, pr)
+	if err != nil {
+		return "", fmt.Errorf("failed to update pull request: %w", err)
+	}
+
+	return updatedPR.GetHTMLURL(), nil
 }
 
 // ParseRepoURL parses a GitHub repository URL and returns owner and repo name
