@@ -205,14 +205,8 @@ This ticket was automatically created by [branch-out](https://github.com/smartco
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Jira issue: %w", err)
 	}
-	if resp != nil {
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read Jira API error response body: %w", err)
-			}
-			return nil, fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
-		}
+	if err := checkResponse(resp); err != nil {
+		return nil, err
 	}
 
 	c.logger.Info().
@@ -224,6 +218,54 @@ This ticket was automatically created by [branch-out](https://github.com/smartco
 	return ticket, nil
 }
 
+// GetOpenFlakyTestTickets returns all open flaky test tickets.
+func (c *Client) GetOpenFlakyTestTickets() ([]go_jira.Issue, error) {
+	jql := fmt.Sprintf(
+		`project = "%s" AND labels = "branch-out" AND status != "Closed"`,
+		c.jiraConfig.ProjectKey,
+	)
+	issues, resp, err := c.Issue.Search(
+		jql,
+		&go_jira.SearchOptions{
+			Fields: []string{"key", "id", "self"},
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search for flaky test tickets: %w", err)
+	}
+	if err := checkResponse(resp); err != nil {
+		return nil, err
+	}
+	return issues, nil
+}
+
+// GetOpenFlakyTestIssue returns the open flaky test ticket for a given package and test.
+// If no ticket is found, it returns nil.
+func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (*go_jira.Issue, error) {
+	jql := fmt.Sprintf(
+		`project = "%s" AND labels = "branch-out" AND summary ~ "%s" AND summary ~ "%s" AND status != "Closed"`,
+		c.jiraConfig.ProjectKey,
+		packageName,
+		testName,
+	)
+	issues, resp, err := c.Issue.Search(
+		jql,
+		&go_jira.SearchOptions{
+			Fields: []string{"key", "id", "self"},
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Jira issue: %w", err)
+	}
+	if err := checkResponse(resp); err != nil {
+		return nil, err
+	}
+	if len(issues) == 0 {
+		return nil, nil // No open flaky test ticket found
+	}
+	return &issues[0], nil // Return the first open flaky test ticket
+}
+
 // AuthType returns the type of authentication being used
 func (c *Client) AuthType() string {
 	if c.jiraConfig.OAuthAccessToken != "" {
@@ -232,4 +274,18 @@ func (c *Client) AuthType() string {
 		return "Basic Auth"
 	}
 	return "None"
+}
+
+// checkResponse checks the response from the Jira API and returns an error if the status code is not a success.
+func checkResponse(resp *go_jira.Response) error {
+	if resp != nil {
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("failed to read Jira API error response body: %w", err)
+			}
+			return fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
+		}
+	}
+	return nil
 }

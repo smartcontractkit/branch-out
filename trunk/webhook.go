@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -57,7 +58,7 @@ func ReceiveWebhook(
 
 	// Verify the webhook signature
 	if err := VerifyWebhookRequest(l, req, signingSecret); err != nil {
-		return fmt.Errorf("failed to verify svix webhook: %w", err)
+		return fmt.Errorf("webhook call cannot be verified: %w", err)
 	}
 
 	var webhookData TestCaseStatusChange
@@ -161,18 +162,16 @@ func handleFlakyTest(
 	return nil
 }
 
+// handleBrokenTest handles the case where a test is marked as broken.
+// Right now this is the same as handling a flaky test.
 func handleBrokenTest(
-	_ zerolog.Logger,
-	_ TestCaseStatusChange,
+	l zerolog.Logger,
+	statusChange TestCaseStatusChange,
 	jiraClient jira.IClient,
 	trunkClient IClient,
 	githubClient github.IClient,
 ) error {
-	if err := verifyClients(jiraClient, trunkClient, githubClient); err != nil {
-		return err
-	}
-
-	return fmt.Errorf("broken test handling not implemented")
+	return handleFlakyTest(l, statusChange, jiraClient, trunkClient, githubClient)
 }
 
 // handleHealthyTest handles the case where a test is marked as healthy.
@@ -394,21 +393,11 @@ func extractRepoNameFromURL(url string) string {
 // extractDomainFromJiraURL extracts the domain from a Jira self URL
 func extractDomainFromJiraURL(selfURL string) string {
 	// Example: https://your-company.atlassian.net/rest/api/2/issue/123
-	parts := strings.Split(selfURL, "/")
-	if len(parts) >= 3 {
-		return parts[2] // Return the domain part
+	url, err := url.Parse(selfURL)
+	if err != nil {
+		return ""
 	}
-	return "unknown-domain.atlassian.net" // Fallback
-}
-
-// extractRepoInfoFromURL extracts owner and repository name from a GitHub URL
-func extractRepoInfoFromURL(url string) (owner, repoName string) {
-	// Expected format: https://github.com/owner/repo
-	parts := strings.Split(url, "/")
-	if len(parts) >= 5 && parts[2] == "github.com" {
-		return parts[3], parts[4] // Return owner and repo name
-	}
-	return "unknown", "unknown" // Fallback if parsing fails
+	return url.Host
 }
 
 // SelfSignWebhookRequest self-signs a request to create a valid svix webhook call.

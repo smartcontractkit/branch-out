@@ -96,17 +96,19 @@ func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *go_jira.Issue, 
 		Str("jira_ticket_key", ticket.Key).
 		Msg("Linking Jira ticket to Trunk test case")
 
-	// Extract repo information from the repository URL
-	owner, repoName := extractRepoInfoFromURL(repoURL)
+	host, owner, repo, err := github.ParseRepoURL(repoURL)
+	if err != nil {
+		return fmt.Errorf("failed to parse repository URL: %w", err)
+	}
 
 	// Create the request payload
 	linkRequest := LinkTicketRequest{
 		TestCaseID:       testCaseID,
 		ExternalTicketID: ticket.Key, // Use Jira ticket key (e.g., "KAN-123")
 		Repo: RepoReference{
-			Host:  "github.com", // Default to GitHub for now
+			Host:  host,
 			Owner: owner,
-			Name:  repoName,
+			Name:  repo,
 		},
 	}
 
