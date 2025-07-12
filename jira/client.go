@@ -179,7 +179,7 @@ func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (*go_jira.Issue
 %s
 {code}
 
-This ticket was automatically created by [branch-out](https://github.com/smartcontractkit/branch-out).`,
+This ticket was automatically created by [branch-out|https://github.com/smartcontractkit/branch-out].`,
 		req.RepoURL,
 		req.Package,
 		req.Test,
