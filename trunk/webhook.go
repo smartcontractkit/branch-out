@@ -43,8 +43,10 @@ func ReceiveWebhook(
 		return err
 	}
 
-	l.Info().Msg("Received trunk webhook")
-
+	// Verify the webhook signature
+	if err := VerifyWebhookRequest(l, req, signingSecret); err != nil {
+		return fmt.Errorf("webhook call cannot be verified: %w", err)
+	}
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to read request body")
@@ -55,11 +57,6 @@ func ReceiveWebhook(
 			l.Error().Err(err).Msg("Failed to close request body")
 		}
 	}()
-
-	// Verify the webhook signature
-	if err := VerifyWebhookRequest(l, req, signingSecret); err != nil {
-		return fmt.Errorf("webhook call cannot be verified: %w", err)
-	}
 
 	var webhookData TestCaseStatusChange
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
@@ -83,19 +80,22 @@ func HandleTestCaseStatusChanged(
 		return err
 	}
 
-	l.Info().Msg("Processing test_case.status_changed event")
-
 	testCase := statusChange.TestCase
 	currentStatus := statusChange.StatusChange.CurrentStatus.Value
 	previousStatus := statusChange.StatusChange.PreviousStatus
 
-	l.Info().
-		Str("test_id", testCase.ID).
-		Str("test_name", testCase.Name).
-		Str("file_path", testCase.FilePath).
+	l = l.With().
+		Str("id", testCase.ID).
+		Str("name", testCase.Name).
 		Str("current_status", currentStatus).
 		Str("previous_status", previousStatus).
-		Msg("Test status changed")
+		Str("repo_url", testCase.Repository.HTMLURL).
+		Str("package", testCase.TestSuite).
+		Str("file_path", testCase.FilePath).
+		Logger()
+
+	l.Info().
+		Msg("Processing test case status change")
 
 	switch currentStatus {
 	case TestCaseStatusFlaky:
@@ -122,19 +122,8 @@ func handleFlakyTest(
 		return err
 	}
 	testCase := statusChange.TestCase
-	currentStatus := statusChange.StatusChange.CurrentStatus.Value
-	previousStatus := statusChange.StatusChange.PreviousStatus
 
-	l = l.With().
-		Str("test_id", testCase.ID).
-		Str("name", testCase.Name).
-		Str("repo_url", testCase.Repository.HTMLURL).
-		Str("package", testCase.TestSuite).
-		Str("current_status", currentStatus).
-		Str("previous_status", previousStatus).
-		Logger()
-
-	l.Info().
+	l.Debug().
 		Msg("Quarantining flaky test")
 
 	// Create a Jira ticket for the flaky test
@@ -411,7 +400,7 @@ func extractDomainFromJiraURL(selfURL string) string {
 }
 
 // SelfSignWebhookRequest self-signs a request to create a valid svix webhook call.
-// This is useful for testing and for the webhook command.
+// This is useful for testing
 func SelfSignWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret string) (*http.Request, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
@@ -424,7 +413,7 @@ func SelfSignWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret s
 	// Create svix webhook for signing
 	wh, err := svix.NewWebhook(signingSecret)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create svix webhook: %w", err)
+		return nil, fmt.Errorf("bad signing secret: %w", err)
 	}
 
 	if req.Header == nil {
@@ -461,7 +450,7 @@ func SelfSignWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret s
 func VerifyWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret string) error {
 	wh, err := svix.NewWebhook(signingSecret)
 	if err != nil {
-		return fmt.Errorf("failed to create svix webhook: %w", err)
+		return fmt.Errorf("bad signing secret: %w", err)
 	}
 
 	payload, err := io.ReadAll(req.Body)

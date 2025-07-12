@@ -138,7 +138,7 @@ func GetWebhookType(data []byte) (WebhookType, error) {
 // See: https://www.svix.com/event-types/us/org_2eQPL41Ew5XSHxiXZIamIUIXg8H/#test_case.status_changed
 type TestCaseStatusChange struct {
 	StatusChange StatusChange `json:"status_change"`
-	TestCase     TestCase     `json:"test_case"` // Reuse the existing TestCase struct
+	TestCase     TestCase     `json:"test_case"`
 }
 
 // GetType implements the WebhookEvent interface
