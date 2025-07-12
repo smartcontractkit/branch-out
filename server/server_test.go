@@ -12,11 +12,8 @@ import (
 
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
-	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers/mock"
-	"github.com/smartcontractkit/branch-out/jira"
-	"github.com/smartcontractkit/branch-out/trunk"
 )
 
 var testConfig = config.Config{
@@ -73,7 +70,7 @@ func TestServer_UnknownRoute(t *testing.T) {
 }
 
 // runServer runs a server with mocked clients
-func runServer(t *testing.T, l zerolog.Logger) (*Server, jira.IClient, trunk.IClient, github.IClient) {
+func runServer(t *testing.T, l zerolog.Logger) (*Server, *mock.JiraIClient, *mock.TrunkIClient, *mock.GithubIClient) {
 	jiraClient := mock.NewJiraIClient(t)
 	trunkClient := mock.NewTrunkIClient(t)
 	githubClient := mock.NewGithubIClient(t)

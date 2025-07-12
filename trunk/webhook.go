@@ -43,6 +43,10 @@ func ReceiveWebhook(
 		return err
 	}
 
+	// Verify the webhook signature
+	if err := VerifyWebhookRequest(l, req, signingSecret); err != nil {
+		return fmt.Errorf("webhook call cannot be verified: %w", err)
+	}
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to read request body")
@@ -53,11 +57,6 @@ func ReceiveWebhook(
 			l.Error().Err(err).Msg("Failed to close request body")
 		}
 	}()
-
-	// Verify the webhook signature
-	if err := VerifyWebhookRequest(l, req, signingSecret); err != nil {
-		return fmt.Errorf("webhook call cannot be verified: %w", err)
-	}
 
 	var webhookData TestCaseStatusChange
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
