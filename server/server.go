@@ -361,6 +361,7 @@ func (s *Server) ReceiveWebhook(req *http.Request) *WebhookResponse {
 	}
 
 	if err != nil {
+		l.Error().Err(err).Msg("Webhook processing failed")
 		response = &WebhookResponse{
 			Success: false,
 			Message: err.Error(),
