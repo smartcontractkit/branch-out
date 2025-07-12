@@ -35,7 +35,7 @@ type Server struct {
 	trunkClient  trunk.IClient
 	githubClient github.IClient
 
-	started atomic.Bool
+	running atomic.Bool
 	err     error
 }
 
@@ -196,13 +196,9 @@ func (s *Server) Start(ctx context.Context) error {
 	s.Port = port
 
 	baseMux := http.NewServeMux()
-	baseMux.HandleFunc("/", indexHandler(s))
+	baseMux.HandleFunc("/", strictIndexHandler(s))
 	baseMux.HandleFunc("/health", healthHandler(s))
-
-	webhookMux := http.NewServeMux()
-	webhookMux.HandleFunc("/", webhookIndexHandler(s))
-	webhookMux.HandleFunc("/trunk", webhookHandler(s))
-	baseMux.Handle("/webhooks/", webhookMux)
+	baseMux.HandleFunc("/webhooks/", webhookHandler(s))
 
 	// Wrap in logging middleware
 	handler := s.loggingMiddleware(baseMux)
@@ -212,7 +208,7 @@ func (s *Server) Start(ctx context.Context) error {
 		Handler: handler,
 	}
 	s.server.RegisterOnShutdown(func() {
-		s.started.Store(false)
+		s.running.Store(false)
 	})
 
 	// Listen for OS signals to shutdown the server
@@ -225,9 +221,8 @@ func (s *Server) Start(ctx context.Context) error {
 		s.logger.Info().
 			Int("port", s.Port).
 			Str("addr", s.Addr).
-			Msg("Server listening for requests")
-		fmt.Println("Listening on", url)
-		s.started.Store(true)
+			Msg("Server listening")
+		s.running.Store(true)
 		serverErr := s.server.Serve(listener)
 		if serverErr != nil && serverErr != http.ErrServerClosed {
 			serverErrChan <- serverErr
@@ -320,7 +315,7 @@ type HealthResponse struct {
 // Health checks the health of the server and returns health status.
 func (s *Server) Health() (HealthResponse, error) {
 	// Add additional health checks here as relevant.
-	if !s.started.Load() {
+	if !s.running.Load() {
 		s.logger.Warn().Msg("Server unhealthy")
 		return HealthResponse{
 			Status:    "unhealthy",
@@ -341,26 +336,43 @@ func (s *Server) Health() (HealthResponse, error) {
 // WebhookResponse represents the response from webhook processing
 type WebhookResponse struct {
 	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Error   error  `json:"error,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 // ReceiveWebhook processes webhook data and returns the result.
-func (s *Server) ReceiveWebhook(req *http.Request) (*WebhookResponse, error) {
+func (s *Server) ReceiveWebhook(req *http.Request) *WebhookResponse {
 	l := s.logger.With().
 		Str("endpoint", string(req.URL.Path)).
 		Int("payload_size_bytes", int(req.ContentLength)).
 		Logger()
 	l.Debug().Msg("Processing webhook call")
 
+	var (
+		response *WebhookResponse
+		err      error
+	)
 	switch req.URL.Path {
 	case "/webhooks/trunk":
 		trunkSigningSecret := s.config.Trunk.WebhookSecret
 		// Pass nil for jiraClient and trunkClient for now - these can be injected in the future
-		return nil, trunk.ReceiveWebhook(l, req, trunkSigningSecret, s.jiraClient, s.trunkClient, s.githubClient)
+		err = trunk.ReceiveWebhook(l, req, trunkSigningSecret, s.jiraClient, s.trunkClient, s.githubClient)
 	default:
-		return nil, fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)
+		err = fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)
 	}
+
+	if err != nil {
+		response = &WebhookResponse{
+			Success: false,
+			Message: err.Error(),
+		}
+	} else {
+		response = &WebhookResponse{
+			Success: true,
+			Message: "Webhook processed successfully",
+		}
+	}
+
+	return response
 }
 
 // HTTP Handlers - These are thin wrappers around the core methods
@@ -377,6 +389,19 @@ func indexHandler(s *Server) http.HandlerFunc {
 		if err := json.NewEncoder(w).Encode(info); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to encode index response")
 		}
+	}
+}
+
+func strictIndexHandler(s *Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Only respond to exact "/" requests
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+
+		// Call the regular index handler for exact "/" requests
+		indexHandler(s)(w, r)
 	}
 }
 
@@ -399,33 +424,28 @@ func healthHandler(s *Server) http.HandlerFunc {
 	}
 }
 
-func webhookIndexHandler(s *Server) http.HandlerFunc {
-	return indexHandler(s)
-}
-
 func webhookHandler(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		l := s.logger.With().Str("handler", "trunk.webhook").Logger()
+		l := s.logger.With().Str("handler", "webhook").Logger()
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		// Call the core webhook processing method
-		response, err := s.ReceiveWebhook(r)
-		if err != nil {
-			l.Error().Err(err).Msg("Webhook processing failed")
-			w.Header().Set("Content-Type", "application/json")
+		response := s.ReceiveWebhook(r)
+
+		// Set response headers
+		w.Header().Set("Content-Type", "application/json")
+
+		// Set status code based on success
+		if response.Success {
+			w.WriteHeader(http.StatusOK)
+		} else {
 			w.WriteHeader(http.StatusInternalServerError)
-			if err := json.NewEncoder(w).Encode(response); err != nil {
-				l.Error().Err(err).Msg("Failed to encode webhook response")
-			}
-			return
 		}
 
-		// Send success response
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+		// Encode and send response
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			l.Error().Err(err).Msg("Failed to encode webhook response")
 		}
@@ -457,7 +477,7 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 			Str("user_agent", r.UserAgent()).
 			Int("status_code", rw.statusCode).
 			Int("response_size", rw.size).
-			Dur("duration", duration).
+			Str("duration", duration.String()).
 			Str("protocol", r.Proto).
 			Msg("Processed request")
 	})

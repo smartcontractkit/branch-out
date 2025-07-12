@@ -411,7 +411,7 @@ func extractDomainFromJiraURL(selfURL string) string {
 }
 
 // SelfSignWebhookRequest self-signs a request to create a valid svix webhook call.
-// This is useful for testing and for the webhook command.
+// This is useful for testing
 func SelfSignWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret string) (*http.Request, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
@@ -424,7 +424,7 @@ func SelfSignWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret s
 	// Create svix webhook for signing
 	wh, err := svix.NewWebhook(signingSecret)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create svix webhook: %w", err)
+		return nil, fmt.Errorf("bad signing secret: %w", err)
 	}
 
 	if req.Header == nil {
@@ -461,7 +461,7 @@ func SelfSignWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret s
 func VerifyWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret string) error {
 	wh, err := svix.NewWebhook(signingSecret)
 	if err != nil {
-		return fmt.Errorf("failed to create svix webhook: %w", err)
+		return fmt.Errorf("bad signing secret: %w", err)
 	}
 
 	payload, err := io.ReadAll(req.Body)

@@ -2,14 +2,21 @@ package server
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
+	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers/mock"
+	"github.com/smartcontractkit/branch-out/jira"
+	"github.com/smartcontractkit/branch-out/trunk"
 )
 
 var testConfig = config.Config{
@@ -25,7 +32,7 @@ var testConfig = config.Config{
 	},
 	Trunk: config.Trunk{
 		Token:         "test-token",
-		WebhookSecret: "test-secret",
+		WebhookSecret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw", // example secret from svix docs
 	},
 }
 
@@ -44,13 +51,36 @@ func TestServer_Start(t *testing.T) {
 
 	logger := testhelpers.Logger(t)
 
+	server, _, _, _ := runServer(t, logger)
+
+	require.Positive(t, server.Port, "server port should be greater than 0")
+}
+
+func TestServer_UnknownRoute(t *testing.T) {
+	t.Parallel()
+
+	l := testhelpers.Logger(t)
+	server, _, _, _ := runServer(t, l)
+
+	unknownRouteURL := url.URL{Scheme: "http", Host: server.Addr, Path: "/unknown"}
+	req, err := http.NewRequest(http.MethodGet, unknownRouteURL.String(), nil)
+	require.NoError(t, err, "failed to create request")
+
+	c := base.NewClient("test", base.WithLogger(l))
+	resp, err := c.Do(req)
+	require.NoError(t, err, "failed to send request")
+	require.Equal(t, http.StatusNotFound, resp.StatusCode, "expected a not found status for an unknown route")
+}
+
+// runServer runs a server with mocked clients
+func runServer(t *testing.T, l zerolog.Logger) (*Server, jira.IClient, trunk.IClient, github.IClient) {
 	jiraClient := mock.NewJiraIClient(t)
 	trunkClient := mock.NewTrunkIClient(t)
 	githubClient := mock.NewGithubIClient(t)
 
 	// Create server with mocked clients
 	server, err := New(
-		WithLogger(logger),
+		WithLogger(l),
 		WithConfig(testConfig),
 		WithJiraClient(jiraClient),
 		WithGitHubClient(githubClient),
@@ -72,5 +102,5 @@ func TestServer_Start(t *testing.T) {
 	t.Cleanup(cancel)
 	require.NoError(t, server.WaitHealthy(healthyCtx), "server did not become healthy")
 
-	require.Positive(t, server.Port, "server port should be greater than 0")
+	return server, jiraClient, trunkClient, githubClient
 }
