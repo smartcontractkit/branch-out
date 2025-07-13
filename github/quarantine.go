@@ -373,7 +373,7 @@ func ParseRepoURL(repoURL string) (host, owner, repo string, err error) {
 
 // cloneRepo clones a repo to a temp directory and returns the path to it
 func (c *Client) cloneRepo(owner, repo string) (string, error) {
-	repoPath, err := os.MkdirTemp("./", fmt.Sprintf("%s-%s-*", owner, repo))
+	repoPath, err := os.MkdirTemp("/tmp", fmt.Sprintf("%s-%s-*", owner, repo))
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary directory: %w", err)
 	}
