@@ -1,0 +1,31 @@
+{
+  "status_change": {
+    "current_status": {
+      "reason": "Consistently failing on main",
+      "timestamp": "2025-07-14T19:22:44.000Z",
+      "value": "broken"
+    },
+    "previous_status": "healthy"
+  },
+  "test_case": {
+    "codeowners": [],
+    "failure_rate_last_7d": 0.9428571462631226,
+    "html_url": "https://app.trunk.io/adam-test/flaky-tests/test/e3b1a051-af32-5f2a-a038-5e21ca1465d7?repo=kalverra%2Fbranch-out-trial",
+    "id": "e3b1a051-af32-5f2a-a038-5e21ca1465d7",
+    "most_common_failures": [],
+    "name": "TestFlakyNinetyPercent",
+    "pull_requests_impacted_last_7d": 0,
+    "quarantined": true,
+    "repository": {
+      "html_url": "https://github.com/kalverra/branch-out-trial"
+    },
+    "status": {
+      "reason": "Consistently failing on main",
+      "timestamp": "2025-07-14T19:22:44.000Z",
+      "value": "broken"
+    },
+    "test_suite": "github.com/kalverra/branch-out-trial/simple",
+    "variant": ""
+  },
+  "type": "test_case.status_changed"
+}
