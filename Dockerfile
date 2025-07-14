@@ -20,6 +20,10 @@ HEALTHCHECK --interval=5m --timeout=3s \
 
 RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
 
+# Set Go module cache to /tmp for read-only filesystem compatibility
+ENV GOMODCACHE=/tmp/go-mod
+ENV GOCACHE=/tmp/go-cache
+
 COPY --from=buildgo /tmp/branch-out/ /usr/local/bin/
 
 EXPOSE 8181
