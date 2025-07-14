@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -133,22 +132,6 @@ func handleFlakyTest(
 		return fmt.Errorf("failed to create Jira ticket: %w", err)
 	}
 
-	// Resolve the full package import path
-	packageImportPath, err := resolvePackageImportPath(
-		testCase.Repository.HTMLURL,
-		testCase.FilePath,
-		testCase.TestSuite,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to resolve package import path: %w", err)
-	}
-
-	l.Debug().
-		Str("package_import_path", packageImportPath).
-		Str("test_suite", testCase.TestSuite).
-		Str("file_path", testCase.FilePath).
-		Msg("Resolved package import path")
-
 	// Quarantine the test in GitHub
 	err = githubClient.QuarantineTests(
 		context.Background(),
@@ -156,7 +139,7 @@ func handleFlakyTest(
 		testCase.Repository.HTMLURL,
 		[]golang.QuarantineTarget{
 			{
-				Package: packageImportPath,
+				Package: testCase.TestSuite,
 				Tests:   []string{testCase.Name},
 			},
 		},
@@ -482,29 +465,4 @@ func VerifyWebhookRequest(l zerolog.Logger, req *http.Request, signingSecret str
 	req.Body = io.NopCloser(bytes.NewBuffer(payload))
 
 	return wh.Verify(payload, req.Header)
-}
-
-// resolvePackageImportPath attempts to derive the full package import path from the test case information.
-// It uses the file path and test suite to construct the likely import path.
-func resolvePackageImportPath(repoURL, filePath, testSuite string) (string, error) {
-	// Extract the module path from the repository URL
-	// For example: "https://github.com/kalverra/branch-out-trial" -> "github.com/kalverra/branch-out-trial"
-	repoURL = strings.TrimPrefix(repoURL, "https://")
-	repoURL = strings.TrimPrefix(repoURL, "http://")
-
-	// Extract directory from file path
-	// For example: "simple/simple_test.go" -> "simple"
-	dir := filepath.Dir(filePath)
-
-	// If the directory matches the test suite, we can construct the import path
-	if filepath.Base(dir) == testSuite || dir == testSuite {
-		if dir == "." || dir == "" {
-			// Package is in the root directory
-			return repoURL, nil
-		}
-		return repoURL + "/" + dir, nil
-	}
-
-	// If we can't determine the exact mapping, use the test suite as a subdirectory
-	return repoURL + "/" + testSuite, nil
 }
