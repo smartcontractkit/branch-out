@@ -58,6 +58,7 @@ func ReceiveWebhook(
 		}
 	}()
 
+	l.Debug().Str("payload", string(payload)).Msg("Raw webhook payload")
 	var webhookData TestCaseStatusChange
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
 		l.Error().Err(err).Str("payload", string(payload)).Msg("Failed to parse test_case.status_changed payload")
