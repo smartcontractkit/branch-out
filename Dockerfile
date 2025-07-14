@@ -18,7 +18,7 @@ FROM alpine:3.22
 HEALTHCHECK --interval=5m --timeout=3s \
   CMD curl -f http://localhost/health || exit 1
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates git go
 
 COPY --from=buildgo /tmp/branch-out/ /usr/local/bin/
 
