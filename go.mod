@@ -22,7 +22,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/svix/svix-webhooks v1.69.0
 	golang.org/x/oauth2 v0.30.0
-	golang.org/x/sync v0.15.0
+	golang.org/x/sync v0.16.0
 	golang.org/x/tools v0.34.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
