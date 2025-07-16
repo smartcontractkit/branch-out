@@ -1,3 +1,4 @@
+// Package aws provides an AWS client for interacting with AWS services.
 package aws
 
 import (
@@ -16,11 +17,12 @@ import (
 // Client is the collection of AWS clients used by the application.
 type Client struct {
 	awsConfig aws.Config
-	queueUrl  string
+	queueURL  string
 	sqsClient *sqs.Client
 	logger    zerolog.Logger
 }
 
+// IClient is the interface that wraps the basic AWS client methods.
 type IClient interface {
 	PushMessageToQueue(
 		ctx context.Context,
@@ -33,14 +35,15 @@ type ClientOption func(*clientOptions)
 
 type clientOptions struct {
 	region   string
-	queueUrl string
+	queueURL string
 	logger   zerolog.Logger
 }
 
+// WithConfig sets the AWS region and SQS queue URL from the provided config.
 func WithConfig(config config.Config) ClientOption {
 	return func(c *clientOptions) {
 		c.region = config.Aws.Region
-		c.queueUrl = config.Aws.SqsQueueURL
+		c.queueURL = config.Aws.SqsQueueURL
 	}
 }
 
@@ -51,6 +54,7 @@ func WithLogger(logger zerolog.Logger) ClientOption {
 	}
 }
 
+// NewClient creates a new AWS client with configuration from the provided options.
 func NewClient(options ...ClientOption) (*Client, error) {
 	clientOptions := &clientOptions{
 		logger: zerolog.Nop(),
@@ -63,14 +67,14 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	// Add debug logging for configuration values
 	clientOptions.logger.Debug().
 		Str("aws_region", clientOptions.region).
-		Str("sqs_queue_url", clientOptions.queueUrl).
+		Str("sqs_queue_url", clientOptions.queueURL).
 		Msg("Initializing AWS client with configuration")
 
 	if clientOptions.region == "" {
 		return nil, fmt.Errorf("AWS region is required")
 	}
 
-	if clientOptions.queueUrl == "" {
+	if clientOptions.queueURL == "" {
 		return nil, fmt.Errorf("SQS queue URL is required")
 	}
 
@@ -96,10 +100,10 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	client := &Client{
 		sqsClient: svc,
 		awsConfig: cfg,
-		queueUrl:  clientOptions.queueUrl,
+		queueURL:  clientOptions.queueURL,
 		logger: clientOptions.logger.With().
 			Str("aws_region", clientOptions.region).
-			Str("sqs_queue_url", clientOptions.queueUrl).
+			Str("sqs_queue_url", clientOptions.queueURL).
 			Logger(),
 	}
 

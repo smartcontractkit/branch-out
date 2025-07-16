@@ -53,7 +53,10 @@ type options struct {
 }
 
 // CreateClients creates the clients for reaching out to external services.
-func CreateClients(logger zerolog.Logger, config config.Config) (jira.IClient, trunk.IClient, github.IClient, aws.IClient, error) {
+func CreateClients(
+	logger zerolog.Logger,
+	config config.Config,
+) (jira.IClient, trunk.IClient, github.IClient, aws.IClient, error) {
 	jiraClient, err := jira.NewClient(jira.WithLogger(logger), jira.WithConfig(config))
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create Jira client: %w", err)
@@ -104,6 +107,7 @@ func WithGitHubClient(client github.IClient) Option {
 	}
 }
 
+// WithAWSClient sets the AWS client for the server.
 func WithAWSClient(client aws.IClient) Option {
 	return func(opts *options) {
 		opts.awsClient = client

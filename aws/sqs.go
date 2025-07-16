@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
+// PushMessageToQueue sends a message to the configured SQS queue.
 func (c *Client) PushMessageToQueue(
 	ctx context.Context,
 	l zerolog.Logger,
@@ -26,30 +27,30 @@ func (c *Client) PushMessageToQueue(
 	}
 
 	// Log the queue URL for debugging
-	l.Debug().Str("queue_url", c.queueUrl).Msg("Attempting to send message to SQS queue")
+	l.Debug().Str("queue_url", c.queueURL).Msg("Attempting to send message to SQS queue")
 
 	// Create the message to send to the SQS queue
 	message := &sqs.SendMessageInput{
 		MessageBody: &payload,
-		QueueUrl:    &c.queueUrl,
+		QueueUrl:    &c.queueURL,
 	}
 
 	// Check if this is a FIFO queue and add required parameters
-	if strings.HasSuffix(c.queueUrl, ".fifo") {
+	if strings.HasSuffix(c.queueURL, ".fifo") {
 		// Use a simple message group ID for FIFO queues
-		messageGroupId := "branch-out-messages"
-		message.MessageGroupId = &messageGroupId
+		messageGroupID := "branch-out-messages"
+		message.MessageGroupId = &messageGroupID
 
 		// Add deduplication ID to prevent duplicate messages
 		// Using a hash of the payload to ensure identical messages are deduplicated
 		hasher := sha256.New()
 		hasher.Write([]byte(payload))
-		deduplicationId := fmt.Sprintf("%x", hasher.Sum(nil))[:64] // AWS limit is 128 chars, using 64 for safety
-		message.MessageDeduplicationId = &deduplicationId
+		deduplicationID := fmt.Sprintf("%x", hasher.Sum(nil))[:64] // AWS limit is 128 chars, using 64 for safety
+		message.MessageDeduplicationId = &deduplicationID
 
 		l.Debug().
-			Str("message_group_id", messageGroupId).
-			Str("deduplication_id", deduplicationId).
+			Str("message_group_id", messageGroupID).
+			Str("deduplication_id", deduplicationID).
 			Msg("Added FIFO queue parameters")
 	}
 
@@ -77,6 +78,7 @@ func (c *Client) PushMessageToQueue(
 	return nil
 }
 
+// ReceiveMessageFromQueue receives a message from the configured SQS queue.
 func (c *Client) ReceiveMessageFromQueue(
 	ctx context.Context,
 	l zerolog.Logger,
@@ -86,12 +88,12 @@ func (c *Client) ReceiveMessageFromQueue(
 		return nil, fmt.Errorf("SQS client is not initialized")
 	}
 
-	l.Debug().Str("queue_url", c.queueUrl).Msg("Attempting to receive messages from SQS queue")
+	l.Debug().Str("queue_url", c.queueURL).Msg("Attempting to receive messages from SQS queue")
 
 	// Receive messages from the SQS queue
 	res, err := c.sqsClient.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 		MaxNumberOfMessages: 1,
-		QueueUrl:            &c.queueUrl,
+		QueueUrl:            &c.queueURL,
 	})
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to receive messages from SQS queue")

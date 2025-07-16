@@ -77,6 +77,7 @@ type Jira struct {
 	Token             string `mapstructure:"JIRA_TOKEN"`
 }
 
+// Aws configures authentication to AWS services.
 type Aws struct {
 	Region      string `mapstructure:"AWS_REGION"`
 	SqsQueueURL string `mapstructure:"AWS_SQS_QUEUE_URL"`
