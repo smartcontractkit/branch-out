@@ -44,6 +44,7 @@ type Config struct {
 	GitHub GitHub `mapstructure:",squash"`
 	Trunk  Trunk  `mapstructure:",squash"`
 	Jira   Jira   `mapstructure:",squash"`
+	Aws    Aws    `mapstructure:",squash"`
 }
 
 // GitHub configures authentication to the GitHub API.
@@ -73,6 +74,11 @@ type Jira struct {
 	OAuthRefreshToken string `mapstructure:"JIRA_OAUTH_REFRESH_TOKEN"`
 	Username          string `mapstructure:"JIRA_USERNAME"`
 	Token             string `mapstructure:"JIRA_TOKEN"`
+}
+
+type Aws struct {
+	Region      string `mapstructure:"AWS_REGION"`
+	SqsQueueURL string `mapstructure:"AWS_SQS_QUEUE_URL"`
 }
 
 // Option is a function that can be used to configure loading the config.

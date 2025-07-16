@@ -55,7 +55,7 @@ branch-out mark healthy --package github.com/smartcontractkit/branch-out/package
 			},
 		}
 
-		jiraClient, trunkClient, githubClient, err := server.CreateClients(l, appConfig)
+		jiraClient, trunkClient, githubClient, _, err := server.CreateClients(l, appConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create clients: %w", err)
 		}

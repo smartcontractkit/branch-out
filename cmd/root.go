@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -73,6 +74,12 @@ branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 		}
 
 		logger.Debug().Str("log_level", appConfig.LogLevel).Int("port", appConfig.Port).Msg("Loaded config")
+		marshaled, err := json.Marshal(appConfig)
+		if err != nil {
+			logger.Warn().Err(err).Msg("Failed to marshal config for logging.")
+		}
+
+		logger.Debug().Str("config", string(marshaled)).Msg("Configuration")
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {

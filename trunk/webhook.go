@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 	svix "github.com/svix/svix-webhooks/go"
 
+	"github.com/smartcontractkit/branch-out/aws"
 	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/golang"
 	"github.com/smartcontractkit/branch-out/jira"
@@ -38,6 +39,7 @@ func ReceiveWebhook(
 	jiraClient jira.IClient,
 	trunkClient IClient,
 	githubClient github.IClient,
+	awsClient aws.IClient,
 ) error {
 	if err := verifyClients(jiraClient, trunkClient, githubClient); err != nil {
 		return err
@@ -59,10 +61,27 @@ func ReceiveWebhook(
 	}()
 
 	l.Debug().Str("payload", string(payload)).Msg("Raw webhook payload")
+
 	var webhookData TestCaseStatusChange
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
 		l.Error().Err(err).Str("payload", string(payload)).Msg("Failed to parse test_case.status_changed payload")
 		return fmt.Errorf("failed to parse test_case.status_changed payload: %w", err)
+	}
+
+	l = l.With().
+		Str("id", webhookData.TestCase.ID).
+		Str("name", webhookData.TestCase.Name).
+		Str("current_status", webhookData.StatusChange.CurrentStatus.Value).
+		Str("previous_status", webhookData.StatusChange.PreviousStatus).
+		Logger()
+
+	err = awsClient.PushMessageToQueue(
+		context.Background(),
+		l,
+		string(payload),
+	)
+	if err != nil {
+		l.Warn().Err(err).Msg("Failed to push webhook payload to AWS SQS")
 	}
 
 	return HandleTestCaseStatusChanged(l, webhookData, jiraClient, trunkClient, githubClient)
@@ -83,13 +102,8 @@ func HandleTestCaseStatusChanged(
 
 	testCase := statusChange.TestCase
 	currentStatus := statusChange.StatusChange.CurrentStatus.Value
-	previousStatus := statusChange.StatusChange.PreviousStatus
 
 	l = l.With().
-		Str("id", testCase.ID).
-		Str("name", testCase.Name).
-		Str("current_status", currentStatus).
-		Str("previous_status", previousStatus).
 		Str("repo_url", testCase.Repository.HTMLURL).
 		Str("package", testCase.TestSuite).
 		Str("file_path", testCase.FilePath).
