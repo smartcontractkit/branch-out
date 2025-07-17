@@ -31,6 +31,10 @@ var testConfig = config.Config{
 		Token:         "test-token",
 		WebhookSecret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw", // example secret from svix docs
 	},
+	Aws: config.Aws{
+		Region:      "us-east-1",
+		SqsQueueURL: "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+	},
 }
 
 func TestServer_New(t *testing.T) {

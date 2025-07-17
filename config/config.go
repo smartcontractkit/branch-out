@@ -2,6 +2,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -44,6 +45,7 @@ type Config struct {
 	GitHub GitHub `mapstructure:",squash"`
 	Trunk  Trunk  `mapstructure:",squash"`
 	Jira   Jira   `mapstructure:",squash"`
+	Aws    Aws    `mapstructure:",squash"`
 }
 
 // GitHub configures authentication to the GitHub API.
@@ -73,6 +75,12 @@ type Jira struct {
 	OAuthRefreshToken string `mapstructure:"JIRA_OAUTH_REFRESH_TOKEN"`
 	Username          string `mapstructure:"JIRA_USERNAME"`
 	Token             string `mapstructure:"JIRA_TOKEN"`
+}
+
+// Aws configures authentication to AWS services.
+type Aws struct {
+	Region      string `mapstructure:"AWS_REGION"`
+	SqsQueueURL string `mapstructure:"AWS_SQS_QUEUE_URL"`
 }
 
 // Option is a function that can be used to configure loading the config.
@@ -149,6 +157,46 @@ func MustLoad(options ...Option) Config {
 		panic(err)
 	}
 	return cfg
+}
+
+// MarshalJSON implements custom JSON marshaling for Config to redact sensitive fields
+func (c Config) MarshalJSON() ([]byte, error) {
+	type Alias Config // Create alias to avoid infinite recursion
+
+	// Create a copy and redact sensitive fields
+	redacted := Alias(c)
+
+	// Redact GitHub secrets
+	if redacted.GitHub.Token != "" {
+		redacted.GitHub.Token = "[REDACTED]"
+	}
+	if redacted.GitHub.PrivateKey != "" {
+		redacted.GitHub.PrivateKey = "[REDACTED]"
+	}
+
+	// Redact Trunk secrets
+	if redacted.Trunk.Token != "" {
+		redacted.Trunk.Token = "[REDACTED]"
+	}
+	if redacted.Trunk.WebhookSecret != "" {
+		redacted.Trunk.WebhookSecret = "[REDACTED]"
+	}
+
+	// Redact Jira secrets
+	if redacted.Jira.OAuthClientSecret != "" {
+		redacted.Jira.OAuthClientSecret = "[REDACTED]"
+	}
+	if redacted.Jira.OAuthAccessToken != "" {
+		redacted.Jira.OAuthAccessToken = "[REDACTED]"
+	}
+	if redacted.Jira.OAuthRefreshToken != "" {
+		redacted.Jira.OAuthRefreshToken = "[REDACTED]"
+	}
+	if redacted.Jira.Token != "" {
+		redacted.Jira.Token = "[REDACTED]"
+	}
+
+	return json.Marshal(redacted)
 }
 
 func init() {

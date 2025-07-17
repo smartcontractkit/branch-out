@@ -15,6 +15,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/smartcontractkit/branch-out/aws"
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/jira"
@@ -34,6 +35,7 @@ type Server struct {
 	jiraClient   jira.IClient
 	trunkClient  trunk.IClient
 	githubClient github.IClient
+	awsClient    aws.IClient
 
 	running atomic.Bool
 	err     error
@@ -47,23 +49,31 @@ type options struct {
 	jiraClient   jira.IClient
 	trunkClient  trunk.IClient
 	githubClient github.IClient
+	awsClient    aws.IClient
 }
 
 // CreateClients creates the clients for reaching out to external services.
-func CreateClients(logger zerolog.Logger, config config.Config) (jira.IClient, trunk.IClient, github.IClient, error) {
+func CreateClients(
+	logger zerolog.Logger,
+	config config.Config,
+) (jira.IClient, trunk.IClient, github.IClient, aws.IClient, error) {
 	jiraClient, err := jira.NewClient(jira.WithLogger(logger), jira.WithConfig(config))
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create Jira client: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to create Jira client: %w", err)
 	}
 	trunkClient, err := trunk.NewClient(trunk.WithLogger(logger), trunk.WithConfig(config))
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create Trunk client: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to create Trunk client: %w", err)
 	}
 	githubClient, err := github.NewClient(github.WithLogger(logger), github.WithConfig(config))
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create GitHub client: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to create GitHub client: %w", err)
 	}
-	return jiraClient, trunkClient, githubClient, nil
+	awsClient, err := aws.NewClient(aws.WithLogger(logger), aws.WithConfig(config))
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to create AWS client: %w", err)
+	}
+	return jiraClient, trunkClient, githubClient, awsClient, nil
 }
 
 // Option is a functional option that configures the server.
@@ -94,6 +104,13 @@ func WithTrunkClient(client trunk.IClient) Option {
 func WithGitHubClient(client github.IClient) Option {
 	return func(opts *options) {
 		opts.githubClient = client
+	}
+}
+
+// WithAWSClient sets the AWS client for the server.
+func WithAWSClient(client aws.IClient) Option {
+	return func(opts *options) {
+		opts.awsClient = client
 	}
 }
 
@@ -131,11 +148,12 @@ func New(options ...Option) (*Server, error) {
 		jiraClient   jira.IClient
 		trunkClient  trunk.IClient
 		githubClient github.IClient
+		awsClient    aws.IClient
 		err          error
 	)
 
 	if opts.jiraClient == nil || opts.trunkClient == nil || opts.githubClient == nil {
-		jiraClient, trunkClient, githubClient, err = CreateClients(opts.logger, opts.config)
+		jiraClient, trunkClient, githubClient, awsClient, err = CreateClients(opts.logger, opts.config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create clients: %w", err)
 		}
@@ -160,6 +178,7 @@ func New(options ...Option) (*Server, error) {
 		jiraClient:   opts.jiraClient,
 		trunkClient:  opts.trunkClient,
 		githubClient: opts.githubClient,
+		awsClient:    awsClient,
 	}, nil
 }
 
@@ -355,7 +374,7 @@ func (s *Server) ReceiveWebhook(req *http.Request) *WebhookResponse {
 	case "/webhooks/trunk":
 		trunkSigningSecret := s.config.Trunk.WebhookSecret
 		// Pass nil for jiraClient and trunkClient for now - these can be injected in the future
-		err = trunk.ReceiveWebhook(l, req, trunkSigningSecret, s.jiraClient, s.trunkClient, s.githubClient)
+		err = trunk.ReceiveWebhook(l, req, trunkSigningSecret, s.jiraClient, s.trunkClient, s.githubClient, s.awsClient)
 	default:
 		err = fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)
 	}

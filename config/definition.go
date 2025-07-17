@@ -49,7 +49,7 @@ type Field struct {
 
 var (
 	// Fields is a list of all configuration fields.
-	Fields = append(coreFields, append(githubFields, append(trunkFields, jiraFields...)...)...)
+	Fields = append(coreFields, append(githubFields, append(trunkFields, append(jiraFields, awsFields...)...)...)...)
 
 	coreFields = []Field{
 		{
@@ -215,6 +215,25 @@ var (
 			Description: "Jira API token for basic auth",
 			Example:     "jira_api_token",
 			Flag:        "jira-token",
+			Type:        reflect.TypeOf(""),
+			Persistent:  true,
+		},
+	}
+
+	awsFields = []Field{
+		{
+			EnvVar:      "AWS_REGION",
+			Description: "AWS region for SQS",
+			Example:     "us-west-2",
+			Flag:        "aws-region",
+			Type:        reflect.TypeOf(""),
+			Persistent:  true,
+		},
+		{
+			EnvVar:      "AWS_SQS_QUEUE_URL",
+			Description: "AWS SQS queue URL for webhooks payloads",
+			Example:     "https://sqs.us-west-2.amazonaws.com/123456789012/my-queue.fifo",
+			Flag:        "aws-sqs-queue-url",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
 		},
