@@ -205,6 +205,10 @@ func verifyClients(jiraClient jira.IClient, trunkClient IClient, githubClient gi
 	if githubClient == nil {
 		return fmt.Errorf("github client is nil")
 	}
+	// TODO: Enable this once SQS is fully integrated
+	// if awsClient == nil {
+	// 	return fmt.Errorf("aws client is nil")
+	// }
 	return nil
 }
 

@@ -166,6 +166,9 @@ func New(options ...Option) (*Server, error) {
 		if opts.githubClient == nil {
 			opts.githubClient = githubClient
 		}
+		if opts.awsClient == nil {
+			opts.awsClient = awsClient
+		}
 	}
 
 	return &Server{
