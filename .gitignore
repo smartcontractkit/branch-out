@@ -12,6 +12,7 @@ branch-out
 
 # Generated test debugging output
 Test*/
+!cmd/test-webhook/
 !test_package/
 !testhelpers/
 !testdata/
