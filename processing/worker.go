@@ -219,7 +219,10 @@ func (w *Worker) processWebhookPayload(payload string) error {
 
 	var webhookData trunk.TestCaseStatusChange
 	if err := json.Unmarshal([]byte(payload), &webhookData); err != nil {
-		w.logger.Error().Err(err).Str("payload", payload).Msg("Failed to parse test_case.status_changed payload from SQS")
+		w.logger.Error().
+			Err(err).
+			Str("payload", payload).
+			Msg("Failed to parse test_case.status_changed payload from SQS")
 		return fmt.Errorf("failed to parse test_case.status_changed payload: %w", err)
 	}
 
@@ -295,7 +298,7 @@ func (w *Worker) handleBrokenTest(l zerolog.Logger, statusChange trunk.TestCaseS
 }
 
 // handleHealthyTest handles the case where a test is marked as healthy.
-func (w *Worker) handleHealthyTest(l zerolog.Logger, statusChange trunk.TestCaseStatusChange) error {
+func (w *Worker) handleHealthyTest(_ zerolog.Logger, _ trunk.TestCaseStatusChange) error {
 	return fmt.Errorf("healthy test handling not implemented")
 }
 
@@ -314,7 +317,10 @@ func (w *Worker) verifyClients() error {
 }
 
 // createJiraIssueForFlakyTest looks for an existing open ticket or creates a new one.
-func (w *Worker) createJiraIssueForFlakyTest(l zerolog.Logger, statusChange trunk.TestCaseStatusChange) (*go_jira.Issue, error) {
+func (w *Worker) createJiraIssueForFlakyTest(
+	l zerolog.Logger,
+	statusChange trunk.TestCaseStatusChange,
+) (*go_jira.Issue, error) {
 	testCase := statusChange.TestCase
 
 	// Create details JSON from test case data

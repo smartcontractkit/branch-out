@@ -56,7 +56,10 @@ func (h *WebhookHandler) HandleWebhook(req *http.Request) error {
 	// Validate payload structure (Trunk-specific validation)
 	var webhookData TestCaseStatusChange
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
-		h.logger.Error().Err(err).Str("payload", string(payload)).Msg("Failed to parse test_case.status_changed payload")
+		h.logger.Error().
+			Err(err).
+			Str("payload", string(payload)).
+			Msg("Failed to parse test_case.status_changed payload")
 		return fmt.Errorf("failed to parse test_case.status_changed payload: %w", err)
 	}
 
