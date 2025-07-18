@@ -74,44 +74,6 @@ func TestSignWebhookRequest(t *testing.T) {
 
 	require.NotNil(t, webhookRequest, "webhook request should not be nil")
 
-	err = VerifyWebhookRequest(l, webhookRequest, webhookSecret)
+	err = verifyWebhookRequest(l, webhookRequest, webhookSecret)
 	require.NoError(t, err, "failed to verify webhook request")
-}
-
-func TestExtractRepoNameFromURL(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		url      string
-		expected string
-	}{
-		{"https://github.com/trunk-io/analytics-cli", "analytics-cli"},
-		{"https://github.com/owner/repo", "repo"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.url, func(t *testing.T) {
-			t.Parallel()
-			result := extractRepoNameFromURL(tt.url)
-			require.Equal(t, tt.expected, result, "expected '%s', got '%s'", tt.expected, result)
-		})
-	}
-}
-
-func TestExtractDomainFromJiraURL(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		url      string
-		expected string
-	}{
-		{"https://company.atlassian.net/rest/api/2/issue/123", "company.atlassian.net"},
-		{"https://trunk-io.atlassian.net/rest/api/2/issue/456", "trunk-io.atlassian.net"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.url, func(t *testing.T) {
-			t.Parallel()
-			result := extractDomainFromJiraURL(tt.url)
-			require.Equal(t, tt.expected, result, "expected '%s', got '%s'", tt.expected, result)
-		})
-	}
 }

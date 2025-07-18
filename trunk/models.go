@@ -14,6 +14,13 @@ const (
 	WebhookTypeQuarantiningSettingChanged WebhookType = "test_case.quarantining_setting_changed"
 	// WebhookTypeStatusChanged represents a status change event
 	WebhookTypeStatusChanged WebhookType = "test_case.status_changed"
+
+	// TestCaseStatusHealthy is the status of a test that is healthy.
+	TestCaseStatusHealthy = "healthy"
+	// TestCaseStatusFlaky is the status of a test that is flaky.
+	TestCaseStatusFlaky = "flaky"
+	// TestCaseStatusBroken is the status of a test that is broken.
+	TestCaseStatusBroken = "broken"
 )
 
 // WebhookEnvelope is the common structure for all webhook events

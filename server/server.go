@@ -19,6 +19,7 @@ import (
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/jira"
+	"github.com/smartcontractkit/branch-out/processing"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
@@ -36,6 +37,9 @@ type Server struct {
 	trunkClient  trunk.IClient
 	githubClient github.IClient
 	awsClient    aws.IClient
+
+	// Background worker for processing SQS messages
+	worker *processing.Worker
 
 	running atomic.Bool
 	err     error
@@ -166,7 +170,24 @@ func New(options ...Option) (*Server, error) {
 		if opts.githubClient == nil {
 			opts.githubClient = githubClient
 		}
+		if opts.awsClient == nil {
+			opts.awsClient = awsClient
+		}
 	}
+
+	// Create the background worker for SQS processing
+	workerConfig := processing.Config{
+		PollInterval: 15 * time.Second,
+	}
+
+	sqsWorker := processing.NewWorker(
+		opts.logger,
+		opts.awsClient,
+		opts.jiraClient,
+		opts.trunkClient,
+		opts.githubClient,
+		workerConfig,
+	)
 
 	return &Server{
 		Port: opts.config.Port,
@@ -178,7 +199,8 @@ func New(options ...Option) (*Server, error) {
 		jiraClient:   opts.jiraClient,
 		trunkClient:  opts.trunkClient,
 		githubClient: opts.githubClient,
-		awsClient:    awsClient,
+		awsClient:    opts.awsClient,
+		worker:       sqsWorker,
 	}, nil
 }
 
@@ -229,6 +251,16 @@ func (s *Server) Start(ctx context.Context) error {
 	s.server.RegisterOnShutdown(func() {
 		s.running.Store(false)
 	})
+
+	// Start the background worker for SQS processing
+	if s.worker != nil {
+		s.logger.Info().Msg("Starting SQS worker")
+		if err := s.worker.Start(); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to start SQS worker")
+			s.err = fmt.Errorf("failed to start SQS worker: %w", err)
+			return s.err
+		}
+	}
 
 	// Listen for OS signals to shutdown the server
 	sigChan := make(chan os.Signal, 1)
@@ -300,6 +332,15 @@ func (s *Server) WaitHealthy(ctx context.Context) error {
 
 // shutdown gracefully shuts down the server.
 func (s *Server) shutdown() error {
+	// Stop the background worker first
+	if s.worker != nil {
+		s.logger.Info().Msg("Stopping SQS worker")
+		if err := s.worker.Stop(); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to stop SQS worker")
+			// Continue with server shutdown even if worker stop fails
+		}
+	}
+
 	// Create a context with timeout for graceful shutdown
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -372,9 +413,9 @@ func (s *Server) ReceiveWebhook(req *http.Request) *WebhookResponse {
 	)
 	switch req.URL.Path {
 	case "/webhooks/trunk":
-		trunkSigningSecret := s.config.Trunk.WebhookSecret
-		// Pass nil for jiraClient and trunkClient for now - these can be injected in the future
-		err = trunk.ReceiveWebhook(l, req, trunkSigningSecret, s.jiraClient, s.trunkClient, s.githubClient, s.awsClient)
+		// Create webhook handler for this request
+		handler := trunk.NewWebhookHandler(l, s.config.Trunk.WebhookSecret, s.awsClient)
+		err = handler.HandleWebhook(req)
 	default:
 		err = fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)
 	}
