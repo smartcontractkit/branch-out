@@ -2,21 +2,15 @@
 package github
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/go-git/go-git/v5"
 	"github.com/google/go-github/v73/github"
 	"github.com/rs/zerolog"
-	gh_graphql "github.com/shurcooL/githubv4"
 
 	"github.com/smartcontractkit/branch-out/golang"
 )
@@ -55,10 +49,19 @@ func (c *Client) QuarantineTests(
 	}
 
 	start := time.Now()
-
 	l = l.With().Str("host", host).Str("owner", owner).Str("repo", repo).Logger()
 
-	repoPath, err := c.cloneRepo(owner, repo)
+	// 1. Get branch names
+	defaultBranch, prBranch, err := c.getBranchNames(ctx, owner, repo)
+	if err != nil {
+		l.Error().Err(err).Msg("Failed to get default and/or PR branch names")
+		return fmt.Errorf("failed to get default and/or PR branch names: %w", err)
+	}
+	l.Debug().Str("default_branch", defaultBranch).Str("pr_branch", prBranch).Msg("Got branches")
+	l = l.With().Str("pr_branch", prBranch).Logger()
+
+	// 2. Clone the repository to a temporary directory
+	repository, repoPath, err := c.cloneRepo(owner, repo)
 	if err != nil {
 		return fmt.Errorf("failed to clone repository: %w", err)
 	}
@@ -70,46 +73,96 @@ func (c *Client) QuarantineTests(
 	l = l.With().Str("repo_path", repoPath).Logger()
 	l.Debug().Msg("Cloned repository")
 
+	// 3. Get or create the PR branch
+	branchHeadSHA, err := c.getOrCreateRemoteBranch(ctx, owner, repo, prBranch)
+	if err != nil {
+		l.Error().Err(err).Msg("Failed to get/create branch")
+		return fmt.Errorf("failed to get/create branch: %w", err)
+	}
+
+	// 4. Checkout the branch locally
+	err = c.checkoutBranchLocal(repository, prBranch)
+	if err != nil {
+		l.Error().Err(err).Msg("Failed to checkout branch")
+		return fmt.Errorf("failed to checkout branch: %w", err)
+	}
+
+	// 5. Quarantine tests - writing to the local repository
 	results, err := golang.QuarantineTests(l, repoPath, targets, golang.WithBuildFlags(opts.buildFlags))
 	if err != nil {
 		return fmt.Errorf("failed to quarantine tests: %w", err)
 	}
 
+	// 6. Create a commit with the quarantined tests
+	sha, err := c.generateCommitAndPush(ctx, owner, repo, prBranch, branchHeadSHA, &results)
+	if err != nil {
+		l.Error().Err(err).Msg("Failed to create commit")
+		return fmt.Errorf("failed to create commit: %w", err)
+	}
+	l = l.With().Str("commit_sha", sha).Logger()
+
+	// 7. Create or update the pull request
+	prURL, err := c.createOrUpdatePullRequest(ctx, l, owner, repo, prBranch, defaultBranch, &results)
+	if err != nil {
+		l.Error().Err(err).Msg("Failed to create or update pull request")
+		return fmt.Errorf("failed to create or update pull request: %w", err)
+	}
+
+	l.Info().
+		Str("pr_url", prURL).
+		Str("commit_sha", sha).
+		Dur("duration", time.Since(start)).
+		Msg("Created or updated pull request")
+
+	return nil
+}
+
+// getBranchNames retrieves the default branch and a deterministic PR branch name based on the current date.
+func (c *Client) getBranchNames(ctx context.Context, owner, repo string) (string, string, error) {
 	defaultBranch, err := c.getDefaultBranch(ctx, owner, repo)
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to get default branch")
-		return fmt.Errorf("failed to get default branch: %w", err)
+		return "", "", fmt.Errorf("failed to get default branch: %w", err)
 	}
-	l.Debug().Str("default_branch", defaultBranch).Msg("Got default branch")
-
 	// Use deterministic branch name based on date
-	branchName := fmt.Sprintf("branch-out/quarantine-tests-%s", time.Now().Format("2006-01-02"))
-	l = l.With().Str("branch", branchName).Logger()
+	prBranch := fmt.Sprintf("branch-out/quarantine-tests-%s", time.Now().Format("2006-01-02"))
 
-	// Check if branch already exists
+	return defaultBranch, prBranch, nil
+}
+
+// getOrCreateBranch returns the HEAD SHA of a branch, creating it if it doesn't exist.
+func (c *Client) getOrCreateRemoteBranch(ctx context.Context, owner, repo, branchName string) (string, error) {
 	branchHeadSHA, branchExists, err := c.getBranchHeadSHA(ctx, owner, repo, branchName)
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to check for existing branch")
-		return fmt.Errorf("failed to check for existing branch: %w", err)
+		return "", fmt.Errorf("failed to get branch head SHA: %w", err)
 	}
 
 	if branchExists {
-		l.Debug().Str("head_sha", branchHeadSHA).Msg("Found existing branch")
-	} else {
-		l.Debug().Msg("Branch does not exist, will create new one")
-		branchHeadSHA, err = c.createBranch(ctx, l, owner, repo, branchName, defaultBranch)
-		if err != nil {
-			l.Error().Err(err).Msg("Failed to create branch")
-			return fmt.Errorf("failed to create branch: %w", err)
-		}
+		return branchHeadSHA, nil
 	}
 
-	// Build commit message
+	// Create the branch if it doesn't exist
+	ref := fmt.Sprintf("refs/heads/%s", branchName)
+	_, _, err = c.Rest.Git.CreateRef(ctx, owner, repo, &github.Reference{
+		Ref:    &ref,
+		Object: &github.GitObject{SHA: &branchHeadSHA},
+	})
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		return "", fmt.Errorf("failed to create branch %s: %w", branchName, err)
+	}
+
+	return branchHeadSHA, nil
+}
+
+// generateCommitAndPush creates a commit with the quarantined tests and pushes it to the PR branch
+func (c *Client) generateCommitAndPush(
+	ctx context.Context,
+	owner, repo, prBranch, branchHeadSHA string,
+	results *golang.QuarantineResults) (string, error) {
 	var commitMessage = strings.Builder{}
 	commitMessage.WriteString("branch-out quarantine tests\n")
 
 	allFileUpdates := make(map[string]string)
-	for _, result := range results {
+	for _, result := range *results {
 		// Process successes
 		for _, file := range result.Successes {
 			commitMessage.WriteString(fmt.Sprintf("%s: %s\n", file.File, strings.Join(file.TestNames(), ", ")))
@@ -118,22 +171,35 @@ func (c *Client) QuarantineTests(
 	}
 
 	// Update files on the branch
-	sha, err := c.updateFiles(ctx, owner, repo, branchName, commitMessage.String(), branchHeadSHA, allFileUpdates)
+	sha, err := c.createCommitOnBranch(
+		ctx,
+		owner,
+		repo,
+		prBranch,
+		commitMessage.String(),
+		branchHeadSHA,
+		allFileUpdates,
+	)
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to update files")
-		return fmt.Errorf("failed to update files: %w", err)
+		return "", fmt.Errorf("failed to create commit: %w", err)
 	}
-	l = l.With().Str("commit_sha", sha).Logger()
-	l.Debug().Int("files_updated", len(allFileUpdates)).Msg("Updated files")
 
-	// Check for existing PR
+	return sha, nil
+}
+
+// createOrUpdatePullRequest creates a new pull request or updates an existing one with the quarantined tests
+func (c *Client) createOrUpdatePullRequest(
+	ctx context.Context, l zerolog.Logger,
+	owner, repo, prBranch, defaultBranch string,
+	results *golang.QuarantineResults,
+) (string, error) {
 	title := fmt.Sprintf("[Auto] [branch-out] Quarantine Flaky Tests: %s", time.Now().Format("2006-01-02"))
 	prBody := results.Markdown()
 
-	existingPR, err := c.findExistingPR(ctx, owner, repo, branchName, defaultBranch)
+	existingPR, err := c.findExistingPR(ctx, owner, repo, prBranch, defaultBranch)
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to check for existing PR")
-		return fmt.Errorf("failed to check for existing PR: %w", err)
+		return "", fmt.Errorf("failed to check for existing PR: %w", err)
 	}
 
 	var prURL string
@@ -142,202 +208,18 @@ func (c *Client) QuarantineTests(
 		prURL, err = c.updatePullRequest(ctx, owner, repo, existingPR.GetNumber(), title, prBody)
 		if err != nil {
 			l.Error().Err(err).Msg("Failed to update pull request")
-			return fmt.Errorf("failed to update pull request: %w", err)
+			return "", fmt.Errorf("failed to update pull request: %w", err)
 		}
 	} else {
 		l.Debug().Msg("No existing PR found, creating new one")
-		prURL, err = c.createPullRequest(ctx, owner, repo, branchName, defaultBranch, title, prBody)
+		prURL, err = c.createPullRequest(ctx, owner, repo, prBranch, defaultBranch, title, prBody)
 		if err != nil {
 			l.Error().Err(err).Msg("Failed to create pull request")
-			return fmt.Errorf("failed to create pull request: %w", err)
+			return "", fmt.Errorf("failed to create pull request: %w", err)
 		}
 	}
 
-	l.Info().
-		Str("pr_url", prURL).
-		Str("commit_sha", sha).
-		Dur("duration", time.Since(start)).
-		Msg("Created or updated pull request")
-	return nil
-}
-
-// createBranch creates a new branch from the default branch and returns the head SHA
-func (c *Client) createBranch(
-	ctx context.Context,
-	l zerolog.Logger,
-	owner, repo, branchName, baseBranch string,
-) (string, error) {
-	// Get the base branch reference
-	l = l.With().Str("base_branch", baseBranch).Str("branch", branchName).Logger()
-	baseRef, _, err := c.Rest.Git.GetRef(ctx, owner, repo, "refs/heads/"+baseBranch)
-	if err != nil {
-		return "", fmt.Errorf("failed to get base branch reference: %w", err)
-	}
-
-	// Create new branch reference
-	newRef := &github.Reference{
-		Ref: github.Ptr(fmt.Sprintf("refs/heads/%s", branchName)),
-		Object: &github.GitObject{
-			SHA: baseRef.Object.SHA,
-		},
-	}
-
-	ref, _, err := c.Rest.Git.CreateRef(ctx, owner, repo, newRef)
-	if err != nil {
-		// If branch already exists, that's okay
-		if !strings.Contains(err.Error(), "already exists") {
-			return "", fmt.Errorf("failed to create branch: %w", err)
-		}
-		l.Debug().Str("ref", ref.GetRef()).Msg("Branch already exists, continuing")
-	} else {
-		l.Debug().Str("ref", ref.GetRef()).Msg("Created new branch")
-	}
-
-	return ref.GetObject().GetSHA(), nil
-}
-
-// updateFiles updates multiple files in the repository in a single, signed commit.
-// Inspired by https://github.com/planetscale/ghcommit
-func (c *Client) updateFiles(
-	ctx context.Context,
-	owner, repo, branchName, commitMessage, expectedHeadOid string,
-	files map[string]string,
-) (string, error) {
-	// process added / modified files:
-	additions := make([]gh_graphql.FileAddition, 0, len(files))
-	for file, contents := range files {
-		enc, err := base64EncodeFile(contents)
-		if err != nil {
-			return "", fmt.Errorf("failed to encode file %s: %w", file, err)
-		}
-		additions = append(additions, gh_graphql.FileAddition{
-			Path:     gh_graphql.String(file),
-			Contents: gh_graphql.Base64String(enc),
-		})
-	}
-	// the actual mutation request
-	var m struct {
-		CreateCommitOnBranch struct {
-			Commit struct {
-				URL string
-			}
-		} `graphql:"createCommitOnBranch(input:$input)"`
-	}
-
-	headline, body := parseCommitMessage(commitMessage)
-
-	// create the $input struct for the graphQL createCommitOnBranch mutation request:
-	input := gh_graphql.CreateCommitOnBranchInput{
-		Branch: gh_graphql.CommittableBranch{
-			RepositoryNameWithOwner: gh_graphql.NewString(gh_graphql.String(fmt.Sprintf("%s/%s", owner, repo))),
-			BranchName:              gh_graphql.NewString(gh_graphql.String(branchName)),
-		},
-		Message: gh_graphql.CommitMessage{
-			Headline: gh_graphql.String(headline),
-			Body:     gh_graphql.NewString(gh_graphql.String(body)),
-		},
-		FileChanges: &gh_graphql.FileChanges{
-			Additions: &additions,
-		},
-		ExpectedHeadOid: gh_graphql.GitObjectID(expectedHeadOid),
-	}
-
-	err := c.GraphQL.Mutate(ctx, &m, input, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create commit: %w", err)
-	}
-
-	return m.CreateCommitOnBranch.Commit.URL, nil
-}
-
-// getDefaultBranch gets the default branch of a repository
-func (c *Client) getDefaultBranch(ctx context.Context, owner, repo string) (string, error) {
-	ghRepo, resp, err := c.Rest.Repositories.Get(ctx, owner, repo)
-	if err != nil {
-		return "", fmt.Errorf("failed to get repository: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to get repository: %s", resp.Status)
-	}
-	return ghRepo.GetDefaultBranch(), nil
-}
-
-// createPullRequest creates a pull request from the branch to the base branch
-func (c *Client) createPullRequest(
-	ctx context.Context,
-	owner, repo, headBranch, baseBranch, title, body string,
-) (string, error) {
-	pr := &github.NewPullRequest{
-		Title: github.Ptr(title),
-		Head:  github.Ptr(headBranch),
-		Base:  github.Ptr(baseBranch),
-		Body:  github.Ptr(body),
-	}
-
-	createdPR, _, err := c.Rest.PullRequests.Create(ctx, owner, repo, pr)
-	if err != nil {
-		return "", fmt.Errorf("failed to create pull request: %w", err)
-	}
-
-	prURL := createdPR.GetHTMLURL()
 	return prURL, nil
-}
-
-// getBranchHeadSHA returns the HEAD SHA of a branch if it exists, along with a boolean indicating if it exists
-func (c *Client) getBranchHeadSHA(ctx context.Context, owner, repo, branchName string) (string, bool, error) {
-	ref, _, err := c.Rest.Git.GetRef(ctx, owner, repo, "refs/heads/"+branchName)
-	if err != nil {
-		// If branch doesn't exist, that's not an error for our purposes
-		if strings.Contains(err.Error(), "Not Found") {
-			return "", false, nil
-		}
-		return "", false, fmt.Errorf("failed to get branch reference: %w", err)
-	}
-
-	return ref.GetObject().GetSHA(), true, nil
-}
-
-// findExistingPR finds an existing open PR from the given branch to the base branch
-func (c *Client) findExistingPR(
-	ctx context.Context,
-	owner, repo, headBranch, baseBranch string,
-) (*github.PullRequest, error) {
-	// List open PRs for the repository
-	prs, _, err := c.Rest.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{
-		State: "open",
-		Head:  fmt.Sprintf("%s:%s", owner, headBranch),
-		Base:  baseBranch,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list pull requests: %w", err)
-	}
-
-	// Return the first matching PR (there should be at most one)
-	if len(prs) > 0 {
-		return prs[0], nil
-	}
-
-	return nil, nil
-}
-
-// updatePullRequest updates an existing pull request
-func (c *Client) updatePullRequest(
-	ctx context.Context,
-	owner, repo string,
-	prNumber int,
-	title, body string,
-) (string, error) {
-	pr := &github.PullRequest{
-		Title: github.Ptr(title),
-		Body:  github.Ptr(body),
-	}
-
-	updatedPR, _, err := c.Rest.PullRequests.Edit(ctx, owner, repo, prNumber, pr)
-	if err != nil {
-		return "", fmt.Errorf("failed to update pull request: %w", err)
-	}
-
-	return updatedPR.GetHTMLURL(), nil
 }
 
 // ParseRepoURL parses a GitHub repository URL and returns owner and repo name
@@ -369,54 +251,4 @@ func ParseRepoURL(repoURL string) (host, owner, repo string, err error) {
 	repo = strings.TrimSuffix(repo, ".git")
 
 	return host, owner, repo, nil
-}
-
-// cloneRepo clones a repo to a temp directory and returns the path to it
-func (c *Client) cloneRepo(owner, repo string) (string, error) {
-	repoPath, err := os.MkdirTemp("/tmp", fmt.Sprintf("%s-%s-*", owner, repo))
-	if err != nil {
-		return "", fmt.Errorf("failed to create temporary directory: %w", err)
-	}
-	progress := bytes.NewBuffer(nil)
-
-	// Use url.JoinPath for safe URL construction
-	repoURL, err := url.JoinPath(c.Rest.BaseURL.String(), owner, repo)
-	if err != nil {
-		return "", fmt.Errorf("failed to construct repository URL: %w", err)
-	}
-	repoURL = strings.Replace(repoURL, "api.github.com", "github.com", 1)
-	repoURL += ".git"
-
-	_, err = git.PlainClone(repoPath, false, &git.CloneOptions{
-		URL:      repoURL,
-		Progress: progress,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to clone repository at %s: %w, %s", repoURL, err, progress.String())
-	}
-
-	return repoPath, nil
-}
-
-// base64EncodeFile encodes a file's contents to base64
-func base64EncodeFile(contents string) (string, error) {
-	buf := bytes.Buffer{}
-	encoder := base64.NewEncoder(base64.StdEncoding, &buf)
-
-	if _, err := io.Copy(encoder, strings.NewReader(contents)); err != nil {
-		return "", err
-	}
-	if err := encoder.Close(); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
-
-// parseCommitMessage parses a commit message into a headline and body
-func parseCommitMessage(msg string) (string, string) {
-	parts := strings.SplitN(msg, "\n", 2)
-	if len(parts) == 1 {
-		return parts[0], ""
-	}
-	return parts[0], parts[1]
 }
