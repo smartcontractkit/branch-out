@@ -31,7 +31,7 @@ branch-out mark flaky --package github.com/smartcontractkit/branch-out/package -
 # Mark a test as healthy
 branch-out mark healthy --package github.com/smartcontractkit/branch-out/package --name TestName --repo https://github.com/smartcontractkit/branch-out`,
 	Args:      cobra.ExactArgs(1),
-	ValidArgs: []string{processing.TestCaseStatusFlaky, processing.TestCaseStatusHealthy, processing.TestCaseStatusBroken},
+	ValidArgs: []string{trunk.TestCaseStatusFlaky, trunk.TestCaseStatusHealthy, trunk.TestCaseStatusBroken},
 	RunE: func(_ *cobra.Command, args []string) error {
 		testStatus := args[0]
 

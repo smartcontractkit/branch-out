@@ -247,11 +247,11 @@ func (w *Worker) handleTestCaseStatusChanged(l zerolog.Logger, statusChange trun
 	l.Info().Msg("Processing test case status change")
 
 	switch currentStatus {
-	case TestCaseStatusFlaky:
+	case trunk.TestCaseStatusFlaky:
 		return w.handleFlakyTest(l, statusChange)
-	case TestCaseStatusBroken:
+	case trunk.TestCaseStatusBroken:
 		return w.handleBrokenTest(l, statusChange)
-	case TestCaseStatusHealthy:
+	case trunk.TestCaseStatusHealthy:
 		return w.handleHealthyTest(l, statusChange)
 	}
 
