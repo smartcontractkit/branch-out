@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
+	"github.com/smartcontractkit/branch-out/processing"
 	"github.com/smartcontractkit/branch-out/server"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
@@ -60,7 +62,13 @@ branch-out mark healthy --package github.com/smartcontractkit/branch-out/package
 			return fmt.Errorf("failed to create clients: %w", err)
 		}
 
-		err = trunk.HandleTestCaseStatusChanged(l, statusChange, jiraClient, trunkClient, githubClient)
+		// Convert the status change to JSON payload format (similar to what comes from webhooks)
+		payload, err := json.Marshal(statusChange)
+		if err != nil {
+			return fmt.Errorf("failed to marshal status change: %w", err)
+		}
+
+		err = processing.ProcessWebhookPayload(l, jiraClient, trunkClient, githubClient, string(payload))
 		if err != nil {
 			return fmt.Errorf("failed to handle test status changed: %w", err)
 		}

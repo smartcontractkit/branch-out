@@ -108,3 +108,35 @@ func (c *Client) ReceiveMessageFromQueue(
 	l.Info().Int("num_messages", len(res.Messages)).Msg("Received messages from SQS queue")
 	return res, nil
 }
+
+// DeleteMessageFromQueue deletes a message from the configured SQS queue.
+func (c *Client) DeleteMessageFromQueue(
+	ctx context.Context,
+	l zerolog.Logger,
+	receiptHandle string,
+) error {
+	if c.sqsClient == nil {
+		l.Error().Msg("SQS client is not initialized")
+		return fmt.Errorf("SQS client is not initialized")
+	}
+
+	if receiptHandle == "" {
+		l.Error().Msg("Receipt handle cannot be empty")
+		return fmt.Errorf("receipt handle cannot be empty")
+	}
+
+	l.Debug().Str("queue_url", c.queueURL).Msg("Attempting to delete message from SQS queue")
+
+	// Delete the message from the SQS queue
+	_, err := c.sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
+		QueueUrl:      &c.queueURL,
+		ReceiptHandle: &receiptHandle,
+	})
+	if err != nil {
+		l.Error().Err(err).Msg("Failed to delete message from SQS queue")
+		return fmt.Errorf("failed to delete message from SQS queue: %w", err)
+	}
+
+	l.Info().Msg("Message deleted from SQS queue successfully")
+	return nil
+}

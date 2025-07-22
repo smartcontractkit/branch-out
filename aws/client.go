@@ -28,6 +28,15 @@ type IClient interface {
 		ctx context.Context,
 		l zerolog.Logger,
 		payload string) error
+	ReceiveMessageFromQueue(
+		ctx context.Context,
+		l zerolog.Logger,
+	) (*sqs.ReceiveMessageOutput, error)
+	DeleteMessageFromQueue(
+		ctx context.Context,
+		l zerolog.Logger,
+		receiptHandle string,
+	) error
 }
 
 // ClientOption is a function that can be used to configure the AWS client.
