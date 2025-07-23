@@ -1,4 +1,4 @@
-package trunk
+package processing
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/smartcontractkit/branch-out/aws"
+	"github.com/smartcontractkit/branch-out/trunk"
 
 	svix "github.com/svix/svix-webhooks/go"
 )
@@ -20,11 +20,11 @@ import (
 type WebhookHandler struct {
 	logger        zerolog.Logger
 	signingSecret string
-	awsClient     aws.IClient
+	awsClient     AWSClient
 }
 
 // NewWebhookHandler creates a new webhook handler.
-func NewWebhookHandler(logger zerolog.Logger, signingSecret string, awsClient aws.IClient) *WebhookHandler {
+func NewWebhookHandler(logger zerolog.Logger, signingSecret string, awsClient AWSClient) *WebhookHandler {
 	return &WebhookHandler{
 		logger:        logger.With().Str("component", "trunk_webhook_handler").Logger(),
 		signingSecret: signingSecret,
@@ -54,7 +54,7 @@ func (h *WebhookHandler) HandleWebhook(req *http.Request) error {
 	h.logger.Debug().Str("payload", string(payload)).Msg("Raw webhook payload")
 
 	// Validate payload structure (Trunk-specific validation)
-	var webhookData TestCaseStatusChange
+	var webhookData trunk.TestCaseStatusChange
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
 		h.logger.Error().
 			Err(err).

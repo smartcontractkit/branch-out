@@ -9,34 +9,16 @@ import (
 
 	"github.com/smartcontractkit/branch-out/config"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
 // Client is the collection of AWS clients used by the application.
 type Client struct {
-	awsConfig aws.Config
+	awsConfig aws_config.Config
 	queueURL  string
 	sqsClient *sqs.Client
 	logger    zerolog.Logger
-}
-
-// IClient is the interface that wraps the basic AWS client methods.
-type IClient interface {
-	PushMessageToQueue(
-		ctx context.Context,
-		l zerolog.Logger,
-		payload string) error
-	ReceiveMessageFromQueue(
-		ctx context.Context,
-		l zerolog.Logger,
-	) (*sqs.ReceiveMessageOutput, error)
-	DeleteMessageFromQueue(
-		ctx context.Context,
-		l zerolog.Logger,
-		receiptHandle string,
-	) error
 }
 
 // ClientOption is a function that can be used to configure the AWS client.
@@ -73,11 +55,13 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		option(clientOptions)
 	}
 
-	// Add debug logging for configuration values
-	clientOptions.logger.Debug().
+	l := clientOptions.logger.With().
 		Str("aws_region", clientOptions.region).
 		Str("sqs_queue_url", clientOptions.queueURL).
-		Msg("Initializing AWS client with configuration")
+		Logger()
+
+	// Add debug logging for configuration values
+	l.Debug().Msg("Initializing AWS client with configuration")
 
 	if clientOptions.region == "" {
 		return nil, fmt.Errorf("AWS region is required")
@@ -95,9 +79,9 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	// Log credential information for debugging
 	creds, err := cfg.Credentials.Retrieve(context.Background())
 	if err != nil {
-		clientOptions.logger.Warn().Err(err).Msg("Failed to retrieve AWS credentials")
+		l.Warn().Err(err).Msg("Failed to retrieve AWS credentials")
 	} else {
-		clientOptions.logger.Debug().
+		l.Debug().
 			Str("access_key_id", creds.AccessKeyID[:8]+"...").
 			Bool("has_session_token", creds.SessionToken != "").
 			Str("source", creds.Source).
@@ -110,10 +94,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		sqsClient: svc,
 		awsConfig: cfg,
 		queueURL:  clientOptions.queueURL,
-		logger: clientOptions.logger.With().
-			Str("aws_region", clientOptions.region).
-			Str("sqs_queue_url", clientOptions.queueURL).
-			Logger(),
+		logger:    l,
 	}
 
 	return client, nil

@@ -13,7 +13,7 @@ import (
 
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/logging"
-	"github.com/smartcontractkit/branch-out/server"
+	"github.com/smartcontractkit/branch-out/processing"
 )
 
 var (
@@ -82,9 +82,9 @@ branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		srv, err := server.New(
-			server.WithLogger(logger),
-			server.WithConfig(appConfig),
+		srv, err := processing.NewServer(
+			processing.WithLogger(logger),
+			processing.WithConfig(appConfig),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create server: %w", err)

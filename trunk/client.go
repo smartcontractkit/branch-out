@@ -18,7 +18,7 @@ import (
 	"github.com/smartcontractkit/branch-out/github"
 )
 
-// Client is the Trunk.io client.
+// Client is the standard Trunk.io Client.
 type Client struct {
 	BaseURL    *url.URL
 	HTTPClient *http.Client
@@ -27,15 +27,8 @@ type Client struct {
 	logger  zerolog.Logger
 }
 
-// IClient is the interface that wraps the basic Trunk.io client methods.
-// Helpful for mocking in tests.
-type IClient interface {
-	QuarantinedTests(repoURL string, orgURLSlug string) ([]TestCase, error)
-	LinkTicketToTestCase(testCaseID string, ticket *go_jira.Issue, repoURL string) error
-}
-
-// Option is a function that sets a configuration option for the Trunk.io client.
-type Option func(*trunkClientOptions)
+// ClientOption is a function that sets a configuration option for the Trunk.io client.
+type ClientOption func(*trunkClientOptions)
 
 type trunkClientOptions struct {
 	baseURL *url.URL
@@ -44,28 +37,28 @@ type trunkClientOptions struct {
 }
 
 // WithLogger sets the logger to use for the Trunk.io client.
-func WithLogger(logger zerolog.Logger) Option {
+func WithLogger(logger zerolog.Logger) ClientOption {
 	return func(opts *trunkClientOptions) {
 		opts.logger = logger
 	}
 }
 
 // WithConfig sets the config to use for the Trunk.io client.
-func WithConfig(config config.Config) Option {
+func WithConfig(config config.Config) ClientOption {
 	return func(opts *trunkClientOptions) {
 		opts.secrets = config.Trunk
 	}
 }
 
 // WithBaseURL sets the base URL for the Trunk.io client. Useful for testing.
-func WithBaseURL(baseURL *url.URL) Option {
+func WithBaseURL(baseURL *url.URL) ClientOption {
 	return func(opts *trunkClientOptions) {
 		opts.baseURL = baseURL
 	}
 }
 
 // NewClient creates a new Trunk.io client.
-func NewClient(options ...Option) (*Client, error) {
+func NewClient(options ...ClientOption) (*Client, error) {
 	opts := &trunkClientOptions{
 		baseURL: &url.URL{Scheme: "https", Host: "api.trunk.io"},
 		logger:  zerolog.Nop(),

@@ -16,7 +16,7 @@ import (
 	"github.com/smartcontractkit/branch-out/config"
 )
 
-// Client wraps the go-jira client and provides some common methods.
+// Client wraps the go-jira Client and provides some common methods.
 type Client struct {
 	*go_jira.Client
 
@@ -44,14 +44,6 @@ func WithConfig(config config.Config) Option {
 	return func(cfg *jiraClientOptions) {
 		cfg.jiraConfig = config.Jira
 	}
-}
-
-// IClient is the interface that wraps the basic Jira client methods.
-// Helpful for mocking in tests.
-type IClient interface {
-	CreateFlakyTestIssue(req FlakyTestIssueRequest) (*go_jira.Issue, error)
-	GetOpenFlakyTestIssues() ([]go_jira.Issue, error)
-	GetOpenFlakyTestIssue(packageName, testName string) (*go_jira.Issue, error)
 }
 
 // NewClient creates a new Jira client with configuration from environment variables

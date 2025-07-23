@@ -1,4 +1,4 @@
-package trunk
+package processing
 
 import (
 	"bytes"
@@ -11,10 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
+	"github.com/smartcontractkit/branch-out/trunk"
 )
 
 var (
-	flakyTestCase = TestCase{
+	flakyTestCase = trunk.TestCase{
 		ID:         "test_trunk_id",
 		Codeowners: []string{"@test"},
 		FilePath:   "test/file_test.go",
@@ -23,9 +24,9 @@ var (
 		Quarantine: true,
 	}
 
-	quarantinedPayload = TestCaseStatusChange{
-		StatusChange: StatusChange{
-			CurrentStatus: Status{
+	quarantinedPayload = trunk.TestCaseStatusChange{
+		StatusChange: trunk.StatusChange{
+			CurrentStatus: trunk.Status{
 				Value: "flaky",
 			},
 			PreviousStatus: "healthy",
