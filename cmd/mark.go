@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/smartcontractkit/branch-out/processing"
-	"github.com/smartcontractkit/branch-out/server"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
@@ -57,7 +56,7 @@ branch-out mark healthy --package github.com/smartcontractkit/branch-out/package
 			},
 		}
 
-		jiraClient, trunkClient, githubClient, _, err := server.CreateClients(l, appConfig)
+		jiraClient, trunkClient, githubClient, _, err := processing.CreateClients(l, appConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create clients: %w", err)
 		}

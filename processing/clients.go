@@ -1,0 +1,58 @@
+package processing
+
+import (
+	"context"
+
+	go_jira "github.com/andygrunwald/go-jira"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/rs/zerolog"
+
+	"github.com/smartcontractkit/branch-out/github"
+	"github.com/smartcontractkit/branch-out/golang"
+	"github.com/smartcontractkit/branch-out/jira"
+	"github.com/smartcontractkit/branch-out/trunk"
+)
+
+// We define interfaces in the consumer package (processing) to keep with Go idioms.
+// Namely, accept interfaces, return structs: https://bryanftan.medium.com/accept-interfaces-return-structs-in-go-d4cab29a301b
+
+// AWSClient interacts with AWS services.
+type AWSClient interface {
+	PushMessageToQueue(
+		ctx context.Context,
+		l zerolog.Logger,
+		payload string) error
+	ReceiveMessageFromQueue(
+		ctx context.Context,
+		l zerolog.Logger,
+	) (*sqs.ReceiveMessageOutput, error)
+	DeleteMessageFromQueue(
+		ctx context.Context,
+		l zerolog.Logger,
+		receiptHandle string,
+	) error
+}
+
+// JiraClient interacts with Jira.
+type JiraClient interface {
+	CreateFlakyTestIssue(req jira.FlakyTestIssueRequest) (*go_jira.Issue, error)
+	GetOpenFlakyTestIssues() ([]go_jira.Issue, error)
+	GetOpenFlakyTestIssue(packageName, testName string) (*go_jira.Issue, error)
+}
+
+// TrunkClient interacts with Trunk.io.
+type TrunkClient interface {
+	QuarantinedTests(repoURL string, orgURLSlug string) ([]trunk.TestCase, error)
+	LinkTicketToTestCase(testCaseID string, ticket *go_jira.Issue, repoURL string) error
+}
+
+// GithubClient interacts with GitHub.
+type GithubClient interface {
+	QuarantineTests(
+		ctx context.Context,
+		l zerolog.Logger,
+		repoURL string,
+		targets []golang.QuarantineTarget,
+		options ...github.QuarantineOption,
+	) error
+}

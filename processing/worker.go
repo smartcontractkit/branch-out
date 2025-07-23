@@ -12,8 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/rs/zerolog"
 
-	"github.com/smartcontractkit/branch-out/aws"
-	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/golang"
 	"github.com/smartcontractkit/branch-out/jira"
 	"github.com/smartcontractkit/branch-out/trunk"
@@ -22,10 +20,10 @@ import (
 // Worker handles background processing of SQS messages and webhook business logic.
 type Worker struct {
 	logger       zerolog.Logger
-	awsClient    aws.IClient
-	jiraClient   jira.IClient
-	trunkClient  trunk.IClient
-	githubClient github.IClient
+	awsClient    AWSClient
+	jiraClient   JiraClient
+	trunkClient  TrunkClient
+	githubClient GithubClient
 
 	// Configuration
 	pollInterval time.Duration
@@ -46,10 +44,10 @@ type Config struct {
 // NewWorker creates a new background worker for processing SQS messages.
 func NewWorker(
 	logger zerolog.Logger,
-	awsClient aws.IClient,
-	jiraClient jira.IClient,
-	trunkClient trunk.IClient,
-	githubClient github.IClient,
+	awsClient AWSClient,
+	jiraClient JiraClient,
+	trunkClient TrunkClient,
+	githubClient GithubClient,
 	config Config,
 ) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -374,9 +372,9 @@ func (w *Worker) createJiraIssueForFlakyTest(
 // This is used by both the worker and CLI commands.
 func ProcessWebhookPayload(
 	logger zerolog.Logger,
-	jiraClient jira.IClient,
-	trunkClient trunk.IClient,
-	githubClient github.IClient,
+	jiraClient JiraClient,
+	trunkClient TrunkClient,
+	githubClient GithubClient,
 	payload string,
 ) error {
 	// Create a temporary worker-like struct to reuse the existing methods

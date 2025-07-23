@@ -1,4 +1,4 @@
-package server
+package processing
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
-	"github.com/smartcontractkit/branch-out/internal/testhelpers/mock"
 )
 
 var testConfig = config.Config{
@@ -41,7 +40,7 @@ func TestServer_New(t *testing.T) {
 	t.Parallel()
 
 	require.NotPanics(t, func() {
-		s, err := New(WithLogger(testhelpers.Logger(t)), WithConfig(testConfig))
+		s, err := NewServer(WithLogger(testhelpers.Logger(t)), WithConfig(testConfig))
 		require.NotNil(t, s)
 		require.NoError(t, err)
 	})
@@ -74,13 +73,12 @@ func TestServer_UnknownRoute(t *testing.T) {
 }
 
 // runServer runs a server with mocked clients
-func runServer(t *testing.T, l zerolog.Logger) (*Server, *mock.JiraIClient, *mock.TrunkIClient, *mock.GithubIClient) {
-	jiraClient := mock.NewJiraIClient(t)
-	trunkClient := mock.NewTrunkIClient(t)
-	githubClient := mock.NewGithubIClient(t)
-
+func runServer(t *testing.T, l zerolog.Logger) (*Server, *MockJiraClient, *MockTrunkClient, *MockGithubClient) {
+	jiraClient := NewMockJiraClient(t)
+	trunkClient := NewMockTrunkClient(t)
+	githubClient := NewMockGithubClient(t)
 	// Create server with mocked clients
-	server, err := New(
+	server, err := NewServer(
 		WithLogger(l),
 		WithConfig(testConfig),
 		WithJiraClient(jiraClient),

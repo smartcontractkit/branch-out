@@ -1,5 +1,4 @@
-// Package server hosts the HTTP server for the branch-out application.
-package server
+package processing
 
 import (
 	"context"
@@ -19,7 +18,6 @@ import (
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/jira"
-	"github.com/smartcontractkit/branch-out/processing"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
@@ -33,13 +31,13 @@ type Server struct {
 	config  config.Config
 	version string
 
-	jiraClient   jira.IClient
-	trunkClient  trunk.IClient
-	githubClient github.IClient
-	awsClient    aws.IClient
+	jiraClient   JiraClient
+	trunkClient  TrunkClient
+	githubClient GithubClient
+	awsClient    AWSClient
 
 	// Background worker for processing SQS messages
-	worker *processing.Worker
+	worker *Worker
 
 	running atomic.Bool
 	err     error
@@ -50,17 +48,17 @@ type options struct {
 	logger  zerolog.Logger
 	version string
 
-	jiraClient   jira.IClient
-	trunkClient  trunk.IClient
-	githubClient github.IClient
-	awsClient    aws.IClient
+	jiraClient   JiraClient
+	trunkClient  TrunkClient
+	githubClient GithubClient
+	awsClient    AWSClient
 }
 
 // CreateClients creates the clients for reaching out to external services.
 func CreateClients(
 	logger zerolog.Logger,
 	config config.Config,
-) (jira.IClient, trunk.IClient, github.IClient, aws.IClient, error) {
+) (JiraClient, TrunkClient, GithubClient, AWSClient, error) {
 	jiraClient, err := jira.NewClient(jira.WithLogger(logger), jira.WithConfig(config))
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create Jira client: %w", err)
@@ -87,7 +85,7 @@ type Option func(*options)
 // WithJiraClient sets the Jira client for the server.
 // This overrides using the config to create a client.
 // Useful for testing.
-func WithJiraClient(client jira.IClient) Option {
+func WithJiraClient(client JiraClient) Option {
 	return func(opts *options) {
 		opts.jiraClient = client
 	}
@@ -96,7 +94,7 @@ func WithJiraClient(client jira.IClient) Option {
 // WithTrunkClient sets the Trunk client for the server.
 // This overrides using the config to create a client.
 // Useful for testing.
-func WithTrunkClient(client trunk.IClient) Option {
+func WithTrunkClient(client TrunkClient) Option {
 	return func(opts *options) {
 		opts.trunkClient = client
 	}
@@ -105,14 +103,14 @@ func WithTrunkClient(client trunk.IClient) Option {
 // WithGitHubClient sets the GitHub client for the server.
 // This overrides using the config to create a client.
 // Useful for testing.
-func WithGitHubClient(client github.IClient) Option {
+func WithGitHubClient(client GithubClient) Option {
 	return func(opts *options) {
 		opts.githubClient = client
 	}
 }
 
 // WithAWSClient sets the AWS client for the server.
-func WithAWSClient(client aws.IClient) Option {
+func WithAWSClient(client AWSClient) Option {
 	return func(opts *options) {
 		opts.awsClient = client
 	}
@@ -141,18 +139,18 @@ func defaultOptions() *options {
 	}
 }
 
-// New creates a new Server.
-func New(options ...Option) (*Server, error) {
+// NewServer creates a new Server to run the branch-out application.
+func NewServer(options ...Option) (*Server, error) {
 	opts := defaultOptions()
 	for _, opt := range options {
 		opt(opts)
 	}
 
 	var (
-		jiraClient   jira.IClient
-		trunkClient  trunk.IClient
-		githubClient github.IClient
-		awsClient    aws.IClient
+		jiraClient   JiraClient
+		trunkClient  TrunkClient
+		githubClient GithubClient
+		awsClient    AWSClient
 		err          error
 	)
 
@@ -176,11 +174,11 @@ func New(options ...Option) (*Server, error) {
 	}
 
 	// Create the background worker for SQS processing
-	workerConfig := processing.Config{
+	workerConfig := Config{
 		PollInterval: 15 * time.Second,
 	}
 
-	sqsWorker := processing.NewWorker(
+	sqsWorker := NewWorker(
 		opts.logger,
 		opts.awsClient,
 		opts.jiraClient,
@@ -414,7 +412,7 @@ func (s *Server) ReceiveWebhook(req *http.Request) *WebhookResponse {
 	switch req.URL.Path {
 	case "/webhooks/trunk":
 		// Create webhook handler for this request
-		handler := trunk.NewWebhookHandler(l, s.config.Trunk.WebhookSecret, s.awsClient)
+		handler := NewWebhookHandler(l, s.config.Trunk.WebhookSecret, s.awsClient)
 		err = handler.HandleWebhook(req)
 	default:
 		err = fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)

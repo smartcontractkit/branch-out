@@ -1,4 +1,4 @@
-package server
+package processing
 
 import (
 	"bytes"
@@ -34,7 +34,7 @@ func TestServer_Integration_TrunkWebhook(t *testing.T) {
 	require.NoError(t, err, "failed to create request")
 	req.Header.Set("Content-Type", "application/json")
 
-	req, err = trunk.SelfSignWebhookRequest(l, req, s.config.Trunk.WebhookSecret)
+	req, err = SelfSignWebhookRequest(l, req, s.config.Trunk.WebhookSecret)
 	require.NoError(t, err, "failed to self-sign webhook request")
 
 	c := base.NewClient("test", base.WithLogger(l))

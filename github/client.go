@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 
@@ -15,21 +14,9 @@ import (
 
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
-	"github.com/smartcontractkit/branch-out/golang"
 )
 
-// IClient is the interface for the GitHub client.
-type IClient interface {
-	QuarantineTests(
-		ctx context.Context,
-		l zerolog.Logger,
-		repoURL string,
-		targets []golang.QuarantineTarget,
-		options ...QuarantineOption,
-	) error
-}
-
-// Client is a wrapper around the GitHub REST and GraphQL API clients
+// Client is the standard GitHub Client.
 type Client struct {
 	// Rest is the GitHub REST API client.
 	Rest *github.Client
