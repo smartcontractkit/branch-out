@@ -448,7 +448,7 @@ func (c *Client) AuthType() string {
 	if c.config.OAuthAccessToken != "" {
 		return "OAuth"
 	} else if c.config.Username != "" && c.config.Token != "" {
-		return "Basic Auth"
+		return "Basic"
 	}
 	return "None"
 }
