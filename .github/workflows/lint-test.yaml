@@ -70,14 +70,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-            ref: ${{ github.event.pull_request.head.sha }}
       - name: Download Coverage
         uses: actions/download-artifact@v4
         with:
           name: coverage.out
           path: .
       - name: Commit Coverage
+        if: github.ref == 'refs/heads/main'
         uses: planetscale/ghcommit-action@7c35caed9937939812c7d4242ffab823e9b3b1fa # v0.2.16
         with:
           commit_message: "🤖 Update coverage.out"
