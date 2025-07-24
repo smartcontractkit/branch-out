@@ -238,8 +238,6 @@ func QuarantineTests(
 			failedToQuarantine = append(failedToQuarantine, fmt.Sprintf("%s/%s", result.Package, failure))
 		}
 	}
-	fmt.Println("Quarantine Results\n==========================")
-	fmt.Println(results.String())
 
 	l.Info().
 		Strs("successfully_quarantined", successfullyQuarantined).
