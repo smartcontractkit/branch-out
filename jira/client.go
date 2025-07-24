@@ -421,7 +421,7 @@ func (c *Client) getFlakyTestIssueByCustomFields(
 		return nil, fmt.Errorf("invalid package field ID format: %w", err)
 	}
 
-	jql := fmt.Sprintf(`%s AND cf[%d] ~ "%s" AND cf[%d] ~ "%s"`,
+	jql := fmt.Sprintf(`%s AND cf[%d] ~ "%s" AND cf[%d] ~ "%s" AND status != "Closed"`,
 		c.jqlBase, testFieldIDNum, testName, packageFieldIDNum, packageName,
 	)
 
