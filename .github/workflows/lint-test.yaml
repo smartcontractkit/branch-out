@@ -56,28 +56,13 @@ jobs:
       - name: Test
         run: ${{ steps.build-run-command.outputs.run_command }}
       - name: Upload Coverage
+        if: matrix.race == false
         uses: actions/upload-artifact@v4
         with:
           name: coverage.out
           path: ./coverage.out
 
-  check-coverage:
-    needs: test
-    name: Check Test Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download Coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage.out
-          path: ./coverage.out
-      - name: Check Test Coverage
-        uses: vladopajic/go-test-coverage@d4177aaab9307eb783516275d495c01254da2fb9 # v2.16.0
-        with:
-          config: ./.testcoverage.yml
-
-  update-coverage:
+  test-coverage:
     permissions:
       contents: write
     needs: test
@@ -97,3 +82,8 @@ jobs:
           branch: ${{ github.head_ref || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      - name: Check Test Coverage
+        uses: vladopajic/go-test-coverage@d4177aaab9307eb783516275d495c01254da2fb9 # v2.16.0
+        with:
+          config: ./.testcoverage.yml
+          profile: ./coverage.out
