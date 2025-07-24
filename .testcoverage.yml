@@ -31,7 +31,7 @@ exclude:
 # Typically, this breakdown is generated only for main (base) branches and
 # stored as an artifact. Later, this file can be used in feature branches
 # to compare test coverage against the base branch.
-breakdown-file-name: "test-coverage.out"
+breakdown-file-name: ""
 
 diff:
   # Path to the test coverage breakdown file from the base branch.
@@ -40,7 +40,7 @@ diff:
   # controled via `breakdown-file-name` property.
   # When set in a feature branch, it allows the tool to compute and report
   # the coverage difference between the current (feature) branch and the base.
-  base-breakdown-file-name: "test-coverage.out"
+  base-breakdown-file-name: ""
 
   # Allowed threshold for the test coverage difference (in percentage)
   # between the feature branch and the base branch.
