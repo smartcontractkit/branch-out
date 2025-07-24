@@ -32,15 +32,17 @@ func TestNewClient_BasicAuth(t *testing.T) {
 func TestNewClient_TokenAuth(t *testing.T) {
 	t.Parallel()
 
-	cfg := standardJiraConfig
-	cfg.BaseDomain = "test.atlassian.net"
-	cfg.OAuthAccessToken = "test"
-	cfg.OAuthRefreshToken = "test"
-	cfg.OAuthClientID = "test"
-	cfg.OAuthClientSecret = "test"
+	jiraConfig := config.Jira{
+		ProjectKey:        "TEST",
+		BaseDomain:        "test.atlassian.net",
+		OAuthAccessToken:  "test",
+		OAuthRefreshToken: "test",
+		OAuthClientID:     "test",
+		OAuthClientSecret: "test",
+	}
 
 	client, err := NewClient(WithLogger(testhelpers.Logger(t)), WithConfig(config.Config{
-		Jira: cfg,
+		Jira: jiraConfig,
 	}))
 	require.NoError(t, err)
 	require.NotNil(t, client)
