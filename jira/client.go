@@ -8,9 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 
 	go_jira "github.com/andygrunwald/go-jira"
 	"github.com/rs/zerolog"
+	"github.com/trivago/tgo/tcontainer"
 	"golang.org/x/oauth2"
 
 	"github.com/smartcontractkit/branch-out/base"
@@ -27,6 +30,8 @@ const (
 var (
 	// ErrNoOpenFlakyTestIssueFound is returned when searching for a specific flaky test issue and it is not found.
 	ErrNoOpenFlakyTestIssueFound = errors.New("no open flaky test issue found")
+	// ErrCustomFieldsNotFound is returned when the provided custom fields are not found in Jira.
+	ErrCustomFieldsNotFound = errors.New("custom Jira fields not found")
 )
 
 // FlakyTestIssue represents a Jira issue for a flaky test.
@@ -156,13 +161,16 @@ func NewClient(options ...Option) (*Client, error) {
 
 	c.logger = c.logger.With().Str("auth_type", c.AuthType()).Logger()
 
-	if err := c.validateCustomFields(); err != nil {
+	err = c.validateCustomFields()
+	if errors.Is(err, ErrCustomFieldsNotFound) {
 		c.logger.Warn().
 			Err(err).
 			Msg("Provided custom field IDs are not available in Jira, some functionality will be disabled")
 		c.config.TestFieldID = ""
 		c.config.PackageFieldID = ""
 		c.config.TrunkIDFieldID = ""
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to validate custom Jira fields: %w", err)
 	}
 
 	c.jqlBase = fmt.Sprintf(
@@ -175,7 +183,7 @@ func NewClient(options ...Option) (*Client, error) {
 	return c, nil
 }
 
-// FlakyTestIssueRequest represents the data needed to create a Jira ticket for a flaky test
+// FlakyTestIssueRequest represents the data needed to create a Jira issue for a flaky test
 type FlakyTestIssueRequest struct {
 	RepoURL           string `json:"repo_url"`
 	Package           string `json:"package"`
@@ -185,7 +193,7 @@ type FlakyTestIssueRequest struct {
 	AdditionalDetails string `json:"additional_details"` // JSON string with additional details (trunk Payload for example)
 }
 
-// CreateFlakyTestIssue creates a new Jira ticket for a flaky test
+// CreateFlakyTestIssue creates a new Jira issue for a flaky test
 func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (FlakyTestIssue, error) {
 	c.logger.Debug().
 		Str("repo_url", req.RepoURL).
@@ -193,7 +201,7 @@ func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (FlakyTestIssue
 		Str("test", req.Test).
 		Str("file_path", req.FilePath).
 		Str("trunk_id", req.TrunkID).
-		Msg("Creating Jira ticket for flaky test")
+		Msg("Creating Jira issue for flaky test")
 
 	// Construct the ticket summary and description
 	summary := fmt.Sprintf("Flaky Test: %s.%s", req.Package, req.Test)
@@ -234,16 +242,18 @@ This ticket was automatically created by [branch-out|https://github.com/smartcon
 		},
 	}
 
+	customFields := tcontainer.NewMarshalMap()
 	// If we have them, add the custom fields to the issue request
 	if c.config.TestFieldID != "" {
-		createIssueRequest.Fields.Unknowns[c.config.TestFieldID] = req.Test
+		customFields[c.config.TestFieldID] = req.Test
 	}
 	if c.config.PackageFieldID != "" {
-		createIssueRequest.Fields.Unknowns[c.config.PackageFieldID] = req.Package
+		customFields[c.config.PackageFieldID] = req.Package
 	}
 	if c.config.TrunkIDFieldID != "" {
-		createIssueRequest.Fields.Unknowns[c.config.TrunkIDFieldID] = req.TrunkID
+		customFields[c.config.TrunkIDFieldID] = req.TrunkID
 	}
+	createIssueRequest.Fields.Unknowns = customFields
 
 	issue, resp, err := c.Issue.Create(createIssueRequest)
 	if err != nil {
@@ -258,7 +268,7 @@ This ticket was automatically created by [branch-out|https://github.com/smartcon
 		Str("ticket_key", flakyTestIssue.Key).
 		Str("ticket_id", flakyTestIssue.ID).
 		Str("ticket_url", flakyTestIssue.Self).
-		Msg("Created Jira ticket for flaky test")
+		Msg("Created Jira issue for flaky test")
 
 	return flakyTestIssue, nil
 }
@@ -270,7 +280,7 @@ func (c *Client) GetOpenFlakyTestIssues() ([]FlakyTestIssue, error) {
 		c.config.ProjectKey,
 		FlakyTestLabel,
 	)
-	c.logger.Debug().Str("jql", jql).Msg("Searching for all open flaky test tickets")
+	c.logger.Debug().Str("jql", jql).Msg("Searching for all open flaky test issues")
 	issues, resp, err := c.Issue.Search(
 		jql,
 		&go_jira.SearchOptions{
@@ -283,7 +293,7 @@ func (c *Client) GetOpenFlakyTestIssues() ([]FlakyTestIssue, error) {
 	if err := checkResponse(resp); err != nil {
 		return nil, err
 	}
-	c.logger.Debug().Int("num_issues", len(issues)).Msg("Finished searching for open flaky test tickets")
+	c.logger.Debug().Int("num_issues", len(issues)).Msg("Finished searching for open flaky test issues")
 
 	flakyTestIssues := []FlakyTestIssue{}
 	for _, issue := range issues {
@@ -309,12 +319,22 @@ func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (FlakyTestI
 	)
 	// If we have the custom fields, use them to filter the results instead of the summary
 	if c.config.TestFieldID != "" && c.config.PackageFieldID != "" {
+		// JQL uses numbers for custom field searches, and doesn't support exact string matches. e.g. cf[10003] ~ "TestName"
+		// https://support.atlassian.com/jira-software-cloud/docs/jql-fields/
+		testFieldIDNum, err := strconv.Atoi(strings.TrimPrefix(c.config.TestFieldID, "customfield_"))
+		if err != nil {
+			return FlakyTestIssue{}, fmt.Errorf("failed to convert test field ID to number: %w", err)
+		}
+		packageFieldIDNum, err := strconv.Atoi(strings.TrimPrefix(c.config.PackageFieldID, "customfield_"))
+		if err != nil {
+			return FlakyTestIssue{}, fmt.Errorf("failed to convert package field ID to number: %w", err)
+		}
 		jql = fmt.Sprintf(
-			`%s AND %s = "%s" AND %s = "%s"`,
+			`%s AND cf[%d] ~ "%s" AND cf[%d] ~ "%s"`,
 			c.jqlBase,
-			c.config.TestFieldID,
+			testFieldIDNum,
 			testName,
-			c.config.PackageFieldID,
+			packageFieldIDNum,
 			packageName,
 		)
 	}
@@ -322,7 +342,7 @@ func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (FlakyTestI
 		Str("package_name", packageName).
 		Str("test_name", testName).
 		Str("jql", jql).
-		Msg("Searching for open flaky test ticket")
+		Msg("Searching for open flaky test issue")
 	issues, resp, err := c.Issue.Search(
 		jql,
 		&go_jira.SearchOptions{
@@ -342,16 +362,18 @@ func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (FlakyTestI
 	if len(issues) > 1 {
 		c.logger.Warn().
 			Int("num_issues", len(issues)).
-			Msg("Multiple open flaky test tickets found, returning the first one")
+			Msg("Multiple open flaky test issues found, returning the first one")
 	}
 
 	issue := c.convertIssueToFlakyTestIssue(issues[0])
 
 	c.logger.Debug().
-		Str("ticket_key", issue.Key).
-		Str("ticket_id", issue.ID).
-		Str("ticket_url", issue.Self).
-		Msg("Found open flaky test ticket")
+		Str("issue_key", issue.Key).
+		Str("test", issue.Test).
+		Str("package", issue.Package).
+		Str("issue_id", issue.ID).
+		Str("issue_url", issue.Self).
+		Msg("Found open flaky test issue")
 	return issue, nil
 }
 
@@ -365,10 +387,9 @@ func (c *Client) AuthType() string {
 	return "None"
 }
 
-// validateCustomFields validates that the custom fields are available in Jira.
+// validateCustomFields validates that, if provided, the custom fields are available in Jira.
 func (c *Client) validateCustomFields() error {
 	if c.config.TestFieldID == "" && c.config.PackageFieldID == "" && c.config.TrunkIDFieldID == "" {
-		c.logger.Debug().Msg("No custom fields configured")
 		return nil
 	}
 
@@ -394,14 +415,8 @@ func (c *Client) validateCustomFields() error {
 	}
 
 	if len(foundFields) < 3 {
-		return fmt.Errorf("unable to find all provided custom field IDs in Jira, found IDs for %v", foundFields)
+		return ErrCustomFieldsNotFound
 	}
-
-	c.logger.Debug().
-		Str("test_field_id", c.config.TestFieldID).
-		Str("package_field_id", c.config.PackageFieldID).
-		Str("trunk_id_field_id", c.config.TrunkIDFieldID).
-		Msg("Found custom fields in Jira")
 
 	return nil
 }

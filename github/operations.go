@@ -40,7 +40,12 @@ func (c *Client) getBranchHeadSHA(ctx context.Context, owner, repo, branchName s
 		return "", false, fmt.Errorf("failed to get branch reference: %w", err)
 	}
 
-	return ref.GetObject().GetSHA(), true, nil
+	sha := ref.GetObject().GetSHA()
+	if sha == "" {
+		return "", false, fmt.Errorf("branch %s has no SHA", branchName)
+	}
+
+	return sha, true, nil
 }
 
 // checkoutBranchLocal checks out a branch in the local repository.

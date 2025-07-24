@@ -225,7 +225,7 @@ var (
 		{
 			EnvVar:      "JIRA_TEST_FIELD_ID",
 			Description: "If available, the ID of the custom field used to store the test name",
-			Example:     "customfield_1234567890",
+			Example:     "customfield_10003",
 			Flag:        "jira-test-field-id",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
@@ -233,7 +233,7 @@ var (
 		{
 			EnvVar:      "JIRA_PACKAGE_FIELD_ID",
 			Description: "If available, the ID of the custom field used to store the package name",
-			Example:     "customfield_1234567890",
+			Example:     "customfield_10003",
 			Flag:        "jira-package-field-id",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
@@ -241,7 +241,7 @@ var (
 		{
 			EnvVar:      "JIRA_TRUNK_ID_FIELD_ID",
 			Description: "If available, the ID of the custom field used to store the Trunk ID",
-			Example:     "customfield_1234567890",
+			Example:     "customfield_10003",
 			Flag:        "jira-trunk-id-field-id",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,

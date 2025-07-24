@@ -4,6 +4,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -142,12 +143,15 @@ func (c *Client) getOrCreateRemoteBranch(ctx context.Context, owner, repo, branc
 
 	// Create the branch if it doesn't exist
 	ref := fmt.Sprintf("refs/heads/%s", branchName)
-	_, _, err = c.Rest.Git.CreateRef(ctx, owner, repo, &github.Reference{
+	_, resp, err := c.Rest.Git.CreateRef(ctx, owner, repo, &github.Reference{
 		Ref:    &ref,
 		Object: &github.GitObject{SHA: &branchHeadSHA},
 	})
 	if err != nil && !strings.Contains(err.Error(), "already exists") {
 		return "", fmt.Errorf("failed to create branch %s: %w", branchName, err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("failed to create branch %s: %s", branchName, resp.Status)
 	}
 
 	return branchHeadSHA, nil

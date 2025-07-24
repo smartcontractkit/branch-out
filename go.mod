@@ -23,6 +23,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	github.com/svix/svix-webhooks v1.69.0
+	github.com/trivago/tgo v1.0.7
 	golang.org/x/oauth2 v0.30.0
 	golang.org/x/sync v0.16.0
 	golang.org/x/tools v0.35.0
@@ -108,7 +109,6 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/trivago/tgo v1.0.7 // indirect
 	github.com/vektra/mockery/v3 v3.5.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect

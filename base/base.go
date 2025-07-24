@@ -137,7 +137,17 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		Str("method", req.Method).
 		Str("url", req.URL.String()).
 		Logger()
-	l.Trace().Msg("HTTP client request")
+
+	if req.Body != nil {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			l.Error().Err(err).Msg("Failed to read request body")
+		}
+		req.Body = io.NopCloser(bytes.NewBuffer(body))
+		l.Trace().Str("body", truncateBody(body)).Msg("HTTP client request")
+	} else {
+		l.Trace().Msg("HTTP client request")
+	}
 
 	if t.BasicAuth != nil {
 		req.SetBasicAuth(t.BasicAuth.username, t.BasicAuth.password)
@@ -169,7 +179,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 	resp.Body = io.NopCloser(bytes.NewBuffer(body))
-	l = l.With().Int("status_code", resp.StatusCode).Str("body", string(body)).Logger()
+	l = l.With().Int("status_code", resp.StatusCode).Str("body", truncateBody(body)).Logger()
 
 	// Process rate limit headers (GitHub style)
 	if callLimitStr := resp.Header.Get("X-RateLimit-Limit"); callLimitStr != "" {
@@ -212,4 +222,11 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	l.Trace().Msg("HTTP client response")
 	return resp, nil
+}
+
+func truncateBody(body []byte) string {
+	if len(body) > 1024 {
+		return string(body[:1024]) + "...[truncated body]"
+	}
+	return string(body)
 }
