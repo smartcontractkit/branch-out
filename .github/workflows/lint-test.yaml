@@ -59,7 +59,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage.out
-          path: ./cover.out
+          path: ./coverage.out
 
   check-coverage:
     needs: test
@@ -73,7 +73,7 @@ jobs:
           name: coverage.out
           path: ./coverage.out
       - name: Check Test Coverage
-        uses: vladopajic/go-test-coverage@v2
+        uses: vladopajic/go-test-coverage@d4177aaab9307eb783516275d495c01254da2fb9 # v2.16.0
         with:
           config: ./.testcoverage.yml
 
@@ -90,7 +90,7 @@ jobs:
         with:
           name: coverage.out
           path: ./coverage.out
-      - uses: planetscale/ghcommit-action@v0.1.6
+      - uses: planetscale/ghcommit-action@7c35caed9937939812c7d4242ffab823e9b3b1fa # v0.2.16
         with:
           commit_message: "🤖 Update coverage.out"
           repo: ${{ github.repository }}
