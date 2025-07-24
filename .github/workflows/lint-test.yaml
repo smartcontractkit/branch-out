@@ -45,13 +45,15 @@ jobs:
       - name: Build Run Command
         id: build-run-command
         run: |
+          echo "race=${{ matrix.race }}"
           run_command="go tool gotestsum -- ./..."
-          if [ "$race" = "true" ]; then
+          if [ "${{ matrix.race }}" = "true" ]; then
             run_command="$run_command -race"
           else
             run_command="$run_command -coverprofile=coverage.out"
           fi
           echo "run_command=$run_command" >> $GITHUB_OUTPUT
+          echo "run_command=$run_command"
       - name: Test
         run: ${{ steps.build-run-command.outputs.run_command }}
       - name: Upload Coverage
