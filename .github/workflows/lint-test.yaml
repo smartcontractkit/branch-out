@@ -52,7 +52,6 @@ jobs:
             run_command="$run_command -coverprofile=coverage.out"
           fi
           echo "run_command=$run_command" >> $GITHUB_OUTPUT
-          echo "coverage_file=./coverage.out" >> $GITHUB_OUTPUT
       - name: Test
         run: ${{ steps.build-run-command.outputs.run_command }}
       - name: Upload Coverage
@@ -75,10 +74,6 @@ jobs:
         with:
           name: coverage.out
           path: .
-      - name: Check Test Coverage
-        uses: vladopajic/go-test-coverage@d4177aaab9307eb783516275d495c01254da2fb9 # v2.16.0
-        with:
-          config: ./.testcoverage.yml
       - name: Commit Coverage
         if: github.ref == 'refs/heads/main'
         uses: planetscale/ghcommit-action@7c35caed9937939812c7d4242ffab823e9b3b1fa # v0.2.16
@@ -88,3 +83,7 @@ jobs:
           branch: ${{ github.head_ref || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      - name: Check Test Coverage
+        uses: vladopajic/go-test-coverage@d4177aaab9307eb783516275d495c01254da2fb9 # v2.16.0
+        with:
+          config: ./.testcoverage.yml
