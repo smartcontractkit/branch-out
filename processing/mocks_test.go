@@ -7,7 +7,6 @@ package processing
 import (
 	"context"
 
-	jira0 "github.com/andygrunwald/go-jira"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/rs/zerolog"
 	"github.com/smartcontractkit/branch-out/github"
@@ -266,24 +265,22 @@ func (_m *MockJiraClient) EXPECT() *MockJiraClient_Expecter {
 }
 
 // CreateFlakyTestIssue provides a mock function for the type MockJiraClient
-func (_mock *MockJiraClient) CreateFlakyTestIssue(req jira.FlakyTestIssueRequest) (*jira0.Issue, error) {
+func (_mock *MockJiraClient) CreateFlakyTestIssue(req jira.FlakyTestIssueRequest) (jira.FlakyTestIssue, error) {
 	ret := _mock.Called(req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateFlakyTestIssue")
 	}
 
-	var r0 *jira0.Issue
+	var r0 jira.FlakyTestIssue
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(jira.FlakyTestIssueRequest) (*jira0.Issue, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(jira.FlakyTestIssueRequest) (jira.FlakyTestIssue, error)); ok {
 		return returnFunc(req)
 	}
-	if returnFunc, ok := ret.Get(0).(func(jira.FlakyTestIssueRequest) *jira0.Issue); ok {
+	if returnFunc, ok := ret.Get(0).(func(jira.FlakyTestIssueRequest) jira.FlakyTestIssue); ok {
 		r0 = returnFunc(req)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*jira0.Issue)
-		}
+		r0 = ret.Get(0).(jira.FlakyTestIssue)
 	}
 	if returnFunc, ok := ret.Get(1).(func(jira.FlakyTestIssueRequest) error); ok {
 		r1 = returnFunc(req)
@@ -317,35 +314,33 @@ func (_c *MockJiraClient_CreateFlakyTestIssue_Call) Run(run func(req jira.FlakyT
 	return _c
 }
 
-func (_c *MockJiraClient_CreateFlakyTestIssue_Call) Return(issue *jira0.Issue, err error) *MockJiraClient_CreateFlakyTestIssue_Call {
-	_c.Call.Return(issue, err)
+func (_c *MockJiraClient_CreateFlakyTestIssue_Call) Return(flakyTestIssue jira.FlakyTestIssue, err error) *MockJiraClient_CreateFlakyTestIssue_Call {
+	_c.Call.Return(flakyTestIssue, err)
 	return _c
 }
 
-func (_c *MockJiraClient_CreateFlakyTestIssue_Call) RunAndReturn(run func(req jira.FlakyTestIssueRequest) (*jira0.Issue, error)) *MockJiraClient_CreateFlakyTestIssue_Call {
+func (_c *MockJiraClient_CreateFlakyTestIssue_Call) RunAndReturn(run func(req jira.FlakyTestIssueRequest) (jira.FlakyTestIssue, error)) *MockJiraClient_CreateFlakyTestIssue_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetOpenFlakyTestIssue provides a mock function for the type MockJiraClient
-func (_mock *MockJiraClient) GetOpenFlakyTestIssue(packageName string, testName string) (*jira0.Issue, error) {
+func (_mock *MockJiraClient) GetOpenFlakyTestIssue(packageName string, testName string) (jira.FlakyTestIssue, error) {
 	ret := _mock.Called(packageName, testName)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetOpenFlakyTestIssue")
 	}
 
-	var r0 *jira0.Issue
+	var r0 jira.FlakyTestIssue
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) (*jira0.Issue, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(string, string) (jira.FlakyTestIssue, error)); ok {
 		return returnFunc(packageName, testName)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string) *jira0.Issue); ok {
+	if returnFunc, ok := ret.Get(0).(func(string, string) jira.FlakyTestIssue); ok {
 		r0 = returnFunc(packageName, testName)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*jira0.Issue)
-		}
+		r0 = ret.Get(0).(jira.FlakyTestIssue)
 	}
 	if returnFunc, ok := ret.Get(1).(func(string, string) error); ok {
 		r1 = returnFunc(packageName, testName)
@@ -385,34 +380,34 @@ func (_c *MockJiraClient_GetOpenFlakyTestIssue_Call) Run(run func(packageName st
 	return _c
 }
 
-func (_c *MockJiraClient_GetOpenFlakyTestIssue_Call) Return(issue *jira0.Issue, err error) *MockJiraClient_GetOpenFlakyTestIssue_Call {
-	_c.Call.Return(issue, err)
+func (_c *MockJiraClient_GetOpenFlakyTestIssue_Call) Return(flakyTestIssue jira.FlakyTestIssue, err error) *MockJiraClient_GetOpenFlakyTestIssue_Call {
+	_c.Call.Return(flakyTestIssue, err)
 	return _c
 }
 
-func (_c *MockJiraClient_GetOpenFlakyTestIssue_Call) RunAndReturn(run func(packageName string, testName string) (*jira0.Issue, error)) *MockJiraClient_GetOpenFlakyTestIssue_Call {
+func (_c *MockJiraClient_GetOpenFlakyTestIssue_Call) RunAndReturn(run func(packageName string, testName string) (jira.FlakyTestIssue, error)) *MockJiraClient_GetOpenFlakyTestIssue_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetOpenFlakyTestIssues provides a mock function for the type MockJiraClient
-func (_mock *MockJiraClient) GetOpenFlakyTestIssues() ([]jira0.Issue, error) {
+func (_mock *MockJiraClient) GetOpenFlakyTestIssues() ([]jira.FlakyTestIssue, error) {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetOpenFlakyTestIssues")
 	}
 
-	var r0 []jira0.Issue
+	var r0 []jira.FlakyTestIssue
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func() ([]jira0.Issue, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func() ([]jira.FlakyTestIssue, error)); ok {
 		return returnFunc()
 	}
-	if returnFunc, ok := ret.Get(0).(func() []jira0.Issue); ok {
+	if returnFunc, ok := ret.Get(0).(func() []jira.FlakyTestIssue); ok {
 		r0 = returnFunc()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]jira0.Issue)
+			r0 = ret.Get(0).([]jira.FlakyTestIssue)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func() error); ok {
@@ -440,12 +435,12 @@ func (_c *MockJiraClient_GetOpenFlakyTestIssues_Call) Run(run func()) *MockJiraC
 	return _c
 }
 
-func (_c *MockJiraClient_GetOpenFlakyTestIssues_Call) Return(issues []jira0.Issue, err error) *MockJiraClient_GetOpenFlakyTestIssues_Call {
-	_c.Call.Return(issues, err)
+func (_c *MockJiraClient_GetOpenFlakyTestIssues_Call) Return(flakyTestIssues []jira.FlakyTestIssue, err error) *MockJiraClient_GetOpenFlakyTestIssues_Call {
+	_c.Call.Return(flakyTestIssues, err)
 	return _c
 }
 
-func (_c *MockJiraClient_GetOpenFlakyTestIssues_Call) RunAndReturn(run func() ([]jira0.Issue, error)) *MockJiraClient_GetOpenFlakyTestIssues_Call {
+func (_c *MockJiraClient_GetOpenFlakyTestIssues_Call) RunAndReturn(run func() ([]jira.FlakyTestIssue, error)) *MockJiraClient_GetOpenFlakyTestIssues_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -478,16 +473,16 @@ func (_m *MockTrunkClient) EXPECT() *MockTrunkClient_Expecter {
 }
 
 // LinkTicketToTestCase provides a mock function for the type MockTrunkClient
-func (_mock *MockTrunkClient) LinkTicketToTestCase(testCaseID string, ticket *jira0.Issue, repoURL string) error {
-	ret := _mock.Called(testCaseID, ticket, repoURL)
+func (_mock *MockTrunkClient) LinkTicketToTestCase(testCaseID string, issueKey string, repoURL string) error {
+	ret := _mock.Called(testCaseID, issueKey, repoURL)
 
 	if len(ret) == 0 {
 		panic("no return value specified for LinkTicketToTestCase")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, *jira0.Issue, string) error); ok {
-		r0 = returnFunc(testCaseID, ticket, repoURL)
+	if returnFunc, ok := ret.Get(0).(func(string, string, string) error); ok {
+		r0 = returnFunc(testCaseID, issueKey, repoURL)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -501,21 +496,21 @@ type MockTrunkClient_LinkTicketToTestCase_Call struct {
 
 // LinkTicketToTestCase is a helper method to define mock.On call
 //   - testCaseID string
-//   - ticket *jira0.Issue
+//   - issueKey string
 //   - repoURL string
-func (_e *MockTrunkClient_Expecter) LinkTicketToTestCase(testCaseID interface{}, ticket interface{}, repoURL interface{}) *MockTrunkClient_LinkTicketToTestCase_Call {
-	return &MockTrunkClient_LinkTicketToTestCase_Call{Call: _e.mock.On("LinkTicketToTestCase", testCaseID, ticket, repoURL)}
+func (_e *MockTrunkClient_Expecter) LinkTicketToTestCase(testCaseID interface{}, issueKey interface{}, repoURL interface{}) *MockTrunkClient_LinkTicketToTestCase_Call {
+	return &MockTrunkClient_LinkTicketToTestCase_Call{Call: _e.mock.On("LinkTicketToTestCase", testCaseID, issueKey, repoURL)}
 }
 
-func (_c *MockTrunkClient_LinkTicketToTestCase_Call) Run(run func(testCaseID string, ticket *jira0.Issue, repoURL string)) *MockTrunkClient_LinkTicketToTestCase_Call {
+func (_c *MockTrunkClient_LinkTicketToTestCase_Call) Run(run func(testCaseID string, issueKey string, repoURL string)) *MockTrunkClient_LinkTicketToTestCase_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 *jira0.Issue
+		var arg1 string
 		if args[1] != nil {
-			arg1 = args[1].(*jira0.Issue)
+			arg1 = args[1].(string)
 		}
 		var arg2 string
 		if args[2] != nil {
@@ -535,7 +530,7 @@ func (_c *MockTrunkClient_LinkTicketToTestCase_Call) Return(err error) *MockTrun
 	return _c
 }
 
-func (_c *MockTrunkClient_LinkTicketToTestCase_Call) RunAndReturn(run func(testCaseID string, ticket *jira0.Issue, repoURL string) error) *MockTrunkClient_LinkTicketToTestCase_Call {
+func (_c *MockTrunkClient_LinkTicketToTestCase_Call) RunAndReturn(run func(testCaseID string, issueKey string, repoURL string) error) *MockTrunkClient_LinkTicketToTestCase_Call {
 	_c.Call.Return(run)
 	return _c
 }

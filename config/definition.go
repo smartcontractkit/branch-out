@@ -35,16 +35,20 @@ var (
 
 // Field represents a configuration field.
 type Field struct {
-	// EnvVar is the environment variable name. It is also the key in viper.
-	EnvVar      string
+	// The environment variable name. It is also the key in viper.
+	EnvVar string
+	// Short description of the field.
 	Description string
-	Flag        string
-	ShortFlag   string
-	Type        reflect.Type
-	Default     any
-	Example     any
-	Persistent  bool
-	Required    bool
+	// The flag name for CLI input
+	Flag string
+	// If desired, the short flag name for CLI input
+	ShortFlag string
+	Type      reflect.Type
+	Default   any
+	Example   any
+	// If the field should be marked as Persistent in Cobra
+	Persistent bool
+	Required   bool
 }
 
 var (
@@ -215,6 +219,30 @@ var (
 			Description: "Jira API token for basic auth",
 			Example:     "jira_api_token",
 			Flag:        "jira-token",
+			Type:        reflect.TypeOf(""),
+			Persistent:  true,
+		},
+		{
+			EnvVar:      "JIRA_TEST_FIELD_ID",
+			Description: "If available, the ID of the custom field used to store the test name",
+			Example:     "customfield_10003",
+			Flag:        "jira-test-field-id",
+			Type:        reflect.TypeOf(""),
+			Persistent:  true,
+		},
+		{
+			EnvVar:      "JIRA_PACKAGE_FIELD_ID",
+			Description: "If available, the ID of the custom field used to store the package name",
+			Example:     "customfield_10003",
+			Flag:        "jira-package-field-id",
+			Type:        reflect.TypeOf(""),
+			Persistent:  true,
+		},
+		{
+			EnvVar:      "JIRA_TRUNK_ID_FIELD_ID",
+			Description: "If available, the ID of the custom field used to store the Trunk ID",
+			Example:     "customfield_10003",
+			Flag:        "jira-trunk-id-field-id",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
 		},

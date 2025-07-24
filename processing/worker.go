@@ -4,11 +4,11 @@ package processing
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	go_jira "github.com/andygrunwald/go-jira"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/rs/zerolog"
 
@@ -318,7 +318,7 @@ func (w *Worker) verifyClients() error {
 func (w *Worker) createJiraIssueForFlakyTest(
 	l zerolog.Logger,
 	statusChange trunk.TestCaseStatusChange,
-) (*go_jira.Issue, error) {
+) (jira.FlakyTestIssue, error) {
 	testCase := statusChange.TestCase
 
 	// Create details JSON from test case data
@@ -334,7 +334,7 @@ func (w *Worker) createJiraIssueForFlakyTest(
 		"variant":                        testCase.Variant,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal test case details: %w", err)
+		return jira.FlakyTestIssue{}, fmt.Errorf("failed to marshal test case details: %w", err)
 	}
 
 	req := jira.FlakyTestIssueRequest{
@@ -346,21 +346,21 @@ func (w *Worker) createJiraIssueForFlakyTest(
 		AdditionalDetails: string(details),
 	}
 
-	var issue *go_jira.Issue
-
-	issue, err = w.jiraClient.GetOpenFlakyTestIssue(testCase.TestSuite, testCase.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get existing Jira ticket: %w", err)
-	}
-	if issue == nil {
+	// Try to get an existing Jira ticket for the flaky test
+	issue, err := w.jiraClient.GetOpenFlakyTestIssue(testCase.TestSuite, testCase.Name)
+	if errors.Is(err, jira.ErrNoOpenFlakyTestIssueFound) {
+		// No existing ticket found, create a new one
 		issue, err = w.jiraClient.CreateFlakyTestIssue(req)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create Jira ticket: %w", err)
+			return jira.FlakyTestIssue{}, fmt.Errorf("failed to create Jira ticket: %w", err)
 		}
+	} else if err != nil {
+		// Some other error occurred
+		return jira.FlakyTestIssue{}, fmt.Errorf("failed to get existing Jira ticket: %w", err)
 	}
 
 	// Link the Jira ticket back to the Trunk test case
-	if err := w.trunkClient.LinkTicketToTestCase(testCase.ID, issue, testCase.Repository.HTMLURL); err != nil {
+	if err := w.trunkClient.LinkTicketToTestCase(testCase.ID, issue.Key, testCase.Repository.HTMLURL); err != nil {
 		l.Warn().Err(err).Msg("Failed to link Jira ticket to Trunk test case (non-blocking)")
 		// Don't return error as the ticket was created successfully
 	}

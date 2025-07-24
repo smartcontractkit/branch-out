@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"time"
 
-	go_jira "github.com/andygrunwald/go-jira"
 	"github.com/rs/zerolog"
 
 	"github.com/smartcontractkit/branch-out/base"
@@ -83,11 +82,12 @@ func NewClient(options ...ClientOption) (*Client, error) {
 
 // LinkTicketToTestCase links a Jira ticket to a test case in Trunk.io
 // See: https://docs.trunk.io/references/apis/flaky-tests#post-flaky-tests-link-ticket-to-test-case
-func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *go_jira.Issue, repoURL string) error {
-	c.logger.Debug().
+func (c *Client) LinkTicketToTestCase(testCaseID, issueKey string, repoURL string) error {
+	l := c.logger.With().
 		Str("test_case_id", testCaseID).
-		Str("jira_ticket_key", ticket.Key).
-		Msg("Linking Jira ticket to Trunk test case")
+		Str("jira_ticket_key", issueKey).
+		Logger()
+	l.Debug().Msg("Linking Jira ticket to Trunk test case")
 
 	host, owner, repo, err := github.ParseRepoURL(repoURL)
 	if err != nil {
@@ -97,7 +97,7 @@ func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *go_jira.Issue, 
 	// Create the request payload
 	linkRequest := LinkTicketRequest{
 		TestCaseID:       testCaseID,
-		ExternalTicketID: ticket.Key, // Use Jira ticket key (e.g., "KAN-123")
+		ExternalTicketID: issueKey, // Use Jira ticket key (e.g., "KAN-123")
 		Repo: RepoReference{
 			Host:  host,
 			Owner: owner,
@@ -129,20 +129,20 @@ func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *go_jira.Issue, 
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			c.logger.Error().Err(closeErr).Msg("Failed to close response body")
+			l.Error().Err(closeErr).Msg("Failed to close response body")
 		}
 	}()
 
 	// Read response body for error details
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Failed to read response body")
+		l.Error().Err(err).Msg("Failed to read response body")
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	// Check response status
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.logger.Error().
+		l.Error().
 			Int("status_code", resp.StatusCode).
 			Str("status", resp.Status).
 			Str("response_body", string(body)).
@@ -150,10 +150,8 @@ func (c *Client) LinkTicketToTestCase(testCaseID string, ticket *go_jira.Issue, 
 		return fmt.Errorf("trunk API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	c.logger.Info().
+	l.Info().
 		Int("status_code", resp.StatusCode).
-		Str("test_case_id", testCaseID).
-		Str("jira_ticket_key", ticket.Key).
 		Msg("Successfully linked Jira ticket to Trunk test case")
 
 	return nil
