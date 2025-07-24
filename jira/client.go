@@ -36,7 +36,7 @@ var (
 
 // FlakyTestIssue represents a Jira issue for a flaky test.
 type FlakyTestIssue struct {
-	go_jira.Issue
+	*go_jira.Issue
 
 	Test    string `json:"test"`
 	Package string `json:"package"`
@@ -242,8 +242,44 @@ This ticket was automatically created by [branch-out|https://github.com/smartcon
 		},
 	}
 
+	issue, resp, err := c.Issue.Create(createIssueRequest)
+	if err != nil {
+		return FlakyTestIssue{}, fmt.Errorf("failed to create Jira issue: %w", err)
+	}
+	if err := checkResponse(resp); err != nil {
+		return FlakyTestIssue{}, err
+	}
+
+	// Create the issue first, then try to add custom fields
+	err = c.addCustomFields(issue.Key, req)
+	if err != nil {
+		c.logger.Warn().
+			Err(err).
+			Msg("Failed to add custom fields to Jira issue")
+	}
+
+	flakyTestIssue := c.wrapFlakyTestIssue(issue)
+
+	c.logger.Info().
+		Str("ticket_key", flakyTestIssue.Key).
+		Str("ticket_id", flakyTestIssue.ID).
+		Str("ticket_url", flakyTestIssue.Self).
+		Msg("Created Jira issue for flaky test")
+
+	return flakyTestIssue, nil
+}
+
+// addCustomFields updates an existing flaky test issue with custom fields
+func (c *Client) addCustomFields(
+	issueKey string,
+	req FlakyTestIssueRequest,
+) error {
+	// Only add custom fields if they're configured
+	if c.config.TestFieldID == "" && c.config.PackageFieldID == "" && c.config.TrunkIDFieldID == "" {
+		return nil
+	}
+
 	customFields := tcontainer.NewMarshalMap()
-	// If we have them, add the custom fields to the issue request
 	if c.config.TestFieldID != "" {
 		customFields[c.config.TestFieldID] = req.Test
 	}
@@ -253,24 +289,23 @@ This ticket was automatically created by [branch-out|https://github.com/smartcon
 	if c.config.TrunkIDFieldID != "" {
 		customFields[c.config.TrunkIDFieldID] = req.TrunkID
 	}
-	createIssueRequest.Fields.Unknowns = customFields
 
-	issue, resp, err := c.Issue.Create(createIssueRequest)
+	updateRequest := &go_jira.Issue{
+		Key: issueKey,
+		Fields: &go_jira.IssueFields{
+			Unknowns: customFields,
+		},
+	}
+
+	_, resp, err := c.Issue.Update(updateRequest)
 	if err != nil {
-		return FlakyTestIssue{}, fmt.Errorf("failed to create Jira issue: %w", err)
+		return fmt.Errorf("failed to update Jira issue with custom fields: %w", err)
 	}
 	if err := checkResponse(resp); err != nil {
-		return FlakyTestIssue{}, err
+		return err
 	}
-	flakyTestIssue := c.convertIssueToFlakyTestIssue(*issue)
 
-	c.logger.Info().
-		Str("ticket_key", flakyTestIssue.Key).
-		Str("ticket_id", flakyTestIssue.ID).
-		Str("ticket_url", flakyTestIssue.Self).
-		Msg("Created Jira issue for flaky test")
-
-	return flakyTestIssue, nil
+	return nil
 }
 
 // GetOpenFlakyTestIssues returns all open flaky test tickets.
@@ -297,7 +332,7 @@ func (c *Client) GetOpenFlakyTestIssues() ([]FlakyTestIssue, error) {
 
 	flakyTestIssues := []FlakyTestIssue{}
 	for _, issue := range issues {
-		flakyTestIssue := c.convertIssueToFlakyTestIssue(issue)
+		flakyTestIssue := c.wrapFlakyTestIssue(&issue)
 		flakyTestIssues = append(flakyTestIssues, flakyTestIssue)
 	}
 
@@ -311,6 +346,7 @@ func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (FlakyTestI
 		return FlakyTestIssue{}, fmt.Errorf("package name and test name are required")
 	}
 
+	searchFields := []string{"key", "id", "self"}
 	jql := fmt.Sprintf(
 		`%s AND summary ~ "%s.%s" AND status != "Closed"`,
 		c.jqlBase,
@@ -319,6 +355,7 @@ func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (FlakyTestI
 	)
 	// If we have the custom fields, use them to filter the results instead of the summary
 	if c.config.TestFieldID != "" && c.config.PackageFieldID != "" {
+		searchFields = append(searchFields, c.config.TestFieldID, c.config.PackageFieldID)
 		// JQL uses numbers for custom field searches, and doesn't support exact string matches. e.g. cf[10003] ~ "TestName"
 		// https://support.atlassian.com/jira-software-cloud/docs/jql-fields/
 		testFieldIDNum, err := strconv.Atoi(strings.TrimPrefix(c.config.TestFieldID, "customfield_"))
@@ -346,7 +383,7 @@ func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (FlakyTestI
 	issues, resp, err := c.Issue.Search(
 		jql,
 		&go_jira.SearchOptions{
-			Fields: []string{"key", "id", "self"},
+			Fields: searchFields,
 		},
 	)
 	if err != nil {
@@ -365,7 +402,7 @@ func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (FlakyTestI
 			Msg("Multiple open flaky test issues found, returning the first one")
 	}
 
-	issue := c.convertIssueToFlakyTestIssue(issues[0])
+	issue := c.wrapFlakyTestIssue(&issues[0])
 
 	c.logger.Debug().
 		Str("issue_key", issue.Key).
@@ -435,19 +472,48 @@ func checkResponse(resp *go_jira.Response) error {
 	return nil
 }
 
-// convertIssueToFlakyTestIssue converts a Jira issue to a FlakyTestIssue, extracting custom fields if available.
-func (c *Client) convertIssueToFlakyTestIssue(issue go_jira.Issue) FlakyTestIssue {
+// wrapFlakyTestIssue converts a Jira issue to a FlakyTestIssue, extracting custom fields if available.
+func (c *Client) wrapFlakyTestIssue(issue *go_jira.Issue) FlakyTestIssue {
+	if issue == nil {
+		return FlakyTestIssue{}
+	}
+
 	flakyTestIssue := FlakyTestIssue{
 		Issue: issue,
 	}
-	if c.config.TestFieldID != "" {
-		flakyTestIssue.Test = fmt.Sprint(issue.Fields.Unknowns[c.config.TestFieldID])
+
+	if issue.Fields == nil {
+		return flakyTestIssue
 	}
-	if c.config.PackageFieldID != "" {
-		flakyTestIssue.Package = fmt.Sprint(issue.Fields.Unknowns[c.config.PackageFieldID])
+
+	if issue.Fields.Unknowns != nil {
+		if c.config.TestFieldID != "" {
+			flakyTestIssue.Test = fmt.Sprint(issue.Fields.Unknowns[c.config.TestFieldID])
+		}
+		if c.config.PackageFieldID != "" {
+			flakyTestIssue.Package = fmt.Sprint(issue.Fields.Unknowns[c.config.PackageFieldID])
+		}
+		if c.config.TrunkIDFieldID != "" {
+			flakyTestIssue.TrunkID = fmt.Sprint(issue.Fields.Unknowns[c.config.TrunkIDFieldID])
+		}
 	}
-	if c.config.TrunkIDFieldID != "" {
-		flakyTestIssue.TrunkID = fmt.Sprint(issue.Fields.Unknowns[c.config.TrunkIDFieldID])
+
+	// If we don't have the fields, try to get it from the summary
+	// Example: "Flaky Test: github.com/smartcontractkit/branch-out/package.TestName"
+	if flakyTestIssue.Test == "" || flakyTestIssue.Package == "" {
+		summary := issue.Fields.Summary
+		summary = strings.TrimPrefix(summary, "Flaky Test: ")
+
+		// Find the last dot to split package from test name
+		if lastDot := strings.LastIndex(summary, "."); lastDot != -1 {
+			if flakyTestIssue.Package == "" {
+				flakyTestIssue.Package = summary[:lastDot]
+			}
+			if flakyTestIssue.Test == "" {
+				flakyTestIssue.Test = summary[lastDot+1:]
+			}
+		}
 	}
+
 	return flakyTestIssue
 }
