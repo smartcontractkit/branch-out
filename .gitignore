@@ -21,12 +21,7 @@ branch-out
 # Common debug file
 x.json
 
-# Coverage artifacts
-coverage/
-*.out
-*.html
-coverage.svg
-*_coverage.txt
+coverage.html
 
 .env
 .envrc

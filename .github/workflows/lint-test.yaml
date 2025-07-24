@@ -53,6 +53,11 @@ jobs:
           echo "coverage_file=./cover.out" >> $GITHUB_OUTPUT
       - name: Test
         run: ${{ steps.build-run-command.outputs.run_command }}
+      - name: Upload Coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage.out
+          path: ./cover.out
 
   check-coverage:
     needs: test
@@ -64,3 +69,25 @@ jobs:
         uses: vladopajic/go-test-coverage@v2
         with:
           config: ./.testcoverage.yml
+
+  update-coverage:
+    permissions:
+      contents: write
+    needs: test
+    name: Update Coverage
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage.out
+          path: ./coverage.out
+      - uses: planetscale/ghcommit-action@v0.1.6
+        with:
+          commit_message: "🤖 Update coverage.out"
+          repo: ${{ github.repository }}
+          branch: ${{ github.head_ref || github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
