@@ -33,7 +33,7 @@ diff:
   # controled via `breakdown-file-name` property.
   # When set in a feature branch, it allows the tool to compute and report
   # the coverage difference between the current (feature) branch and the base.
-  base-breakdown-file-name: ""
+  base-breakdown-file-name: "coverage.out"
 
   # Allowed threshold for the test coverage difference (in percentage)
   # between the feature branch and the base branch.
