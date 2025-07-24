@@ -75,6 +75,10 @@ type Jira struct {
 	OAuthRefreshToken string `mapstructure:"JIRA_OAUTH_REFRESH_TOKEN"`
 	Username          string `mapstructure:"JIRA_USERNAME"`
 	Token             string `mapstructure:"JIRA_TOKEN"`
+
+	TestFieldID    string `mapstructure:"JIRA_TEST_FIELD_ID"`
+	PackageFieldID string `mapstructure:"JIRA_PACKAGE_FIELD_ID"`
+	TrunkIDFieldID string `mapstructure:"JIRA_TRUNK_ID_FIELD_ID"`
 }
 
 // Aws configures authentication to AWS services.

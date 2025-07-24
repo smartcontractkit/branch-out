@@ -20,29 +20,29 @@ import (
 type Client struct {
 	*go_jira.Client
 
-	jiraConfig config.Jira
-	logger     zerolog.Logger
+	config config.Jira
+	logger zerolog.Logger
 }
 
 // Option is a function that sets a configuration option for the Jira client.
 type Option func(*jiraClientOptions)
 
 type jiraClientOptions struct {
-	jiraConfig config.Jira
-	logger     zerolog.Logger
+	config config.Jira
+	logger zerolog.Logger
 }
 
 // WithLogger sets the logger to use for the Jira client.
 func WithLogger(logger zerolog.Logger) Option {
-	return func(cfg *jiraClientOptions) {
-		cfg.logger = logger
+	return func(opts *jiraClientOptions) {
+		opts.logger = logger
 	}
 }
 
 // WithConfig sets the config to use for the Jira client.
 func WithConfig(config config.Config) Option {
-	return func(cfg *jiraClientOptions) {
-		cfg.jiraConfig = config.Jira
+	return func(opts *jiraClientOptions) {
+		opts.config = config.Jira
 	}
 }
 
@@ -55,7 +55,7 @@ func NewClient(options ...Option) (*Client, error) {
 		opt(opts)
 	}
 
-	jiraConfig := opts.jiraConfig
+	jiraConfig := opts.config
 
 	if jiraConfig.BaseDomain == "" {
 		return nil, fmt.Errorf("jira base domain is required")
@@ -125,12 +125,21 @@ func NewClient(options ...Option) (*Client, error) {
 		return nil, fmt.Errorf("failed to create Jira client: %w", err)
 	}
 	c := &Client{
-		Client:     jiraClient,
-		jiraConfig: jiraConfig,
-		logger:     l,
+		Client: jiraClient,
+		config: jiraConfig,
+		logger: l,
 	}
 
 	c.logger = c.logger.With().Str("auth_type", c.AuthType()).Logger()
+
+	if err := c.validateCustomFields(); err != nil {
+		c.logger.Warn().
+			Err(err).
+			Msg("Provided custom field IDs are not available in Jira, some functionality will be disabled")
+		c.config.TestFieldID = ""
+		c.config.PackageFieldID = ""
+		c.config.TrunkIDFieldID = ""
+	}
 
 	return c, nil
 }
@@ -141,7 +150,7 @@ type FlakyTestIssueRequest struct {
 	Package           string `json:"package"`
 	Test              string `json:"test"`
 	FilePath          string `json:"file_path"`
-	TrunkID           string `json:"trunk_id"`           // UUID
+	TrunkID           string `json:"trunk_id"`           // UUID from Trunk.io
 	AdditionalDetails string `json:"additional_details"` // JSON string with additional details (trunk Payload for example)
 }
 
@@ -183,7 +192,7 @@ This ticket was automatically created by [branch-out|https://github.com/smartcon
 	createIssueRequest := &go_jira.Issue{
 		Fields: &go_jira.IssueFields{
 			Project: go_jira.Project{
-				Key: c.jiraConfig.ProjectKey,
+				Key: c.config.ProjectKey,
 			},
 			Summary:     summary,
 			Description: description,
@@ -192,6 +201,17 @@ This ticket was automatically created by [branch-out|https://github.com/smartcon
 			},
 			Labels: []string{"flaky-test", "automated", "branch-out"},
 		},
+	}
+
+	// If we have them, add the custom fields to the issue request
+	if c.config.TestFieldID != "" {
+		createIssueRequest.Fields.Unknowns[c.config.TestFieldID] = req.Test
+	}
+	if c.config.PackageFieldID != "" {
+		createIssueRequest.Fields.Unknowns[c.config.PackageFieldID] = req.Package
+	}
+	if c.config.TrunkIDFieldID != "" {
+		createIssueRequest.Fields.Unknowns[c.config.TrunkIDFieldID] = req.TrunkID
 	}
 
 	ticket, resp, err := c.Issue.Create(createIssueRequest)
@@ -215,7 +235,7 @@ This ticket was automatically created by [branch-out|https://github.com/smartcon
 func (c *Client) GetOpenFlakyTestIssues() ([]go_jira.Issue, error) {
 	jql := fmt.Sprintf(
 		`project = "%s" AND labels = "branch-out" AND status != "Closed"`,
-		c.jiraConfig.ProjectKey,
+		c.config.ProjectKey,
 	)
 	c.logger.Debug().Str("jql", jql).Msg("Searching for all open flaky test tickets")
 	issues, resp, err := c.Issue.Search(
@@ -237,12 +257,27 @@ func (c *Client) GetOpenFlakyTestIssues() ([]go_jira.Issue, error) {
 // GetOpenFlakyTestIssue returns the open flaky test ticket for a given package and test.
 // If no ticket is found, it returns nil.
 func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (*go_jira.Issue, error) {
+	if packageName == "" || testName == "" {
+		return nil, fmt.Errorf("package name and test name are required")
+	}
+
 	jql := fmt.Sprintf(
 		`project = "%s" AND labels = "branch-out" AND summary ~ "%s.%s" AND status != "Closed"`,
-		c.jiraConfig.ProjectKey,
+		c.config.ProjectKey,
 		packageName,
 		testName,
 	)
+	// If we have the custom fields, use them to filter the results instead of the summary
+	if c.config.TestFieldID != "" && c.config.PackageFieldID != "" {
+		jql = fmt.Sprintf(
+			`project = "%s" AND labels = "branch-out" AND %s = "%s" AND %s = "%s" AND status != "Closed"`,
+			c.config.ProjectKey,
+			c.config.TestFieldID,
+			testName,
+			c.config.PackageFieldID,
+			packageName,
+		)
+	}
 	c.logger.Debug().
 		Str("package_name", packageName).
 		Str("test_name", testName).
@@ -275,12 +310,47 @@ func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (*go_jira.I
 
 // AuthType returns the type of authentication being used
 func (c *Client) AuthType() string {
-	if c.jiraConfig.OAuthAccessToken != "" {
+	if c.config.OAuthAccessToken != "" {
 		return "OAuth"
-	} else if c.jiraConfig.Username != "" && c.jiraConfig.Token != "" {
+	} else if c.config.Username != "" && c.config.Token != "" {
 		return "Basic Auth"
 	}
 	return "None"
+}
+
+// validateCustomFields validates that the custom fields are available in Jira.
+func (c *Client) validateCustomFields() error {
+	if c.config.TestFieldID == "" && c.config.PackageFieldID == "" && c.config.TrunkIDFieldID == "" {
+		c.logger.Debug().Msg("No custom fields configured")
+		return nil
+	}
+
+	fields, resp, err := c.Field.GetList()
+	if err != nil {
+		return fmt.Errorf("failed to get custom field options: %w", err)
+	}
+	if err := checkResponse(resp); err != nil {
+		return err
+	}
+
+	foundFields := []string{}
+	for _, field := range fields {
+		if field.ID == c.config.TestFieldID {
+			foundFields = append(foundFields, "Test")
+		}
+		if field.ID == c.config.PackageFieldID {
+			foundFields = append(foundFields, "Package")
+		}
+		if field.ID == c.config.TrunkIDFieldID {
+			foundFields = append(foundFields, "Trunk ID")
+		}
+	}
+
+	if len(foundFields) < 3 {
+		return fmt.Errorf("unable to find all provided custom field IDs in Jira, found IDs for %v", foundFields)
+	}
+
+	return nil
 }
 
 // checkResponse checks the response from the Jira API and returns an error if the status code is not a success.
