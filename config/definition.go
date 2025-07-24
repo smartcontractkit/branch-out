@@ -35,16 +35,20 @@ var (
 
 // Field represents a configuration field.
 type Field struct {
-	// EnvVar is the environment variable name. It is also the key in viper.
-	EnvVar      string
+	// The environment variable name. It is also the key in viper.
+	EnvVar string
+	// Short description of the field.
 	Description string
-	Flag        string
-	ShortFlag   string
-	Type        reflect.Type
-	Default     any
-	Example     any
-	Persistent  bool
-	Required    bool
+	// The flag name for CLI input
+	Flag string
+	// If desired, the short flag name for CLI input
+	ShortFlag string
+	Type      reflect.Type
+	Default   any
+	Example   any
+	// If the field should be marked as Persistent in Cobra
+	Persistent bool
+	Required   bool
 }
 
 var (

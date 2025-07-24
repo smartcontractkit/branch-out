@@ -3,7 +3,6 @@ package processing
 import (
 	"context"
 
-	go_jira "github.com/andygrunwald/go-jira"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/rs/zerolog"
 
@@ -35,15 +34,15 @@ type AWSClient interface {
 
 // JiraClient interacts with Jira.
 type JiraClient interface {
-	CreateFlakyTestIssue(req jira.FlakyTestIssueRequest) (*go_jira.Issue, error)
-	GetOpenFlakyTestIssues() ([]go_jira.Issue, error)
-	GetOpenFlakyTestIssue(packageName, testName string) (*go_jira.Issue, error)
+	CreateFlakyTestIssue(req jira.FlakyTestIssueRequest) (jira.FlakyTestIssue, error)
+	GetOpenFlakyTestIssues() ([]jira.FlakyTestIssue, error)
+	GetOpenFlakyTestIssue(packageName, testName string) (jira.FlakyTestIssue, error)
 }
 
 // TrunkClient interacts with Trunk.io.
 type TrunkClient interface {
 	QuarantinedTests(repoURL string, orgURLSlug string) ([]trunk.TestCase, error)
-	LinkTicketToTestCase(testCaseID string, ticket *go_jira.Issue, repoURL string) error
+	LinkTicketToTestCase(testCaseID string, issueKey string, repoURL string) error
 }
 
 // GithubClient interacts with GitHub.
