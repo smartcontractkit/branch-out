@@ -45,12 +45,14 @@ jobs:
       - name: Build Run Command
         id: build-run-command
         run: |
-          run_command="go tool gotestsum -- -coverprofile=./cover.out ./..."
+          run_command="go tool gotestsum -- ./..."
           if [ "$race" = "true" ]; then
             run_command="$run_command -race"
+          else
+            run_command="$run_command -coverprofile=./coverage.out"
           fi
           echo "run_command=$run_command" >> $GITHUB_OUTPUT
-          echo "coverage_file=./cover.out" >> $GITHUB_OUTPUT
+          echo "coverage_file=./coverage.out" >> $GITHUB_OUTPUT
       - name: Test
         run: ${{ steps.build-run-command.outputs.run_command }}
       - name: Upload Coverage
@@ -81,7 +83,6 @@ jobs:
     needs: test
     name: Update Coverage
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: Download Coverage
