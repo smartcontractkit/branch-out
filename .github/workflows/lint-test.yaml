@@ -65,6 +65,7 @@ jobs:
   test-coverage:
     permissions:
       contents: write
+      pull-requests: write
     needs: test
     name: Test Coverage
     runs-on: ubuntu-latest
@@ -96,7 +97,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           comment-tag: coverage-report
-          pr-number: ${{ env.pull_request_id }}
           message: |
             go-test-coverage report:
             ```
