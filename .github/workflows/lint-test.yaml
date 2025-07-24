@@ -49,7 +49,7 @@ jobs:
           if [ "$race" = "true" ]; then
             run_command="$run_command -race"
           else
-            run_command="$run_command -coverprofile=./coverage.out"
+            run_command="$run_command -coverprofile=coverage.out"
           fi
           echo "run_command=$run_command" >> $GITHUB_OUTPUT
           echo "coverage_file=./coverage.out" >> $GITHUB_OUTPUT
@@ -60,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage.out
-          path: ./coverage.out
+          path: coverage.out
 
   test-coverage:
     permissions:
@@ -70,11 +70,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+            ref: ${{ github.event.pull_request.head.sha }}
       - name: Download Coverage
         uses: actions/download-artifact@v4
         with:
           name: coverage.out
-          path: ./coverage.out
+          path: .
       - name: Commit Coverage
         uses: planetscale/ghcommit-action@7c35caed9937939812c7d4242ffab823e9b3b1fa # v0.2.16
         with:
@@ -87,4 +89,4 @@ jobs:
         uses: vladopajic/go-test-coverage@d4177aaab9307eb783516275d495c01254da2fb9 # v2.16.0
         with:
           config: ./.testcoverage.yml
-          profile: ./coverage.out
+          profile: coverage.out
