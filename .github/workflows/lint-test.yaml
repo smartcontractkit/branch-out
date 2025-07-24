@@ -66,7 +66,7 @@ jobs:
     permissions:
       contents: write
     needs: test
-    name: Update Coverage
+    name: Test Coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,7 +75,8 @@ jobs:
         with:
           name: coverage.out
           path: ./coverage.out
-      - uses: planetscale/ghcommit-action@7c35caed9937939812c7d4242ffab823e9b3b1fa # v0.2.16
+      - name: Commit Coverage
+        uses: planetscale/ghcommit-action@7c35caed9937939812c7d4242ffab823e9b3b1fa # v0.2.16
         with:
           commit_message: "🤖 Update coverage.out"
           repo: ${{ github.repository }}
