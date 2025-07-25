@@ -338,6 +338,7 @@ func (w *Worker) createJiraIssueForFlakyTest(
 	}
 
 	req := jira.FlakyTestIssueRequest{
+		ProjectKey:        w.jiraClient.GetProjectKey(),
 		RepoURL:           testCase.Repository.HTMLURL,
 		Package:           testCase.TestSuite,
 		Test:              testCase.Name,
