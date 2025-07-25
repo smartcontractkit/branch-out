@@ -86,11 +86,10 @@ type Client struct {
 type Option func(*jiraClientOptions)
 
 type jiraClientOptions struct {
-	config        config.Jira
-	logger        zerolog.Logger
-	baseTransport http.RoundTripper
-	issueService  issueService
-	fieldService  fieldService
+	config       config.Jira
+	logger       zerolog.Logger
+	issueService issueService
+	fieldService fieldService
 }
 
 // WithLogger sets the logger to use for the Jira client.
@@ -104,14 +103,6 @@ func WithLogger(logger zerolog.Logger) Option {
 func WithConfig(config config.Config) Option {
 	return func(opts *jiraClientOptions) {
 		opts.config = config.Jira
-	}
-}
-
-// WithBaseTransport sets a custom base transport to use for the Jira client.
-// This is primarily intended for testing purposes and will be wrapped with base logging.
-func WithBaseTransport(transport http.RoundTripper) Option {
-	return func(opts *jiraClientOptions) {
-		opts.baseTransport = transport
 	}
 }
 
@@ -167,13 +158,6 @@ func NewClient(options ...Option) (*Client, error) {
 	)
 
 	switch {
-	// Use injected base transport if provided
-	case opts.baseTransport != nil:
-		httpClient = base.NewClient(
-			"jira",
-			base.WithLogger(l),
-			base.WithBaseTransport(opts.baseTransport),
-		)
 	case hasOAuth:
 		oauthConfig := &oauth2.Config{
 			ClientID:     jiraConfig.OAuthClientID,
@@ -518,12 +502,14 @@ func (c *Client) getFlakyTestIssueBySummary(
 
 // AuthType returns the type of authentication being used
 func (c *Client) AuthType() string {
-	if c.config.OAuthAccessToken != "" {
+	switch {
+	case c.config.OAuthAccessToken != "":
 		return "OAuth"
-	} else if c.config.Username != "" && c.config.Token != "" {
+	case c.config.Username != "" && c.config.Token != "":
 		return "Basic"
+	default:
+		return "None"
 	}
-	return "None"
 }
 
 // validateCustomFields validates that, if provided, the custom fields are available in Jira.
@@ -562,14 +548,16 @@ func (c *Client) validateCustomFields() error {
 
 // checkResponse checks the response from the Jira API and returns an error if the status code is not a success.
 func checkResponse(resp *go_jira.Response) error {
-	if resp != nil {
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return fmt.Errorf("failed to read Jira API error response body: %w", err)
-			}
-			return fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
+	if resp == nil {
+		return nil
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read Jira API error response body: %w", err)
 		}
+		return fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
 	}
 	return nil
 }
@@ -629,9 +617,4 @@ func (c *Client) extractFromSummary(issue *FlakyTestIssue, summary string) {
 			issue.Test = summary[lastDot+1:]
 		}
 	}
-}
-
-// GetJQLBase returns the base JQL query to use for searching for flaky test issues.
-func (c *Client) GetJQLBase() string {
-	return c.jqlBase
 }
