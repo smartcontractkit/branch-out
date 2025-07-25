@@ -49,8 +49,27 @@ type Field struct {
 	// If the field should be marked as Persistent in Cobra
 	Persistent bool
 	Required   bool
+	// If the field is a secret
+	Secret bool
 }
 
+// MarkdownTable returns a markdown table row for the field.
+func (f *Field) MarkdownTable() string {
+	return fmt.Sprintf(
+		"| %s | %s | %s | %s | %s | %s | %s | %t | %t |",
+		f.EnvVar,
+		f.Description,
+		fmt.Sprintf("%v", f.Example),
+		f.Flag,
+		f.ShortFlag,
+		f.Type,
+		fmt.Sprintf("%v", f.Default),
+		f.Required,
+		f.Secret,
+	)
+}
+
+//go:generate go run ./generate_docs.go
 var (
 	// Fields is a list of all configuration fields.
 	Fields = append(coreFields, append(githubFields, append(trunkFields, append(jiraFields, awsFields...)...)...)...)
@@ -93,6 +112,7 @@ var (
 			Flag:        "github-token",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
+			Secret:      true,
 		},
 		{
 			EnvVar:      "GITHUB_BASE_URL",
@@ -114,11 +134,12 @@ var (
 		{
 			EnvVar:      "GITHUB_PRIVATE_KEY",
 			Description: "GitHub App private key (PEM format)",
-			Example:     "-----BEGIN RSA PRIVATE KEY-----\n<private-key-content>\n-----END RSA PRIVATE KEY-----",
+			Example:     "-----BEGIN RSA PRIVATE KEY-----<private-key-content>-----END RSA PRIVATE KEY-----",
 			Flag:        "github-private-key",
 			Type:        reflect.TypeOf(""),
 			Default:     "",
 			Persistent:  true,
+			Secret:      true,
 		},
 		{
 			EnvVar:      "GITHUB_PRIVATE_KEY_FILE",
@@ -127,6 +148,7 @@ var (
 			Flag:        "github-private-key-file",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
+			Secret:      false, // Just a file path
 		},
 		{
 			EnvVar:      "GITHUB_INSTALLATION_ID",
@@ -146,6 +168,7 @@ var (
 			Flag:        "trunk-token",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
+			Secret:      true,
 		},
 		{
 			EnvVar:      "TRUNK_WEBHOOK_SECRET",
@@ -154,6 +177,7 @@ var (
 			Flag:        "trunk-webhook-secret",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
+			Secret:      true,
 		},
 	}
 
@@ -189,6 +213,7 @@ var (
 			Flag:        "jira-oauth-client-secret",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
+			Secret:      true,
 		},
 		{
 			EnvVar:      "JIRA_OAUTH_ACCESS_TOKEN",
@@ -197,6 +222,7 @@ var (
 			Flag:        "jira-oauth-access-token",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
+			Secret:      true,
 		},
 		{
 			EnvVar:      "JIRA_OAUTH_REFRESH_TOKEN",
@@ -205,6 +231,7 @@ var (
 			Flag:        "jira-oauth-refresh-token",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
+			Secret:      true,
 		},
 		{
 			EnvVar:      "JIRA_USERNAME",
@@ -221,6 +248,7 @@ var (
 			Flag:        "jira-token",
 			Type:        reflect.TypeOf(""),
 			Persistent:  true,
+			Secret:      true,
 		},
 		{
 			EnvVar:      "JIRA_TEST_FIELD_ID",
