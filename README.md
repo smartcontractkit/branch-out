@@ -11,13 +11,7 @@ See the [design doc](./design.md) for a more detailed look at how it works.
 branch-out --help
 ```
 
-## Configuration
-
-Configuration is fetched in this priority order:
-
-1. CLI Flags (e.g. `--github-token <token-value>`)
-2. Env Vars
-3. A `.env` file. See [.env.example](./.env.example)
+See [config.md](./config.md) for detailed config info.
 
 ## Contributing
 

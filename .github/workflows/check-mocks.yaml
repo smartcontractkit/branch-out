@@ -1,4 +1,4 @@
-name: Check for Updated Mocks
+name: Generate
 on:
   push:
     branches:
@@ -8,8 +8,8 @@ on:
       - main
 
 jobs:
-  check-for-updated-mocks:
-    name: Check for Updated Mocks
+  generate:
+    name: Generate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -22,7 +22,7 @@ jobs:
         run: go mod download
       - name: Generate
         run: go generate ./...
-      - name: Check for Updated Mocks
+      - name: Check for Updated Generated Files
         run: git diff --exit-code
         if: always()
         env:

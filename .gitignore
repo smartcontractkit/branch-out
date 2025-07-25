@@ -21,6 +21,7 @@ branch-out
 # Common debug file
 x.json
 
+coverage.out
 coverage.html
 
 .env
