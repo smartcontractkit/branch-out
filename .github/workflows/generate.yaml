@@ -1,4 +1,4 @@
-name: Generate
+name: Go Generate
 on:
   push:
     branches:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   generate:
-    name: Generate
+    name: Go Generate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -20,7 +20,7 @@ jobs:
           go-version: stable
       - name: Install Dependencies
         run: go mod download
-      - name: Generate
+      - name: Go Generate
         run: go generate ./...
       - name: Check for Updated Generated Files
         run: git diff --exit-code
