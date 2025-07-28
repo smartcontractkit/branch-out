@@ -66,27 +66,35 @@ func (q QuarantineResults) String() string {
 
 // Markdown returns a Markdown representation of the quarantine results.
 // Good for a PR description.
-func (q QuarantineResults) Markdown() string {
+func (q QuarantineResults) Markdown(owner, repo, branch string) string {
 	var md strings.Builder
 	md.WriteString("# Quarantined Flaky Tests using branch-out\n\n")
 
-	allFileUpdates := make(map[string]string)
 	for _, result := range q {
 		emoji := "🟢"
 		if len(result.Failures) > 0 {
 			emoji = "🔴"
 		}
 		md.WriteString(fmt.Sprintf("## `%s` %s\n\n", result.Package, emoji))
+
 		// Process successes
 		if len(result.Successes) > 0 {
 			md.WriteString(fmt.Sprintf("### Successfully Quarantined %d tests\n\n", result.SuccessfulTestsCount()))
 			md.WriteString("| File | Tests |\n")
 			md.WriteString("|------|-------|\n")
 			for _, file := range result.Successes {
+				githubBlobURL := fmt.Sprintf("https://github.com/%s/%s/blob/%s/%s", owner, repo, branch, file.File)
+
+				// Create individual test links with line numbers
+				var testLinks []string
+				for _, test := range file.Tests {
+					testLink := fmt.Sprintf("[%s](%s#L%d)", test.Name, githubBlobURL, test.OriginalLine)
+					testLinks = append(testLinks, testLink)
+				}
+
 				md.WriteString(
-					fmt.Sprintf("| [%s](%s) | %s |\n", file.File, file.File, strings.Join(file.TestNames(), ", ")),
+					fmt.Sprintf("| [%s](%s) | %s |\n", file.File, githubBlobURL, strings.Join(testLinks, ", ")),
 				)
-				allFileUpdates[file.File] = file.ModifiedSourceCode
 			}
 			md.WriteString("\n")
 		}
