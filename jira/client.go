@@ -20,6 +20,20 @@ import (
 	"github.com/smartcontractkit/branch-out/config"
 )
 
+// issueService defines the interface for go-jira issue operations.
+// This is used for mocking in tests.
+type issueService interface {
+	Create(issue *go_jira.Issue) (*go_jira.Issue, *go_jira.Response, error)
+	Update(issue *go_jira.Issue) (*go_jira.Issue, *go_jira.Response, error)
+	Search(jql string, options *go_jira.SearchOptions) ([]go_jira.Issue, *go_jira.Response, error)
+}
+
+// fieldService defines the interface for go-jira field operations.
+// This is used for mocking in tests.
+type fieldService interface {
+	GetList() ([]go_jira.Field, *go_jira.Response, error)
+}
+
 const (
 	// BranchOutLabel is the label used for any issues created by branch-out.
 	BranchOutLabel = "branch-out"
@@ -28,6 +42,17 @@ const (
 )
 
 var (
+	// ErrBaseDomainRequired is returned when a base domain is required but not provided.
+	ErrBaseDomainRequired = errors.New("jira base domain is required")
+	// ErrProjectKeyRequired is returned when a project key is required but not provided.
+	ErrProjectKeyRequired = errors.New("jira project key is required")
+	// ErrNoAuthCredentialsProvided is returned when no authentication credentials are provided.
+	ErrNoAuthCredentialsProvided = errors.New("no authentication credentials provided")
+
+	// ErrFailedToAddCustomFields is returned when custom fields cannot be added to a Jira issue.
+	ErrFailedToAddCustomFields = errors.New("failed to add custom fields to Jira issue")
+	// ErrFailedToCreateFlakyTestIssue is returned when a flaky test issue cannot be created.
+	ErrFailedToCreateFlakyTestIssue = errors.New("failed to create flaky test issue")
 	// ErrNoOpenFlakyTestIssueFound is returned when searching for a specific flaky test issue and it is not found.
 	ErrNoOpenFlakyTestIssueFound = errors.New("no open flaky test issue found")
 	// ErrCustomFieldsNotFound is returned when the provided custom fields are not found in Jira.
@@ -47,6 +72,10 @@ type FlakyTestIssue struct {
 type Client struct {
 	*go_jira.Client
 
+	// Services for mocking in tests
+	IssueService issueService
+	FieldService fieldService
+
 	config config.Jira
 	logger zerolog.Logger
 
@@ -57,8 +86,10 @@ type Client struct {
 type Option func(*jiraClientOptions)
 
 type jiraClientOptions struct {
-	config config.Jira
-	logger zerolog.Logger
+	config       config.Jira
+	logger       zerolog.Logger
+	issueService issueService
+	fieldService fieldService
 }
 
 // WithLogger sets the logger to use for the Jira client.
@@ -75,6 +106,15 @@ func WithConfig(config config.Config) Option {
 	}
 }
 
+// WithServices sets custom Issue and Field services.
+// Handy for testing.
+func WithServices(issueService issueService, fieldService fieldService) Option {
+	return func(opts *jiraClientOptions) {
+		opts.issueService = issueService
+		opts.fieldService = fieldService
+	}
+}
+
 // NewClient creates a new Jira client with configuration from environment variables
 func NewClient(options ...Option) (*Client, error) {
 	opts := &jiraClientOptions{
@@ -87,11 +127,11 @@ func NewClient(options ...Option) (*Client, error) {
 	jiraConfig := opts.config
 
 	if jiraConfig.BaseDomain == "" {
-		return nil, fmt.Errorf("jira base domain is required")
+		return nil, ErrBaseDomainRequired
 	}
 
 	if jiraConfig.ProjectKey == "" {
-		return nil, fmt.Errorf("jira project key is required")
+		return nil, ErrProjectKeyRequired
 	}
 
 	// Check if proper authentication credentials are provided
@@ -100,9 +140,7 @@ func NewClient(options ...Option) (*Client, error) {
 	hasBasicAuth := jiraConfig.Username != "" && jiraConfig.Token != ""
 
 	if !hasOAuth && !hasBasicAuth {
-		return nil, fmt.Errorf(
-			"jira OAuth credentials or basic auth credentials are required",
-		)
+		return nil, ErrNoAuthCredentialsProvided
 	}
 
 	l := opts.logger.With().
@@ -119,7 +157,8 @@ func NewClient(options ...Option) (*Client, error) {
 		httpClient    *http.Client
 	)
 
-	if hasOAuth {
+	switch {
+	case hasOAuth:
 		oauthConfig := &oauth2.Config{
 			ClientID:     jiraConfig.OAuthClientID,
 			ClientSecret: jiraConfig.OAuthClientSecret,
@@ -141,12 +180,14 @@ func NewClient(options ...Option) (*Client, error) {
 			base.NewTransport("jira", base.WithLogger(l)),
 		)
 		httpClient = oauthConfig.Client(clientCtx, token)
-	} else if hasBasicAuth {
+	case hasBasicAuth:
 		httpClient = base.NewClient(
 			"jira",
 			base.WithLogger(l),
 			base.WithBasicAuth(jiraConfig.Username, jiraConfig.Token),
 		)
+	default:
+		return nil, ErrNoAuthCredentialsProvided
 	}
 
 	jiraClient, err := go_jira.NewClient(httpClient, baseURL.String())
@@ -157,6 +198,15 @@ func NewClient(options ...Option) (*Client, error) {
 		Client: jiraClient,
 		config: jiraConfig,
 		logger: l,
+	}
+
+	// Use injected services if provided, otherwise use real services
+	if opts.issueService != nil && opts.fieldService != nil {
+		c.IssueService = opts.issueService
+		c.FieldService = opts.fieldService
+	} else {
+		c.IssueService = jiraClient.Issue
+		c.FieldService = jiraClient.Field
 	}
 
 	c.logger = c.logger.With().Str("auth_type", c.AuthType()).Logger()
@@ -185,6 +235,7 @@ func NewClient(options ...Option) (*Client, error) {
 
 // FlakyTestIssueRequest represents the data needed to create a Jira issue for a flaky test
 type FlakyTestIssueRequest struct {
+	ProjectKey        string `json:"project_key"`
 	RepoURL           string `json:"repo_url"`
 	Package           string `json:"package"`
 	Test              string `json:"test"`
@@ -193,18 +244,9 @@ type FlakyTestIssueRequest struct {
 	AdditionalDetails string `json:"additional_details"` // JSON string with additional details (trunk Payload for example)
 }
 
-// CreateFlakyTestIssue creates a new Jira issue for a flaky test
-func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (FlakyTestIssue, error) {
-	c.logger.Debug().
-		Str("repo_url", req.RepoURL).
-		Str("package", req.Package).
-		Str("test", req.Test).
-		Str("file_path", req.FilePath).
-		Str("trunk_id", req.TrunkID).
-		Msg("Creating Jira issue for flaky test")
-
-	// Construct the ticket summary and description
-	summary := fmt.Sprintf("Flaky Test: %s.%s", req.Package, req.Test)
+// toJiraIssue converts a FlakyTestIssueRequest to a Jira issue.
+func (f FlakyTestIssueRequest) toJiraIssue() *go_jira.Issue {
+	summary := fmt.Sprintf("Flaky Test: %s.%s", f.Package, f.Test)
 
 	description := fmt.Sprintf(`*Flaky Test Detected*
 
@@ -220,18 +262,16 @@ func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (FlakyTestIssue
 {code}
 
 This ticket was automatically created by [branch-out|https://github.com/smartcontractkit/branch-out].`,
-		req.RepoURL,
-		req.Package,
-		req.Test,
-		req.FilePath,
-		req.TrunkID,
-		req.AdditionalDetails)
-
-	// Create the Jira issue request
-	createIssueRequest := &go_jira.Issue{
+		f.RepoURL,
+		f.Package,
+		f.Test,
+		f.FilePath,
+		f.TrunkID,
+		f.AdditionalDetails)
+	return &go_jira.Issue{
 		Fields: &go_jira.IssueFields{
 			Project: go_jira.Project{
-				Key: c.config.ProjectKey,
+				Key: f.ProjectKey,
 			},
 			Summary:     summary,
 			Description: description,
@@ -241,10 +281,21 @@ This ticket was automatically created by [branch-out|https://github.com/smartcon
 			Labels: []string{FlakyTestLabel, "automated", BranchOutLabel},
 		},
 	}
+}
 
-	issue, resp, err := c.Issue.Create(createIssueRequest)
+// CreateFlakyTestIssue creates a new Jira issue for a flaky test
+func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (FlakyTestIssue, error) {
+	c.logger.Debug().
+		Str("repo_url", req.RepoURL).
+		Str("package", req.Package).
+		Str("test", req.Test).
+		Str("file_path", req.FilePath).
+		Str("trunk_id", req.TrunkID).
+		Msg("Creating Jira issue for flaky test")
+
+	issue, resp, err := c.IssueService.Create(req.toJiraIssue())
 	if err != nil {
-		return FlakyTestIssue{}, fmt.Errorf("failed to create Jira issue: %w", err)
+		return FlakyTestIssue{}, fmt.Errorf("%w: %w", ErrFailedToCreateFlakyTestIssue, err)
 	}
 	if err := checkResponse(resp); err != nil {
 		return FlakyTestIssue{}, err
@@ -281,9 +332,9 @@ func (c *Client) addCustomFields(issueKey string, req FlakyTestIssueRequest) err
 		Fields: &go_jira.IssueFields{Unknowns: customFields},
 	}
 
-	_, resp, err := c.Issue.Update(updateRequest)
+	_, resp, err := c.IssueService.Update(updateRequest)
 	if err != nil {
-		return fmt.Errorf("failed to update Jira issue with custom fields: %w", err)
+		return fmt.Errorf("%w: %w", ErrFailedToAddCustomFields, err)
 	}
 	if err := checkResponse(resp); err != nil {
 		return err
@@ -322,7 +373,7 @@ func (c *Client) GetOpenFlakyTestIssues() ([]FlakyTestIssue, error) {
 		FlakyTestLabel,
 	)
 	c.logger.Debug().Str("jql", jql).Msg("Searching for all open flaky test issues")
-	issues, resp, err := c.Issue.Search(
+	issues, resp, err := c.IssueService.Search(
 		jql,
 		&go_jira.SearchOptions{
 			Fields: []string{"key", "id", "self"},
@@ -371,6 +422,12 @@ func (c *Client) GetOpenFlakyTestIssue(packageName, testName string) (FlakyTestI
 	return *issue, nil
 }
 
+// GetProjectKey returns the project key for the Jira client.
+// Note: this is likely to be deprecated in the future as we'll be using multiple projects in Jira.
+func (c *Client) GetProjectKey() string {
+	return c.config.ProjectKey
+}
+
 // searchFlakyTestIssues performs a JQL search and returns the first matching issue
 func (c *Client) searchFlakyTestIssues(jql string, searchFields []string, searchType string) (*FlakyTestIssue, error) {
 	c.logger.Debug().
@@ -378,7 +435,7 @@ func (c *Client) searchFlakyTestIssues(jql string, searchFields []string, search
 		Str("search_type", searchType).
 		Msg("Searching for flaky test issue")
 
-	issues, resp, err := c.Issue.Search(jql, &go_jira.SearchOptions{
+	issues, resp, err := c.IssueService.Search(jql, &go_jira.SearchOptions{
 		Fields: searchFields,
 	})
 	if err != nil {
@@ -445,12 +502,14 @@ func (c *Client) getFlakyTestIssueBySummary(
 
 // AuthType returns the type of authentication being used
 func (c *Client) AuthType() string {
-	if c.config.OAuthAccessToken != "" {
+	switch {
+	case c.config.OAuthAccessToken != "":
 		return "OAuth"
-	} else if c.config.Username != "" && c.config.Token != "" {
+	case c.config.Username != "" && c.config.Token != "":
 		return "Basic"
+	default:
+		return "None"
 	}
-	return "None"
 }
 
 // validateCustomFields validates that, if provided, the custom fields are available in Jira.
@@ -459,7 +518,7 @@ func (c *Client) validateCustomFields() error {
 		return nil
 	}
 
-	fields, resp, err := c.Field.GetList()
+	fields, resp, err := c.FieldService.GetList()
 	if err != nil {
 		return fmt.Errorf("failed to get custom field options: %w", err)
 	}
@@ -489,14 +548,16 @@ func (c *Client) validateCustomFields() error {
 
 // checkResponse checks the response from the Jira API and returns an error if the status code is not a success.
 func checkResponse(resp *go_jira.Response) error {
-	if resp != nil {
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return fmt.Errorf("failed to read Jira API error response body: %w", err)
-			}
-			return fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
+	if resp == nil {
+		return nil
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read Jira API error response body: %w", err)
 		}
+		return fmt.Errorf("jira API error (status %d): %s", resp.StatusCode, string(body))
 	}
 	return nil
 }

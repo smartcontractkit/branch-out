@@ -1,14 +1,17 @@
 all: false
-dir: '{{.InterfaceDir}}'
+dir: "{{.InterfaceDir}}"
 filename: mocks_test.go
 force-file-write: true
 formatter: goimports
-structname: '{{.Mock}}{{.InterfaceName}}'
-pkgname: '{{.SrcPackageName}}'
+structname: "{{.Mock}}{{.InterfaceName | firstUpper }}"
+pkgname: "{{.SrcPackageName}}"
 recursive: false
 template: testify
-template-schema: '{{.Template}}.schema.json'
+template-schema: "{{.Template}}.schema.json"
 packages:
   github.com/smartcontractkit/branch-out/processing:
+    config:
+      all: true
+  github.com/smartcontractkit/branch-out/jira:
     config:
       all: true

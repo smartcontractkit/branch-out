@@ -445,6 +445,50 @@ func (_c *MockJiraClient_GetOpenFlakyTestIssues_Call) RunAndReturn(run func() ([
 	return _c
 }
 
+// GetProjectKey provides a mock function for the type MockJiraClient
+func (_mock *MockJiraClient) GetProjectKey() string {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectKey")
+	}
+
+	var r0 string
+	if returnFunc, ok := ret.Get(0).(func() string); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	return r0
+}
+
+// MockJiraClient_GetProjectKey_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectKey'
+type MockJiraClient_GetProjectKey_Call struct {
+	*mock.Call
+}
+
+// GetProjectKey is a helper method to define mock.On call
+func (_e *MockJiraClient_Expecter) GetProjectKey() *MockJiraClient_GetProjectKey_Call {
+	return &MockJiraClient_GetProjectKey_Call{Call: _e.mock.On("GetProjectKey")}
+}
+
+func (_c *MockJiraClient_GetProjectKey_Call) Run(run func()) *MockJiraClient_GetProjectKey_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockJiraClient_GetProjectKey_Call) Return(s string) *MockJiraClient_GetProjectKey_Call {
+	_c.Call.Return(s)
+	return _c
+}
+
+func (_c *MockJiraClient_GetProjectKey_Call) RunAndReturn(run func() string) *MockJiraClient_GetProjectKey_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockTrunkClient creates a new instance of MockTrunkClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockTrunkClient(t interface {

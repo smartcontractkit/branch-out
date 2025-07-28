@@ -27,7 +27,6 @@ type basicAuth struct {
 
 type baseOptions struct {
 	logger    zerolog.Logger
-	component string
 	base      http.RoundTripper
 	basicAuth *basicAuth
 	header    http.Header
@@ -74,6 +73,18 @@ func WithRequestHeaders(headers http.Header) Option {
 	}
 }
 
+// loadOptions loads optional functions into a baseOptions struct.
+func loadOptions(options ...Option) *baseOptions {
+	opts := &baseOptions{
+		logger: zerolog.Nop(),
+		base:   http.DefaultTransport,
+	}
+	for _, opt := range options {
+		opt(opts)
+	}
+	return opts
+}
+
 // NewClient creates a new base HTTP client with logging middleware
 func NewClient(component string, options ...Option) *http.Client {
 	transport := NewTransport(component, options...)
@@ -86,22 +97,15 @@ func NewClient(component string, options ...Option) *http.Client {
 
 // NewTransport creates a new base transport with logging middleware for use as the base transport for other clients
 func NewTransport(component string, options ...Option) http.RoundTripper {
-	opts := &baseOptions{
-		logger:    zerolog.Nop(),
-		base:      http.DefaultTransport,
-		component: component,
-	}
-	for _, opt := range options {
-		opt(opts)
-	}
+	opts := loadOptions(options...)
 
-	opts.logger = opts.logger.With().Str("component", opts.component).Logger()
+	opts.logger = opts.logger.With().Str("component", component).Logger()
 
 	if opts.basicAuth != nil {
 		opts.base = &Transport{
 			Base:      opts.base,
 			Logger:    opts.logger,
-			Component: opts.component,
+			Component: component,
 			BasicAuth: opts.basicAuth,
 		}
 	}
@@ -109,7 +113,7 @@ func NewTransport(component string, options ...Option) http.RoundTripper {
 	return &Transport{
 		Base:          opts.base,
 		Logger:        opts.logger,
-		Component:     opts.component,
+		Component:     component,
 		RequestHeader: opts.header,
 	}
 }
