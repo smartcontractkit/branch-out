@@ -65,6 +65,7 @@ branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 		opts := []logging.Option{
 			logging.WithLevel(appConfig.LogLevel),
 			logging.WithFileName(appConfig.LogPath),
+			logging.WithSecrets(appConfig.GetSecrets()),
 		}
 
 		logger, err = logging.New(opts...)
