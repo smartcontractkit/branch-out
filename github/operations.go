@@ -220,6 +220,12 @@ func (c *Client) createPullRequest(
 		return "", fmt.Errorf("failed to create pull request: %w", err)
 	}
 
+	// Add the "branch-out" label immediately after creation
+	// Note: GitHub API doesn't support setting labels during PR creation,
+	// so we need a separate API call to the Issues endpoint.
+	// Label addition failure is non-fatal - we ignore any errors since the main operation succeeded.
+	_, _, _ = c.Rest.Issues.AddLabelsToIssue(ctx, owner, repo, createdPR.GetNumber(), []string{"branch-out"})
+
 	prURL := createdPR.GetHTMLURL()
 	return prURL, nil
 }

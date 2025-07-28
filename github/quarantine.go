@@ -198,7 +198,7 @@ func (c *Client) createOrUpdatePullRequest(
 	results *golang.QuarantineResults,
 ) (string, error) {
 	title := fmt.Sprintf("[Auto] [branch-out] Quarantine Flaky Tests: %s", time.Now().Format("2006-01-02"))
-	prBody := results.Markdown()
+	prBody := results.Markdown(owner, repo, prBranch)
 
 	existingPR, err := c.findExistingPR(ctx, owner, repo, prBranch, defaultBranch)
 	if err != nil {
