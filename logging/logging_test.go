@@ -127,6 +127,88 @@ func TestLogging_WithSoleWriter(t *testing.T) {
 	)
 }
 
+func TestLogging_WithRedactWriter(t *testing.T) {
+	t.Parallel()
+
+	logFile := fmt.Sprintf("%s.log", t.Name())
+	secrets := []string{
+		"secret1",
+		"secret2",
+		"secret3",
+	}
+	fileLogger, err := New(
+		WithFileName(logFile),
+		WithLevel("trace"),
+		WithConsoleLog(false),
+		WithSecrets(secrets),
+	)
+
+	require.NoError(t, err, "error creating logger")
+	require.NotNil(t, fileLogger, "logger should not be nil")
+
+	fileLogger.Info().Msg("This is an info log message with secret1.")
+	fileLogger.Debug().Msg("This is a debug log message with secret2.")
+	fileLogger.Error().Msg("This is an error log message with secret3.")
+	fileLogger.Trace().Msg("This is a trace log message with secret1 and secret2.")
+	fileLogger.Warn().Msg("This is a warning log message with secret3.")
+	require.FileExists(t, logFile, "log file should exist")
+	t.Cleanup(func() {
+		err := os.Remove(logFile)
+		require.NoError(t, err, "error removing log file")
+	})
+	logFileData, err := os.ReadFile(logFile)
+	require.NoError(t, err, "error reading log file")
+	require.NotEmpty(t, logFileData, "log file should not be empty")
+	assert.NotContains(
+		t, string(logFileData), "secret1",
+		"log file should not contain secret1",
+	)
+	assert.NotContains(
+		t, string(logFileData), "secret2",
+		"log file should not contain secret2",
+	)
+	assert.NotContains(
+		t, string(logFileData), "secret3",
+		"log file should not contain secret3",
+	)
+}
+
+func TestLogging_WithRedactWriterAndSoleWriter(t *testing.T) {
+	t.Parallel()
+
+	secrets := []string{
+		"secret1",
+		"secret2",
+		"secret3",
+	}
+	soleWriter := &bytes.Buffer{}
+	fileLogger, err := New(
+		WithSoleWriter(soleWriter),
+		WithLevel("trace"),
+		WithConsoleLog(false),
+		WithSecrets(secrets),
+	)
+	require.NoError(t, err, "error creating logger")
+	require.NotNil(t, fileLogger, "logger should not be nil")
+	fileLogger.Info().Msg("This is an info log message with secret1.")
+	fileLogger.Debug().Msg("This is a debug log message with secret2.")
+	fileLogger.Error().Msg("This is an error log message with secret3.")
+	fileLogger.Trace().Msg("This is a trace log message with secret1 and secret2.")
+	fileLogger.Warn().Msg("This is a warning log message with secret3.")
+	assert.NotContains(
+		t, soleWriter.String(),
+		"secret1", "sole writer should not contain secret1",
+	)
+	assert.NotContains(
+		t, soleWriter.String(),
+		"secret2", "sole writer should not contain secret2",
+	)
+	assert.NotContains(
+		t, soleWriter.String(),
+		"secret3", "sole writer should not contain secret3",
+	)
+}
+
 func TestLogging_MustNew(t *testing.T) {
 	t.Parallel()
 

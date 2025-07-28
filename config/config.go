@@ -154,6 +154,21 @@ func Load(options ...Option) (Config, error) {
 	return cfg, nil
 }
 
+// GetSecrets returns a slice of sensitive fields that should be redacted in logs or output.
+func (c Config) GetSecrets() []string {
+	secrets := []string{
+		c.GitHub.Token,
+		c.GitHub.PrivateKey,
+		c.Trunk.Token,
+		c.Trunk.WebhookSecret,
+		c.Jira.OAuthClientSecret,
+		c.Jira.OAuthAccessToken,
+		c.Jira.OAuthRefreshToken,
+		c.Jira.Token,
+	}
+	return secrets
+}
+
 // MustLoad is Load but panics if there is an error.
 func MustLoad(options ...Option) Config {
 	cfg, err := Load(options...)

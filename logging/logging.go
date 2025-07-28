@@ -24,6 +24,7 @@ type options struct {
 	logFileName      string
 	writers          []io.Writer
 	soleWriter       io.Writer
+	secrets          []string
 }
 
 // Option is a function that sets an option for the logger.
@@ -33,7 +34,7 @@ type Option func(*options)
 // This is useful for testing logging output.
 func WithWriters(writers ...io.Writer) Option {
 	return func(o *options) {
-		o.writers = writers
+		o.writers = append(o.writers, writers...)
 	}
 }
 
@@ -66,9 +67,27 @@ func WithConsoleLog(enabled bool) Option {
 	}
 }
 
+// WithSecrets sets the secrets to redact in the logs.
+func WithSecrets(secrets []string) Option {
+	return func(o *options) {
+		o.secrets = secrets
+	}
+}
+
 func defaultOptions() *options {
 	return &options{
 		enableConsoleLog: true,
+	}
+}
+
+// Return a writer that writes to the specified file and redacts sensitive information.
+func withRedactWriter(writer io.Writer, secrets []string) io.Writer {
+	if len(secrets) == 0 {
+		return writer
+	}
+	return &redactWriter{
+		Writer:  writer,
+		Secrets: secrets,
 	}
 }
 
@@ -87,7 +106,7 @@ func New(options ...Option) (zerolog.Logger, error) {
 
 	writers := opts.writers
 	if opts.soleWriter != nil {
-		writers = []io.Writer{opts.soleWriter}
+		writers = []io.Writer{withRedactWriter(opts.soleWriter, opts.secrets)}
 	} else {
 		if logFileName != "" {
 			err := os.MkdirAll(filepath.Dir(logFileName), 0700)
@@ -104,13 +123,12 @@ func New(options ...Option) (zerolog.Logger, error) {
 				MaxBackups: 10,
 				MaxAge:     30,
 			}
-			writers = append(writers, lumberLogger)
+			writers = append(writers, withRedactWriter(lumberLogger, opts.secrets))
 		}
 		if enableConsoleLog {
-			writers = append(writers, zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: TimeLayout})
+			writers = append(writers, withRedactWriter(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: TimeLayout}, opts.secrets))
 		}
 	}
-
 	logLevel, err := zerolog.ParseLevel(logLevelInput)
 	if err != nil {
 		return zerolog.Logger{}, fmt.Errorf("invalid log level: %w", err)
