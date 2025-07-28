@@ -224,7 +224,7 @@ func (c *Client) createPullRequest(
 	// Note: GitHub API doesn't support setting labels during PR creation,
 	// so we need a separate API call to the Issues endpoint.
 	// Label addition failure is non-fatal - we ignore any errors since the main operation succeeded.
-	c.Rest.Issues.AddLabelsToIssue(ctx, owner, repo, createdPR.GetNumber(), []string{"branch-out"})
+	_, _, _ = c.Rest.Issues.AddLabelsToIssue(ctx, owner, repo, createdPR.GetNumber(), []string{"branch-out"})
 
 	prURL := createdPR.GetHTMLURL()
 	return prURL, nil
