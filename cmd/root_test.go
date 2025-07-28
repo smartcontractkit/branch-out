@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,8 +34,13 @@ func TestRoot_Config(t *testing.T) {
 			},
 			expectedConfig: config.Config{
 				LogLevel: defaultLogLevel,
+				Port:     0,
 				GitHub: config.GitHub{
 					BaseURL: defaultGitHubBaseURL,
+				},
+				Telemetry: config.Telemetry{
+					MetricsExporter: "stdout",
+					MetricsEndpoint: "",
 				},
 			},
 		},
@@ -50,9 +53,13 @@ func TestRoot_Config(t *testing.T) {
 			},
 			expectedConfig: config.Config{
 				LogLevel: "error",
+				Port:     0,
 				GitHub: config.GitHub{
 					BaseURL: "https://api.github.com/test",
 					Token:   "env-token",
+				},
+				Telemetry: config.Telemetry{
+					MetricsExporter: "stdout",
 				},
 			},
 		},
@@ -65,12 +72,16 @@ func TestRoot_Config(t *testing.T) {
 			},
 			expectedConfig: config.Config{
 				LogLevel: "error",
+				Port:     0,
 				GitHub: config.GitHub{
 					BaseURL: defaultGitHubBaseURL,
 					Token:   "test-github-token",
 				},
 				Trunk: config.Trunk{
 					Token: "test-trunk-token",
+				},
+				Telemetry: config.Telemetry{
+					MetricsExporter: "stdout",
 				},
 			},
 		},
@@ -88,12 +99,16 @@ func TestRoot_Config(t *testing.T) {
 			},
 			expectedConfig: config.Config{
 				LogLevel: "debug",
+				Port:     0,
 				GitHub: config.GitHub{
 					BaseURL: defaultGitHubBaseURL,
 					Token:   "test-github-token",
 				},
 				Trunk: config.Trunk{
 					Token: "test-trunk-token",
+				},
+				Telemetry: config.Telemetry{
+					MetricsExporter: "stdout",
 				},
 			},
 		},
@@ -110,14 +125,13 @@ func TestRoot_Config(t *testing.T) {
 			// Set flags, which should override env vars
 			root.SetArgs(tc.flags)
 
-			// Create a context with timeout to prevent the test from hanging
-			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-			t.Cleanup(cancel)
+			// Parse flags before calling PersistentPreRunE
+			err := root.ParseFlags(tc.flags)
+			require.NoError(t, err)
 
-			// Execute will return when the context times out
-			_ = root.ExecuteContext(
-				ctx,
-			) // We don't care about the error here, we just want to see if the config is set properly
+			// Only run the config loading (PersistentPreRunE) without starting the server
+			err = root.PersistentPreRunE(root, tc.flags)
+			require.NoError(t, err)
 
 			assert.Equal(
 				t,

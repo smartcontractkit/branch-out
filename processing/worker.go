@@ -14,6 +14,7 @@ import (
 
 	"github.com/smartcontractkit/branch-out/golang"
 	"github.com/smartcontractkit/branch-out/jira"
+	"github.com/smartcontractkit/branch-out/telemetry"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
@@ -24,6 +25,7 @@ type Worker struct {
 	jiraClient   JiraClient
 	trunkClient  TrunkClient
 	githubClient GithubClient
+	metrics      *telemetry.Metrics
 
 	// Configuration
 	pollInterval time.Duration
@@ -48,6 +50,7 @@ func NewWorker(
 	jiraClient JiraClient,
 	trunkClient TrunkClient,
 	githubClient GithubClient,
+	metrics *telemetry.Metrics,
 	config Config,
 ) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -62,6 +65,7 @@ func NewWorker(
 		jiraClient:   jiraClient,
 		trunkClient:  trunkClient,
 		githubClient: githubClient,
+		metrics:      metrics,
 		pollInterval: config.PollInterval,
 		ctx:          ctx,
 		cancel:       cancel,
@@ -138,11 +142,15 @@ func (w *Worker) run() {
 
 // pollAndProcess polls SQS for messages and processes them.
 func (w *Worker) pollAndProcess() {
+	pollStart := time.Now()
 	w.logger.Trace().Msg("Polling SQS for messages")
 
 	// Create a timeout context for this poll operation
 	pollCtx, cancel := context.WithTimeout(w.ctx, 30*time.Second)
 	defer cancel()
+
+	// Record poll interval metrics
+	w.metrics.RecordWorkerPollInterval(w.ctx, time.Since(pollStart))
 
 	// Receive messages from SQS
 	result, err := w.awsClient.ReceiveMessageFromQueue(pollCtx, w.logger)
@@ -151,10 +159,14 @@ func (w *Worker) pollAndProcess() {
 		return
 	}
 
-	if len(result.Messages) == 0 {
+	messageCount := len(result.Messages)
+	if messageCount == 0 {
 		w.logger.Trace().Msg("No messages to process")
 		return
 	}
+
+	// Record batch size metrics
+	w.metrics.RecordSQSReceiveBatchSize(w.ctx, int64(messageCount))
 
 	// Process each message
 	for _, message := range result.Messages {
@@ -164,8 +176,11 @@ func (w *Worker) pollAndProcess() {
 
 // processMessage processes a single SQS message.
 func (w *Worker) processMessage(ctx context.Context, message types.Message) {
+	start := time.Now()
+
 	if message.Body == nil || message.ReceiptHandle == nil {
 		w.logger.Warn().Msg("Received message with nil body or receipt handle")
+		w.metrics.IncWorkerMessage(ctx, "unknown", "invalid_message")
 		return
 	}
 
@@ -183,6 +198,8 @@ func (w *Worker) processMessage(ctx context.Context, message types.Message) {
 	err := w.processWebhookPayload(messageBody)
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to process webhook payload")
+		w.metrics.IncWorkerMessage(ctx, "trunk_webhook", "processing_failed")
+		w.metrics.RecordWorkerProcessingDuration(ctx, "trunk_webhook", time.Since(start))
 		// Note: In a production system, you might want to implement retry logic
 		// or send messages to a dead letter queue instead of just deleting them
 		return
@@ -192,9 +209,15 @@ func (w *Worker) processMessage(ctx context.Context, message types.Message) {
 	err = w.awsClient.DeleteMessageFromQueue(ctx, l, receiptHandle)
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to delete message from SQS after processing")
+		w.metrics.IncSQSMessageDelete(ctx, "failure")
 		// Message will become visible again after visibility timeout
 		return
 	}
+
+	// Record success metrics
+	w.metrics.IncSQSMessageDelete(ctx, "success")
+	w.metrics.IncWorkerMessage(ctx, "trunk_webhook", "processed")
+	w.metrics.RecordWorkerProcessingDuration(ctx, "trunk_webhook", time.Since(start))
 
 	l.Info().Msg("Successfully processed and deleted SQS message")
 }
@@ -261,9 +284,13 @@ func (w *Worker) handleTestCaseStatusChanged(l zerolog.Logger, statusChange trun
 
 // handleFlakyTest handles the case where a test is marked as flaky.
 func (w *Worker) handleFlakyTest(l zerolog.Logger, statusChange trunk.TestCaseStatusChange) error {
+	start := time.Now()
 	testCase := statusChange.TestCase
 
 	l.Debug().Msg("Quarantining flaky test")
+
+	// Record flaky test detection
+	w.metrics.IncFlakyTestDetected(context.Background(), testCase.Name, testCase.TestSuite)
 
 	// Create a Jira ticket for the flaky test
 	_, err := w.createJiraIssueForFlakyTest(l, statusChange)
@@ -287,6 +314,9 @@ func (w *Worker) handleFlakyTest(l zerolog.Logger, statusChange trunk.TestCaseSt
 		return fmt.Errorf("failed to quarantine test: %w", err)
 	}
 
+	// Record time to quarantine
+	w.metrics.RecordTimeToQuarantine(context.Background(), time.Since(start))
+
 	return nil
 }
 
@@ -296,7 +326,13 @@ func (w *Worker) handleBrokenTest(l zerolog.Logger, statusChange trunk.TestCaseS
 }
 
 // handleHealthyTest handles the case where a test is marked as healthy.
-func (w *Worker) handleHealthyTest(_ zerolog.Logger, _ trunk.TestCaseStatusChange) error {
+func (w *Worker) handleHealthyTest(l zerolog.Logger, statusChange trunk.TestCaseStatusChange) error {
+	// Record test recovery if it was previously flaky
+	if statusChange.StatusChange.PreviousStatus == trunk.TestCaseStatusFlaky {
+		w.metrics.IncTestRecovered(context.Background())
+		l.Info().Msg("Test recovered from flaky status")
+	}
+
 	return fmt.Errorf("healthy test handling not implemented")
 }
 

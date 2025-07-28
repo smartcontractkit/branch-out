@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -16,13 +17,17 @@ func (c *Client) PushMessageToQueue(
 	ctx context.Context,
 	l zerolog.Logger,
 	payload string) error {
+	start := time.Now()
+
 	if c.sqsClient == nil {
 		l.Error().Msg("SQS client is not initialized")
+		c.metrics.IncSQSOperations(ctx, "send_failed")
 		return fmt.Errorf("SQS client is not initialized")
 	}
 
 	if payload == "" {
 		l.Error().Msg("Message payload cannot be empty")
+		c.metrics.IncSQSOperations(ctx, "send_failed")
 		return fmt.Errorf("message payload cannot be empty")
 	}
 
@@ -57,9 +62,15 @@ func (c *Client) PushMessageToQueue(
 	// Send the message to the SQS queue
 	res, err := c.sqsClient.SendMessage(ctx, message)
 	if err != nil {
+		c.metrics.RecordSQSSendLatency(ctx, time.Since(start))
+		c.metrics.IncSQSOperations(ctx, "send_failed")
 		l.Error().Err(err).Msg("Failed to send message to SQS queue")
 		return fmt.Errorf("failed to send message to SQS queue: %w", err)
 	}
+
+	// Record success metrics
+	c.metrics.RecordSQSSendLatency(ctx, time.Since(start))
+	c.metrics.IncSQSOperations(ctx, "send_success")
 
 	// Handle potential nil pointers in response
 	messageID := "unknown"
@@ -85,6 +96,7 @@ func (c *Client) ReceiveMessageFromQueue(
 ) (*sqs.ReceiveMessageOutput, error) {
 	if c.sqsClient == nil {
 		l.Error().Msg("SQS client is not initialized")
+		c.metrics.IncSQSOperations(ctx, "receive_failed")
 		return nil, fmt.Errorf("SQS client is not initialized")
 	}
 
@@ -96,9 +108,14 @@ func (c *Client) ReceiveMessageFromQueue(
 		QueueUrl:            &c.queueURL,
 	})
 	if err != nil {
+		c.metrics.IncSQSOperations(ctx, "receive_failed")
 		l.Error().Err(err).Msg("Failed to receive messages from SQS queue")
 		return nil, fmt.Errorf("failed to receive messages from SQS queue: %w", err)
 	}
+
+	// Record batch size metrics
+	c.metrics.RecordSQSReceiveBatchSize(ctx, int64(len(res.Messages)))
+	c.metrics.IncSQSOperations(ctx, "receive_success")
 
 	if len(res.Messages) == 0 {
 		l.Debug().Msg("No messages received from SQS queue")

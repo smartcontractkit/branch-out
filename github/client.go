@@ -14,6 +14,7 @@ import (
 
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
+	"github.com/smartcontractkit/branch-out/telemetry"
 )
 
 // Client is the standard GitHub Client.
@@ -26,6 +27,8 @@ type Client struct {
 	BaseURL *url.URL
 	// tokenSource is the GitHub tokenSource used to authenticate requests.
 	tokenSource oauth2.TokenSource
+	// metrics is the telemetry metrics instance
+	metrics *telemetry.Metrics
 }
 
 // ClientOption is a function that can be used to configure the GitHub client.
@@ -34,6 +37,7 @@ type ClientOption func(*clientOptions)
 type clientOptions struct {
 	secrets config.GitHub
 	logger  zerolog.Logger
+	metrics *telemetry.Metrics
 }
 
 // WithConfig uses a GitHub config to setup authentication.
@@ -50,6 +54,13 @@ func WithLogger(logger zerolog.Logger) ClientOption {
 	}
 }
 
+// WithMetrics sets the metrics instance for the GitHub client.
+func WithMetrics(metrics *telemetry.Metrics) ClientOption {
+	return func(c *clientOptions) {
+		c.metrics = metrics
+	}
+}
+
 // NewClient creates a new GitHub REST and GraphQL API client with the provided token and logger.
 // If optionalNext is provided, it will be used as the base client for both REST and GraphQL, handy for testing.
 func NewClient(
@@ -60,7 +71,9 @@ func NewClient(
 		opt(opts)
 	}
 
-	client := &Client{}
+	client := &Client{
+		metrics: opts.metrics,
+	}
 
 	var err error
 	client.tokenSource, err = setupAuth(opts.secrets)
@@ -83,6 +96,11 @@ func NewClient(
 			l = l.Str("reset_time", ctx.ResetTime.String())
 		}
 		l.Msg(base.RateLimitHitMsg)
+
+		// Record rate limit hit metrics
+		if ctx.Request != nil {
+			client.metrics.IncGitHubRateLimitHit(ctx.Request.Context())
+		}
 	}
 
 	onSecondaryRateLimitHit := func(ctx *github_secondary_ratelimit.CallbackContext) {
@@ -100,6 +118,11 @@ func NewClient(
 			l = l.Str("total_sleep_time", ctx.TotalSleepTime.String())
 		}
 		l.Msg(base.RateLimitHitMsg)
+
+		// Record rate limit hit metrics
+		if ctx.Request != nil {
+			client.metrics.IncGitHubRateLimitHit(ctx.Request.Context())
+		}
 	}
 
 	// Create base HTTP client with logging transport

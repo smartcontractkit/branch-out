@@ -14,6 +14,7 @@ import (
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/logging"
 	"github.com/smartcontractkit/branch-out/processing"
+	"github.com/smartcontractkit/branch-out/telemetry"
 )
 
 var (
@@ -82,9 +83,34 @@ branch-out --jira-base-domain mycompany.atlassian.net --jira-project-key PROJ
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		var metrics *telemetry.Metrics
+		var metricsShutdown func(context.Context) error
+
+		// Initialize metrics
+		var err error
+		metrics, metricsShutdown, err = telemetry.NewMetrics(
+			telemetry.WithContext(cmd.Context()),
+			telemetry.WithExporter(appConfig.Telemetry.MetricsExporter),
+			telemetry.WithOTLPEndpoint(appConfig.Telemetry.MetricsEndpoint),
+		)
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to initialize metrics, continuing without metrics")
+		} else {
+			logger.Info().
+				Str("exporter", appConfig.Telemetry.MetricsExporter).
+				Str("endpoint", appConfig.Telemetry.MetricsEndpoint).
+				Msg("Metrics initialized")
+			defer func() {
+				if shutdownErr := metricsShutdown(context.Background()); shutdownErr != nil {
+					logger.Error().Err(shutdownErr).Msg("Failed to shutdown metrics")
+				}
+			}()
+		}
+
 		srv, err := processing.NewServer(
 			processing.WithLogger(logger),
 			processing.WithConfig(appConfig),
+			processing.WithMetrics(metrics),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create server: %w", err)

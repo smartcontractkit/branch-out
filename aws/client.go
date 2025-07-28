@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/smartcontractkit/branch-out/config"
+	"github.com/smartcontractkit/branch-out/telemetry"
 
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -19,6 +20,7 @@ type Client struct {
 	queueURL  string
 	sqsClient *sqs.Client
 	logger    zerolog.Logger
+	metrics   *telemetry.Metrics
 }
 
 // ClientOption is a function that can be used to configure the AWS client.
@@ -28,6 +30,7 @@ type clientOptions struct {
 	region   string
 	queueURL string
 	logger   zerolog.Logger
+	metrics  *telemetry.Metrics
 }
 
 // WithConfig sets the AWS region and SQS queue URL from the provided config.
@@ -42,6 +45,13 @@ func WithConfig(config config.Config) ClientOption {
 func WithLogger(logger zerolog.Logger) ClientOption {
 	return func(opts *clientOptions) {
 		opts.logger = logger
+	}
+}
+
+// WithMetrics sets the metrics instance for the AWS client.
+func WithMetrics(metrics *telemetry.Metrics) ClientOption {
+	return func(opts *clientOptions) {
+		opts.metrics = metrics
 	}
 }
 
@@ -95,6 +105,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		awsConfig: cfg,
 		queueURL:  clientOptions.queueURL,
 		logger:    l,
+		metrics:   clientOptions.metrics,
 	}
 
 	return client, nil
