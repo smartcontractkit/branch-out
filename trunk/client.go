@@ -3,6 +3,7 @@ package trunk
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/github"
+	"github.com/smartcontractkit/branch-out/telemetry"
 )
 
 // Client is the standard Trunk.io Client.
@@ -24,6 +26,7 @@ type Client struct {
 
 	secrets config.Trunk
 	logger  zerolog.Logger
+	metrics *telemetry.Metrics
 }
 
 // ClientOption is a function that sets a configuration option for the Trunk.io client.
@@ -33,6 +36,7 @@ type trunkClientOptions struct {
 	baseURL *url.URL
 	secrets config.Trunk
 	logger  zerolog.Logger
+	metrics *telemetry.Metrics
 }
 
 // WithLogger sets the logger to use for the Trunk.io client.
@@ -46,6 +50,13 @@ func WithLogger(logger zerolog.Logger) ClientOption {
 func WithConfig(config config.Config) ClientOption {
 	return func(opts *trunkClientOptions) {
 		opts.secrets = config.Trunk
+	}
+}
+
+// WithMetrics sets the metrics instance for the Trunk client.
+func WithMetrics(metrics *telemetry.Metrics) ClientOption {
+	return func(opts *trunkClientOptions) {
+		opts.metrics = metrics
 	}
 }
 
@@ -77,12 +88,16 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		),
 		secrets: opts.secrets,
 		logger:  opts.logger,
+		metrics: opts.metrics,
 	}, nil
 }
 
 // LinkTicketToTestCase links a Jira ticket to a test case in Trunk.io
 // See: https://docs.trunk.io/references/apis/flaky-tests#post-flaky-tests-link-ticket-to-test-case
 func (c *Client) LinkTicketToTestCase(testCaseID, issueKey string, repoURL string) error {
+	start := time.Now()
+	ctx := context.Background()
+
 	l := c.logger.With().
 		Str("test_case_id", testCaseID).
 		Str("jira_ticket_key", issueKey).
@@ -125,6 +140,7 @@ func (c *Client) LinkTicketToTestCase(testCaseID, issueKey string, repoURL strin
 	// Make the HTTP request
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
+		c.metrics.RecordTrunkAPILatency(ctx, "link_ticket", time.Since(start))
 		return fmt.Errorf("failed to make request to Trunk API: %w", err)
 	}
 	defer func() {
@@ -150,6 +166,8 @@ func (c *Client) LinkTicketToTestCase(testCaseID, issueKey string, repoURL strin
 		return fmt.Errorf("trunk API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
+	// Record success metrics
+	c.metrics.RecordTrunkAPILatency(ctx, "link_ticket", time.Since(start))
 	l.Info().
 		Int("status_code", resp.StatusCode).
 		Msg("Successfully linked Jira ticket to Trunk test case")

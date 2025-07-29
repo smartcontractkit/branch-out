@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	go_jira "github.com/andygrunwald/go-jira"
 	"github.com/rs/zerolog"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
+	"github.com/smartcontractkit/branch-out/telemetry"
 )
 
 // issueService defines the interface for go-jira issue operations.
@@ -76,8 +78,9 @@ type Client struct {
 	IssueService issueService
 	FieldService fieldService
 
-	config config.Jira
-	logger zerolog.Logger
+	config  config.Jira
+	logger  zerolog.Logger
+	metrics *telemetry.Metrics
 
 	jqlBase string
 }
@@ -88,6 +91,7 @@ type Option func(*jiraClientOptions)
 type jiraClientOptions struct {
 	config       config.Jira
 	logger       zerolog.Logger
+	metrics      *telemetry.Metrics
 	issueService issueService
 	fieldService fieldService
 }
@@ -112,6 +116,13 @@ func WithServices(issueService issueService, fieldService fieldService) Option {
 	return func(opts *jiraClientOptions) {
 		opts.issueService = issueService
 		opts.fieldService = fieldService
+	}
+}
+
+// WithMetrics sets the metrics instance for the Jira client.
+func WithMetrics(metrics *telemetry.Metrics) Option {
+	return func(opts *jiraClientOptions) {
+		opts.metrics = metrics
 	}
 }
 
@@ -195,9 +206,10 @@ func NewClient(options ...Option) (*Client, error) {
 		return nil, fmt.Errorf("failed to create Jira client: %w", err)
 	}
 	c := &Client{
-		Client: jiraClient,
-		config: jiraConfig,
-		logger: l,
+		Client:  jiraClient,
+		config:  jiraConfig,
+		logger:  l,
+		metrics: opts.metrics,
 	}
 
 	// Use injected services if provided, otherwise use real services
@@ -285,6 +297,8 @@ This ticket was automatically created by [branch-out|https://github.com/smartcon
 
 // CreateFlakyTestIssue creates a new Jira issue for a flaky test
 func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (FlakyTestIssue, error) {
+	ctx := context.Background()
+
 	c.logger.Debug().
 		Str("repo_url", req.RepoURL).
 		Str("package", req.Package).
@@ -293,13 +307,18 @@ func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (FlakyTestIssue
 		Str("trunk_id", req.TrunkID).
 		Msg("Creating Jira issue for flaky test")
 
+	createStart := time.Now()
 	issue, resp, err := c.IssueService.Create(req.toJiraIssue())
 	if err != nil {
+		c.metrics.RecordJiraAPILatency(ctx, "create_issue", time.Since(createStart))
+		c.metrics.IncJiraTicket(ctx, "create_failed")
 		return FlakyTestIssue{}, fmt.Errorf("%w: %w", ErrFailedToCreateFlakyTestIssue, err)
 	}
 	if err := checkResponse(resp); err != nil {
+		c.metrics.RecordJiraAPILatency(ctx, "create_issue", time.Since(createStart))
 		return FlakyTestIssue{}, err
 	}
+	c.metrics.RecordJiraAPILatency(ctx, "create_issue", time.Since(createStart))
 
 	// Create the issue first, then try to add custom fields
 	err = c.addCustomFields(issue.Key, req)
@@ -311,6 +330,8 @@ func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (FlakyTestIssue
 
 	flakyTestIssue := c.wrapFlakyTestIssue(issue)
 
+	// Record success metrics
+	c.metrics.IncJiraTicket(ctx, "created")
 	c.logger.Info().
 		Str("ticket_key", flakyTestIssue.Key).
 		Str("ticket_id", flakyTestIssue.ID).

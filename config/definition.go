@@ -72,7 +72,11 @@ func (f *Field) MarkdownTable() string {
 //go:generate go run ./generate_docs.go
 var (
 	// Fields is a list of all configuration fields.
-	Fields = append(coreFields, append(githubFields, append(trunkFields, append(jiraFields, awsFields...)...)...)...)
+	Fields = append(
+		coreFields,
+		append(
+			githubFields,
+			append(trunkFields, append(jiraFields, append(awsFields, telemetryFields...)...)...)...)...)
 
 	coreFields = []Field{
 		{
@@ -291,6 +295,27 @@ var (
 			Example:     "https://sqs.us-west-2.amazonaws.com/123456789012/my-queue.fifo",
 			Flag:        "aws-sqs-queue-url",
 			Type:        reflect.TypeOf(""),
+			Persistent:  true,
+		},
+	}
+
+	telemetryFields = []Field{
+		{
+			EnvVar:      "OTEL_METRICS_EXPORTER",
+			Description: "OpenTelemetry metrics exporter type (stdout or otlp)",
+			Example:     "stdout",
+			Flag:        "otel-metrics-exporter",
+			Type:        reflect.TypeOf(""),
+			Default:     "stdout",
+			Persistent:  true,
+		},
+		{
+			EnvVar:      "OTEL_METRICS_ENDPOINT",
+			Description: "OpenTelemetry metrics OTLP endpoint URL",
+			Example:     "localhost:4317",
+			Flag:        "otel-metrics-endpoint",
+			Type:        reflect.TypeOf(""),
+			Default:     "",
 			Persistent:  true,
 		},
 	}

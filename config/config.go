@@ -42,10 +42,11 @@ type Config struct {
 	Port     int    `mapstructure:"PORT"`
 
 	// Secrets
-	GitHub GitHub `mapstructure:",squash"`
-	Trunk  Trunk  `mapstructure:",squash"`
-	Jira   Jira   `mapstructure:",squash"`
-	Aws    Aws    `mapstructure:",squash"`
+	GitHub    GitHub    `mapstructure:",squash"`
+	Trunk     Trunk     `mapstructure:",squash"`
+	Jira      Jira      `mapstructure:",squash"`
+	Aws       Aws       `mapstructure:",squash"`
+	Telemetry Telemetry `mapstructure:",squash"`
 }
 
 // GitHub configures authentication to the GitHub API.
@@ -85,6 +86,12 @@ type Jira struct {
 type Aws struct {
 	Region      string `mapstructure:"AWS_REGION"`
 	SqsQueueURL string `mapstructure:"AWS_SQS_QUEUE_URL"`
+}
+
+// Telemetry configures OpenTelemetry metrics collection.
+type Telemetry struct {
+	MetricsExporter string `mapstructure:"OTEL_METRICS_EXPORTER"`
+	MetricsEndpoint string `mapstructure:"OTEL_METRICS_ENDPOINT"`
 }
 
 // Option is a function that can be used to configure loading the config.

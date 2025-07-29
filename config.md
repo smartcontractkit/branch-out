@@ -35,3 +35,5 @@ Config fields are loaded in the following priority order:
 | JIRA_TRUNK_ID_FIELD_ID | If available, the ID of the custom field used to store the Trunk ID | customfield_10003 | jira-trunk-id-field-id |  | string | <nil> | false | false |
 | AWS_REGION | AWS region for SQS | us-west-2 | aws-region |  | string | <nil> | false | false |
 | AWS_SQS_QUEUE_URL | AWS SQS queue URL for webhooks payloads | https://sqs.us-west-2.amazonaws.com/123456789012/my-queue.fifo | aws-sqs-queue-url |  | string | <nil> | false | false |
+| OTEL_METRICS_EXPORTER | OpenTelemetry metrics exporter type (stdout or otlp) | stdout | otel-metrics-exporter |  | string | stdout | false | false |
+| OTEL_METRICS_ENDPOINT | OpenTelemetry metrics OTLP endpoint URL | localhost:4317 | otel-metrics-endpoint |  | string |  | false | false |

@@ -11,6 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/smartcontractkit/branch-out/telemetry"
 	"github.com/smartcontractkit/branch-out/trunk"
 
 	svix "github.com/svix/svix-webhooks/go"
@@ -21,21 +22,35 @@ type WebhookHandler struct {
 	logger        zerolog.Logger
 	signingSecret string
 	awsClient     AWSClient
+	metrics       *telemetry.Metrics
 }
 
 // NewWebhookHandler creates a new webhook handler.
-func NewWebhookHandler(logger zerolog.Logger, signingSecret string, awsClient AWSClient) *WebhookHandler {
+func NewWebhookHandler(
+	logger zerolog.Logger,
+	signingSecret string,
+	awsClient AWSClient,
+	metrics *telemetry.Metrics,
+) *WebhookHandler {
 	return &WebhookHandler{
 		logger:        logger.With().Str("component", "trunk_webhook_handler").Logger(),
 		signingSecret: signingSecret,
 		awsClient:     awsClient,
+		metrics:       metrics,
 	}
 }
 
 // HandleWebhook processes an incoming webhook by validating it and queuing for async processing.
 func (h *WebhookHandler) HandleWebhook(req *http.Request) error {
+	start := time.Now()
+	ctx := req.Context()
+
+	// Record webhook received
+	h.metrics.IncWebhook(ctx, "trunk", "received")
+
 	// Verify the webhook signature
 	if err := verifyWebhookRequest(h.logger, req, h.signingSecret); err != nil {
+		h.metrics.IncWebhookValidationFailure(ctx, "signature_verification")
 		return fmt.Errorf("webhook call cannot be verified: %w", err)
 	}
 
@@ -56,6 +71,7 @@ func (h *WebhookHandler) HandleWebhook(req *http.Request) error {
 	// Validate payload structure (Trunk-specific validation)
 	var webhookData trunk.TestCaseStatusChange
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
+		h.metrics.IncWebhookValidationFailure(ctx, "json_parsing")
 		h.logger.Error().
 			Err(err).
 			Str("payload", string(payload)).
@@ -71,15 +87,22 @@ func (h *WebhookHandler) HandleWebhook(req *http.Request) error {
 		Logger()
 
 	// Push to SQS for async processing
+	sqsStart := time.Now()
 	err = h.awsClient.PushMessageToQueue(
 		context.Background(),
 		l,
 		string(payload),
 	)
 	if err != nil {
+		h.metrics.IncWebhook(ctx, "trunk", "sqs_failed")
 		l.Error().Err(err).Msg("Failed to push webhook payload to AWS SQS")
 		return fmt.Errorf("failed to push webhook payload to AWS SQS: %w", err)
 	}
+
+	// Record metrics for successful processing
+	h.metrics.RecordSQSSendLatency(ctx, time.Since(sqsStart))
+	h.metrics.IncWebhook(ctx, "trunk", "processed")
+	h.metrics.RecordWebhookDuration(ctx, "trunk", time.Since(start))
 
 	l.Info().Msg("Webhook payload successfully queued for processing")
 	return nil

@@ -52,12 +52,21 @@ func (c *Client) QuarantineTests(
 	start := time.Now()
 	l = l.With().Str("host", host).Str("owner", owner).Str("repo", repo).Logger()
 
+	// Record quarantine operation start
+	var packageNames []string
+	for _, target := range targets {
+		packageNames = append(packageNames, target.Package)
+	}
+
 	// 1. Get branch names
+	apiStart := time.Now()
 	defaultBranch, prBranch, err := c.getBranchNames(ctx, owner, repo)
 	if err != nil {
+		c.metrics.RecordGitHubAPILatency(ctx, "get_default_branch", time.Since(apiStart))
 		l.Error().Err(err).Msg("Failed to get default and/or PR branch names")
 		return fmt.Errorf("failed to get default and/or PR branch names: %w", err)
 	}
+	c.metrics.RecordGitHubAPILatency(ctx, "get_default_branch", time.Since(apiStart))
 	l.Debug().Str("default_branch", defaultBranch).Str("pr_branch", prBranch).Msg("Got branches")
 	l = l.With().Str("pr_branch", prBranch).Logger()
 
@@ -103,11 +112,20 @@ func (c *Client) QuarantineTests(
 	l = l.With().Str("commit_sha", sha).Logger()
 
 	// 7. Create or update the pull request
+	prStart := time.Now()
 	prURL, err := c.createOrUpdatePullRequest(ctx, l, owner, repo, prBranch, defaultBranch, &results)
 	if err != nil {
+		c.metrics.RecordGitHubAPILatency(ctx, "create_update_pr", time.Since(prStart))
 		l.Error().Err(err).Msg("Failed to create or update pull request")
 		return fmt.Errorf("failed to create or update pull request: %w", err)
 	}
+	c.metrics.RecordGitHubAPILatency(ctx, "create_update_pr", time.Since(prStart))
+	// Record final success metrics
+	for _, packageName := range packageNames {
+		c.metrics.IncQuarantineOperation(ctx, packageName, "success")
+	}
+	c.metrics.RecordQuarantineFilesModified(ctx, int64(len(results)))
+	c.metrics.RecordQuarantineDuration(ctx, time.Since(start))
 
 	l.Info().
 		Str("pr_url", prURL).

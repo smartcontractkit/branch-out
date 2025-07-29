@@ -18,6 +18,7 @@ import (
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/jira"
+	"github.com/smartcontractkit/branch-out/telemetry"
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
@@ -39,6 +40,9 @@ type Server struct {
 	// Background worker for processing SQS messages
 	worker *Worker
 
+	// Telemetry
+	metrics *telemetry.Metrics
+
 	running atomic.Bool
 	err     error
 }
@@ -52,26 +56,32 @@ type options struct {
 	trunkClient  TrunkClient
 	githubClient GithubClient
 	awsClient    AWSClient
+	metrics      *telemetry.Metrics
 }
 
 // CreateClients creates the clients for reaching out to external services.
 func CreateClients(
 	logger zerolog.Logger,
 	config config.Config,
+	metrics *telemetry.Metrics,
 ) (JiraClient, TrunkClient, GithubClient, AWSClient, error) {
-	jiraClient, err := jira.NewClient(jira.WithLogger(logger), jira.WithConfig(config))
+	jiraClient, err := jira.NewClient(jira.WithLogger(logger), jira.WithConfig(config), jira.WithMetrics(metrics))
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create Jira client: %w", err)
 	}
-	trunkClient, err := trunk.NewClient(trunk.WithLogger(logger), trunk.WithConfig(config))
+	trunkClient, err := trunk.NewClient(trunk.WithLogger(logger), trunk.WithConfig(config), trunk.WithMetrics(metrics))
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create Trunk client: %w", err)
 	}
-	githubClient, err := github.NewClient(github.WithLogger(logger), github.WithConfig(config))
+	githubClient, err := github.NewClient(
+		github.WithLogger(logger),
+		github.WithConfig(config),
+		github.WithMetrics(metrics),
+	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create GitHub client: %w", err)
 	}
-	awsClient, err := aws.NewClient(aws.WithLogger(logger), aws.WithConfig(config))
+	awsClient, err := aws.NewClient(aws.WithLogger(logger), aws.WithConfig(config), aws.WithMetrics(metrics))
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create AWS client: %w", err)
 	}
@@ -131,6 +141,13 @@ func WithLogger(logger zerolog.Logger) Option {
 	}
 }
 
+// WithMetrics sets the metrics instance for the server.
+func WithMetrics(metrics *telemetry.Metrics) Option {
+	return func(opts *options) {
+		opts.metrics = metrics
+	}
+}
+
 // defaultOptions returns the default options for the server.
 func defaultOptions() *options {
 	return &options{
@@ -155,7 +172,7 @@ func NewServer(options ...Option) (*Server, error) {
 	)
 
 	if opts.jiraClient == nil || opts.trunkClient == nil || opts.githubClient == nil {
-		jiraClient, trunkClient, githubClient, awsClient, err = CreateClients(opts.logger, opts.config)
+		jiraClient, trunkClient, githubClient, awsClient, err = CreateClients(opts.logger, opts.config, opts.metrics)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create clients: %w", err)
 		}
@@ -184,6 +201,7 @@ func NewServer(options ...Option) (*Server, error) {
 		opts.jiraClient,
 		opts.trunkClient,
 		opts.githubClient,
+		opts.metrics,
 		workerConfig,
 	)
 
@@ -199,6 +217,7 @@ func NewServer(options ...Option) (*Server, error) {
 		githubClient: opts.githubClient,
 		awsClient:    opts.awsClient,
 		worker:       sqsWorker,
+		metrics:      opts.metrics,
 	}, nil
 }
 
@@ -412,7 +431,7 @@ func (s *Server) ReceiveWebhook(req *http.Request) *WebhookResponse {
 	switch req.URL.Path {
 	case "/webhooks/trunk":
 		// Create webhook handler for this request
-		handler := NewWebhookHandler(l, s.config.Trunk.WebhookSecret, s.awsClient)
+		handler := NewWebhookHandler(l, s.config.Trunk.WebhookSecret, s.awsClient, s.metrics)
 		err = handler.HandleWebhook(req)
 	default:
 		err = fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)
@@ -527,6 +546,12 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 
 		// Log the request
 		duration := time.Since(start)
+
+		// Record HTTP metrics if available
+		s.metrics.IncHTTPRequest(r.Context(), rw.statusCode, r.Method, r.URL.Path)
+		if rw.statusCode >= 400 {
+			s.metrics.IncHTTPError(r.Context(), rw.statusCode)
+		}
 
 		s.logger.Trace().
 			Str("method", r.Method).
