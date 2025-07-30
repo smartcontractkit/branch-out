@@ -14,6 +14,22 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
+// SQSAPIError provides enhanced error information for SQS operations,
+// allowing callers to handle errors with appropriate business context and logging.
+type SQSAPIError struct {
+	Operation  string // The operation being performed (e.g., "send_message", "receive_message", "delete_message")
+	QueueURL   string // The SQS queue URL involved in the operation
+	StatusCode int    // HTTP status code if available
+	Underlying error  // The underlying error that occurred
+}
+
+func (e *SQSAPIError) Error() string {
+	if e.StatusCode != 0 {
+		return fmt.Sprintf("AWS %s operation failed (status %d): %v", e.Operation, e.StatusCode, e.Underlying)
+	}
+	return fmt.Sprintf("AWS %s operation failed: %v", e.Operation, e.Underlying)
+}
+
 // Client is the collection of AWS clients used by the application.
 type Client struct {
 	awsConfig aws_config.Config
@@ -89,7 +105,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	// Log credential information for debugging
 	creds, err := cfg.Credentials.Retrieve(context.Background())
 	if err != nil {
-		l.Warn().Err(err).Msg("Failed to retrieve AWS credentials")
+		l.Error().Err(err).Msg("Failed to retrieve AWS credentials")
 	} else {
 		l.Debug().
 			Str("access_key_id", creds.AccessKeyID[:8]+"...").

@@ -21,10 +21,21 @@ import (
 func (c *Client) getDefaultBranch(ctx context.Context, owner, repo string) (string, error) {
 	ghRepo, resp, err := c.Rest.Repositories.Get(ctx, owner, repo)
 	if err != nil {
-		return "", fmt.Errorf("failed to get repository: %w", err)
+		return "", &GitHubAPIError{
+			Operation:  "get_repository",
+			Owner:      owner,
+			Repo:       repo,
+			Underlying: err,
+		}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to get repository: %s", resp.Status)
+		return "", &GitHubAPIError{
+			Operation:  "get_repository",
+			Owner:      owner,
+			Repo:       repo,
+			StatusCode: resp.StatusCode,
+			Underlying: fmt.Errorf("unexpected status: %s", resp.Status),
+		}
 	}
 	return ghRepo.GetDefaultBranch(), nil
 }
@@ -37,12 +48,24 @@ func (c *Client) getBranchHeadSHA(ctx context.Context, owner, repo, branchName s
 		if strings.Contains(err.Error(), "Not Found") {
 			return "", false, nil
 		}
-		return "", false, fmt.Errorf("failed to get branch reference: %w", err)
+		return "", false, &GitHubAPIError{
+			Operation:  "get_branch_ref",
+			Owner:      owner,
+			Repo:       repo,
+			Branch:     branchName,
+			Underlying: err,
+		}
 	}
 
 	sha := ref.GetObject().GetSHA()
 	if sha == "" {
-		return "", false, fmt.Errorf("branch %s has no SHA", branchName)
+		return "", false, &GitHubAPIError{
+			Operation:  "get_branch_ref",
+			Owner:      owner,
+			Repo:       repo,
+			Branch:     branchName,
+			Underlying: fmt.Errorf("branch has no SHA"),
+		}
 	}
 
 	return sha, true, nil
@@ -217,7 +240,13 @@ func (c *Client) createPullRequest(
 
 	createdPR, _, err := c.Rest.PullRequests.Create(ctx, owner, repo, pr)
 	if err != nil {
-		return "", fmt.Errorf("failed to create pull request: %w", err)
+		return "", &GitHubAPIError{
+			Operation:  "create_pull_request",
+			Owner:      owner,
+			Repo:       repo,
+			Branch:     headBranch,
+			Underlying: err,
+		}
 	}
 
 	// Add the "branch-out" label immediately after creation
@@ -267,7 +296,12 @@ func (c *Client) updatePullRequest(
 
 	updatedPR, _, err := c.Rest.PullRequests.Edit(ctx, owner, repo, prNumber, pr)
 	if err != nil {
-		return "", fmt.Errorf("failed to update pull request: %w", err)
+		return "", &GitHubAPIError{
+			Operation:  "update_pull_request",
+			Owner:      owner,
+			Repo:       repo,
+			Underlying: err,
+		}
 	}
 
 	return updatedPR.GetHTMLURL(), nil

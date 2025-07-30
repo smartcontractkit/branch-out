@@ -20,15 +20,21 @@ func (c *Client) PushMessageToQueue(
 	start := time.Now()
 
 	if c.sqsClient == nil {
-		l.Error().Msg("SQS client is not initialized")
 		c.metrics.IncSQSOperations(ctx, "send_failed")
-		return fmt.Errorf("SQS client is not initialized")
+		return &SQSAPIError{
+			Operation:  "send_message",
+			QueueURL:   c.queueURL,
+			Underlying: fmt.Errorf("SQS client is not initialized"),
+		}
 	}
 
 	if payload == "" {
-		l.Error().Msg("Message payload cannot be empty")
 		c.metrics.IncSQSOperations(ctx, "send_failed")
-		return fmt.Errorf("message payload cannot be empty")
+		return &SQSAPIError{
+			Operation:  "send_message",
+			QueueURL:   c.queueURL,
+			Underlying: fmt.Errorf("message payload cannot be empty"),
+		}
 	}
 
 	// Log the queue URL for debugging
@@ -64,8 +70,11 @@ func (c *Client) PushMessageToQueue(
 	if err != nil {
 		c.metrics.RecordSQSSendLatency(ctx, time.Since(start))
 		c.metrics.IncSQSOperations(ctx, "send_failed")
-		l.Error().Err(err).Msg("Failed to send message to SQS queue")
-		return fmt.Errorf("failed to send message to SQS queue: %w", err)
+		return &SQSAPIError{
+			Operation:  "send_message",
+			QueueURL:   c.queueURL,
+			Underlying: err,
+		}
 	}
 
 	// Record success metrics
@@ -78,7 +87,7 @@ func (c *Client) PushMessageToQueue(
 		messageID = *res.MessageId
 	}
 
-	logEvent := l.Info().Str("MessageId", messageID)
+	logEvent := l.Debug().Str("MessageId", messageID)
 
 	// SequenceNumber is only present for FIFO queues
 	if res.SequenceNumber != nil {
@@ -95,9 +104,12 @@ func (c *Client) ReceiveMessageFromQueue(
 	l zerolog.Logger,
 ) (*sqs.ReceiveMessageOutput, error) {
 	if c.sqsClient == nil {
-		l.Error().Msg("SQS client is not initialized")
 		c.metrics.IncSQSOperations(ctx, "receive_failed")
-		return nil, fmt.Errorf("SQS client is not initialized")
+		return nil, &SQSAPIError{
+			Operation:  "receive_message",
+			QueueURL:   c.queueURL,
+			Underlying: fmt.Errorf("SQS client is not initialized"),
+		}
 	}
 
 	l.Debug().Str("queue_url", c.queueURL).Msg("Attempting to receive messages from SQS queue")
@@ -109,8 +121,11 @@ func (c *Client) ReceiveMessageFromQueue(
 	})
 	if err != nil {
 		c.metrics.IncSQSOperations(ctx, "receive_failed")
-		l.Error().Err(err).Msg("Failed to receive messages from SQS queue")
-		return nil, fmt.Errorf("failed to receive messages from SQS queue: %w", err)
+		return nil, &SQSAPIError{
+			Operation:  "receive_message",
+			QueueURL:   c.queueURL,
+			Underlying: err,
+		}
 	}
 
 	// Record batch size metrics
@@ -122,7 +137,7 @@ func (c *Client) ReceiveMessageFromQueue(
 		return res, nil
 	}
 
-	l.Info().Int("num_messages", len(res.Messages)).Msg("Received messages from SQS queue")
+	l.Debug().Int("num_messages", len(res.Messages)).Msg("Received messages from SQS queue")
 	return res, nil
 }
 
@@ -133,13 +148,19 @@ func (c *Client) DeleteMessageFromQueue(
 	receiptHandle string,
 ) error {
 	if c.sqsClient == nil {
-		l.Error().Msg("SQS client is not initialized")
-		return fmt.Errorf("SQS client is not initialized")
+		return &SQSAPIError{
+			Operation:  "delete_message",
+			QueueURL:   c.queueURL,
+			Underlying: fmt.Errorf("SQS client is not initialized"),
+		}
 	}
 
 	if receiptHandle == "" {
-		l.Error().Msg("Receipt handle cannot be empty")
-		return fmt.Errorf("receipt handle cannot be empty")
+		return &SQSAPIError{
+			Operation:  "delete_message",
+			QueueURL:   c.queueURL,
+			Underlying: fmt.Errorf("receipt handle cannot be empty"),
+		}
 	}
 
 	l.Debug().Str("queue_url", c.queueURL).Msg("Attempting to delete message from SQS queue")
@@ -150,10 +171,13 @@ func (c *Client) DeleteMessageFromQueue(
 		ReceiptHandle: &receiptHandle,
 	})
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to delete message from SQS queue")
-		return fmt.Errorf("failed to delete message from SQS queue: %w", err)
+		return &SQSAPIError{
+			Operation:  "delete_message",
+			QueueURL:   c.queueURL,
+			Underlying: err,
+		}
 	}
 
-	l.Info().Msg("Message deleted from SQS queue successfully")
+	l.Debug().Msg("Message deleted from SQS queue successfully")
 	return nil
 }

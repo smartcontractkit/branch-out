@@ -17,6 +17,32 @@ import (
 	"github.com/smartcontractkit/branch-out/telemetry"
 )
 
+// GitHubAPIError provides enhanced error information for GitHub API operations,
+// allowing callers to handle errors with appropriate business context and logging.
+type GitHubAPIError struct {
+	Operation  string // The operation being performed (e.g., "get_repository", "create_pr", "update_pr")
+	Owner      string // The repository owner
+	Repo       string // The repository name
+	Branch     string // The branch name if applicable
+	StatusCode int    // HTTP status code if available
+	Underlying error  // The underlying error that occurred
+}
+
+func (e *GitHubAPIError) Error() string {
+	context := ""
+	if e.Owner != "" && e.Repo != "" {
+		context = fmt.Sprintf(" for %s/%s", e.Owner, e.Repo)
+		if e.Branch != "" {
+			context += fmt.Sprintf(" (branch: %s)", e.Branch)
+		}
+	}
+
+	if e.StatusCode != 0 {
+		return fmt.Sprintf("github %s operation failed%s (status %d): %v", e.Operation, context, e.StatusCode, e.Underlying)
+	}
+	return fmt.Sprintf("github %s operation failed%s: %v", e.Operation, context, e.Underlying)
+}
+
 // Client is the standard GitHub Client.
 type Client struct {
 	// Rest is the GitHub REST API client.
@@ -82,7 +108,7 @@ func NewClient(
 	}
 
 	onPrimaryRateLimitHit := func(ctx *github_primary_ratelimit.CallbackContext) {
-		l := opts.logger.Warn().Str("limit", "primary")
+		l := opts.logger.Debug().Str("limit", "primary")
 		if ctx.Request != nil {
 			l = l.Str("request_url", ctx.Request.URL.String())
 		}
@@ -104,7 +130,7 @@ func NewClient(
 	}
 
 	onSecondaryRateLimitHit := func(ctx *github_secondary_ratelimit.CallbackContext) {
-		l := opts.logger.Warn().Str("limit", "secondary")
+		l := opts.logger.Debug().Str("limit", "secondary")
 		if ctx.Request != nil {
 			l = l.Str("request_url", ctx.Request.URL.String())
 		}
