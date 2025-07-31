@@ -63,12 +63,8 @@ func (c *Client) QuarantineTests(
 	defaultBranch, prBranch, err := c.getBranchNames(ctx, owner, repo)
 	if err != nil {
 		c.metrics.RecordGitHubAPILatency(ctx, "get_default_branch", time.Since(apiStart))
-		return &GitHubAPIError{
-			Operation:  "get_default_branch",
-			Owner:      owner,
-			Repo:       repo,
-			Underlying: err,
-		}
+		l.Error().Err(err).Msg("Failed to get default and/or PR branch names")
+		return fmt.Errorf("failed to get default and/or PR branch names: %w", err)
 	}
 	c.metrics.RecordGitHubAPILatency(ctx, "get_default_branch", time.Since(apiStart))
 	l.Debug().Str("default_branch", defaultBranch).Str("pr_branch", prBranch).Msg("Got branches")
@@ -91,13 +87,7 @@ func (c *Client) QuarantineTests(
 	branchHeadSHA, err := c.getOrCreateRemoteBranch(ctx, owner, repo, prBranch)
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to get/create branch")
-		return &GitHubAPIError{
-			Operation:  "get_create_branch",
-			Owner:      owner,
-			Repo:       repo,
-			Branch:     prBranch,
-			Underlying: err,
-		}
+		return fmt.Errorf("failed to get/create branch: %w", err)
 	}
 
 	// 4. Checkout the branch locally
@@ -117,13 +107,7 @@ func (c *Client) QuarantineTests(
 	sha, err := c.generateCommitAndPush(ctx, owner, repo, prBranch, branchHeadSHA, &results)
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to create commit")
-		return &GitHubAPIError{
-			Operation:  "create_commit",
-			Owner:      owner,
-			Repo:       repo,
-			Branch:     prBranch,
-			Underlying: err,
-		}
+		return fmt.Errorf("failed to create commit: %w", err)
 	}
 	l = l.With().Str("commit_sha", sha).Logger()
 
@@ -133,13 +117,7 @@ func (c *Client) QuarantineTests(
 	if err != nil {
 		c.metrics.RecordGitHubAPILatency(ctx, "create_update_pr", time.Since(prStart))
 		l.Error().Err(err).Msg("Failed to create or update pull request")
-		return &GitHubAPIError{
-			Operation:  "create_update_pr",
-			Owner:      owner,
-			Repo:       repo,
-			Branch:     prBranch,
-			Underlying: err,
-		}
+		return fmt.Errorf("failed to create or update pull request: %w", err)
 	}
 	c.metrics.RecordGitHubAPILatency(ctx, "create_update_pr", time.Since(prStart))
 	// Record final success metrics
@@ -162,12 +140,7 @@ func (c *Client) QuarantineTests(
 func (c *Client) getBranchNames(ctx context.Context, owner, repo string) (string, string, error) {
 	defaultBranch, err := c.getDefaultBranch(ctx, owner, repo)
 	if err != nil {
-		return "", "", &GitHubAPIError{
-			Operation:  "get_default_branch",
-			Owner:      owner,
-			Repo:       repo,
-			Underlying: err,
-		}
+		return "", "", fmt.Errorf("failed to get default branch: %w", err)
 	}
 	// Use deterministic branch name based on date
 	prBranch := fmt.Sprintf("branch-out/quarantine-tests-%s", time.Now().Format("2006-01-02"))
@@ -179,13 +152,7 @@ func (c *Client) getBranchNames(ctx context.Context, owner, repo string) (string
 func (c *Client) getOrCreateRemoteBranch(ctx context.Context, owner, repo, branchName string) (string, error) {
 	branchHeadSHA, branchExists, err := c.getBranchHeadSHA(ctx, owner, repo, branchName)
 	if err != nil {
-		return "", &GitHubAPIError{
-			Operation:  "get_branch_head_sha",
-			Owner:      owner,
-			Repo:       repo,
-			Branch:     branchName,
-			Underlying: err,
-		}
+		return "", fmt.Errorf("failed to get branch head SHA: %w", err)
 	}
 
 	if branchExists {
@@ -199,23 +166,10 @@ func (c *Client) getOrCreateRemoteBranch(ctx context.Context, owner, repo, branc
 		Object: &github.GitObject{SHA: &branchHeadSHA},
 	})
 	if err != nil && !strings.Contains(err.Error(), "already exists") {
-		return "", &GitHubAPIError{
-			Operation:  "create_branch",
-			Owner:      owner,
-			Repo:       repo,
-			Branch:     branchName,
-			Underlying: err,
-		}
+		return "", fmt.Errorf("failed to create branch %s: %w", branchName, err)
 	}
 	if resp.StatusCode != http.StatusCreated {
-		return "", &GitHubAPIError{
-			Operation:  "create_branch",
-			Owner:      owner,
-			Repo:       repo,
-			Branch:     branchName,
-			StatusCode: resp.StatusCode,
-			Underlying: fmt.Errorf("failed to create branch %s: %s", branchName, resp.Status),
-		}
+		return "", fmt.Errorf("failed to create branch %s: %s", branchName, resp.Status)
 	}
 
 	return branchHeadSHA, nil
@@ -249,13 +203,7 @@ func (c *Client) generateCommitAndPush(
 		allFileUpdates,
 	)
 	if err != nil {
-		return "", &GitHubAPIError{
-			Operation:  "create_commit_on_branch",
-			Owner:      owner,
-			Repo:       repo,
-			Branch:     prBranch,
-			Underlying: err,
-		}
+		return "", fmt.Errorf("failed to create commit: %w", err)
 	}
 
 	return sha, nil
@@ -273,13 +221,7 @@ func (c *Client) createOrUpdatePullRequest(
 	existingPR, err := c.findExistingPR(ctx, owner, repo, prBranch, defaultBranch)
 	if err != nil {
 		l.Error().Err(err).Msg("Failed to check for existing PR")
-		return "", &GitHubAPIError{
-			Operation:  "find_existing_pr",
-			Owner:      owner,
-			Repo:       repo,
-			Branch:     prBranch,
-			Underlying: err,
-		}
+		return "", fmt.Errorf("failed to check for existing PR: %w", err)
 	}
 
 	var prURL string
@@ -288,26 +230,14 @@ func (c *Client) createOrUpdatePullRequest(
 		prURL, err = c.updatePullRequest(ctx, owner, repo, existingPR.GetNumber(), title, prBody)
 		if err != nil {
 			l.Error().Err(err).Msg("Failed to update pull request")
-			return "", &GitHubAPIError{
-				Operation:  "update_pull_request",
-				Owner:      owner,
-				Repo:       repo,
-				Branch:     prBranch,
-				Underlying: err,
-			}
+			return "", fmt.Errorf("failed to update pull request: %w", err)
 		}
 	} else {
 		l.Debug().Msg("No existing PR found, creating new one")
 		prURL, err = c.createPullRequest(ctx, owner, repo, prBranch, defaultBranch, title, prBody)
 		if err != nil {
 			l.Error().Err(err).Msg("Failed to create pull request")
-			return "", &GitHubAPIError{
-				Operation:  "create_pull_request",
-				Owner:      owner,
-				Repo:       repo,
-				Branch:     prBranch,
-				Underlying: err,
-			}
+			return "", fmt.Errorf("failed to create pull request: %w", err)
 		}
 	}
 

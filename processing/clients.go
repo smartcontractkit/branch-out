@@ -37,8 +37,6 @@ type JiraClient interface {
 	CreateFlakyTestIssue(req jira.FlakyTestIssueRequest) (jira.FlakyTestIssue, error)
 	GetOpenFlakyTestIssues() ([]jira.FlakyTestIssue, error)
 	GetOpenFlakyTestIssue(packageName, testName string) (jira.FlakyTestIssue, error)
-	AddCommentToFlakyTestIssue(issue jira.FlakyTestIssue, statusChange trunk.TestCaseStatusChange) error
-	CloseIssue(issueKey, closeComment string) error
 	GetProjectKey() string
 }
 

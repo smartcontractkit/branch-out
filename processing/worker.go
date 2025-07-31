@@ -43,21 +43,6 @@ type Config struct {
 	PollInterval time.Duration
 }
 
-// Operation name constants for consistent logging
-const (
-	opReceiveMessages  = "receive_messages"
-	opDeleteMessage    = "delete_message"
-	opQuarantineTest   = "quarantine_test"
-	opCreateJiraTicket = "create_jira_ticket"
-	opGetOpenTicket    = "get_open_ticket"
-	opCloseTicket      = "close_ticket"
-	opAddJiraComment   = "add_jira_comment"
-	opLinkToTrunk      = "link_to_trunk"
-	opProcessWebhook   = "process_webhook"
-)
-
-
-
 // NewWorker creates a new background worker for processing SQS messages.
 func NewWorker(
 	logger zerolog.Logger,
@@ -170,10 +155,7 @@ func (w *Worker) pollAndProcess() {
 	// Receive messages from SQS
 	result, err := w.awsClient.ReceiveMessageFromQueue(pollCtx, w.logger)
 	if err != nil {
-		w.logger.Error().
-			Err(err).
-			Str("operation", opReceiveMessages).
-			Msg("Failed to receive messages from SQS")
+		w.logger.Error().Err(err).Msg("Failed to receive messages from SQS")
 		return
 	}
 
@@ -207,8 +189,7 @@ func (w *Worker) processMessage(ctx context.Context, message types.Message) {
 
 	l := w.logger.With().
 		Str("message_id", getStringPtr(message.MessageId)).
-		Str("receipt_handle_prefix", truncateString(receiptHandle, 20)).
-		Int("message_size", len(messageBody)).
+		Str("receipt_handle", receiptHandle[:20]+"..."). // Log partial receipt handle for debugging
 		Logger()
 
 	l.Info().Msg("Processing SQS message")
@@ -216,10 +197,7 @@ func (w *Worker) processMessage(ctx context.Context, message types.Message) {
 	// Process the webhook payload directly
 	err := w.processWebhookPayload(messageBody)
 	if err != nil {
-		l.Error().
-			Err(err).
-			Str("operation", opProcessWebhook).
-			Msg("Failed to process webhook payload")
+		l.Error().Err(err).Msg("Failed to process webhook payload")
 		w.metrics.IncWorkerMessage(ctx, "trunk_webhook", "processing_failed")
 		w.metrics.RecordWorkerProcessingDuration(ctx, "trunk_webhook", time.Since(start))
 		// Note: In a production system, you might want to implement retry logic
@@ -230,10 +208,7 @@ func (w *Worker) processMessage(ctx context.Context, message types.Message) {
 	// Delete the message from SQS after successful processing
 	err = w.awsClient.DeleteMessageFromQueue(ctx, l, receiptHandle)
 	if err != nil {
-		l.Error().
-			Err(err).
-			Str("operation", opDeleteMessage).
-			Msg("Failed to delete message from SQS after processing")
+		l.Error().Err(err).Msg("Failed to delete message from SQS after processing")
 		w.metrics.IncSQSMessageDelete(ctx, "failure")
 		// Message will become visible again after visibility timeout
 		return
@@ -255,58 +230,43 @@ func getStringPtr(ptr *string) string {
 	return *ptr
 }
 
-// truncateString truncates a string to maxLen characters (rune-safe), adding "..." if truncated.
-func truncateString(s string, maxLen int) string {
-	runes := []rune(s)
-	if len(runes) <= maxLen {
-		return s
-	}
-	return string(runes[:maxLen]) + "..."
-}
-
 // processWebhookPayload processes a webhook payload that came from SQS.
 func (w *Worker) processWebhookPayload(payload string) error {
 	if err := w.verifyClients(); err != nil {
 		return err
 	}
 
-	l := w.logger.With().
-		Int("payload_size", len(payload)).
-		Logger()
-
-	l.Debug().
-		Str("payload_sample", truncateString(payload, 200)).
-		Msg("Processing webhook payload from SQS")
+	w.logger.Debug().Str("payload", payload).Msg("Processing webhook payload from SQS")
 
 	var webhookData trunk.TestCaseStatusChange
 	if err := json.Unmarshal([]byte(payload), &webhookData); err != nil {
-		l.Error().
+		w.logger.Error().
 			Err(err).
-			Str("payload_sample", truncateString(payload, 200)).
+			Str("payload", payload).
 			Msg("Failed to parse test_case.status_changed payload from SQS")
 		return fmt.Errorf("failed to parse test_case.status_changed payload: %w", err)
 	}
 
-	testCase := webhookData.TestCase
-	currentStatus := webhookData.StatusChange.CurrentStatus.Value
-
-	// Create enriched logger with all test context that will be used throughout processing
-	enrichedLogger := l.With().
-		Str("test_id", testCase.ID).
-		Str("test_name", testCase.Name).
-		Str("test_suite", testCase.TestSuite).
-		Str("test_repo_url", testCase.Repository.HTMLURL).
-		Str("test_file_path", testCase.FilePath).
-		Str("test_current_status", currentStatus).
-		Str("test_previous_status", webhookData.StatusChange.PreviousStatus).
+	l := w.logger.With().
+		Str("id", webhookData.TestCase.ID).
+		Str("name", webhookData.TestCase.Name).
+		Str("current_status", webhookData.StatusChange.CurrentStatus.Value).
+		Str("previous_status", webhookData.StatusChange.PreviousStatus).
 		Logger()
 
-	return w.handleTestCaseStatusChanged(enrichedLogger, webhookData)
+	return w.handleTestCaseStatusChanged(l, webhookData)
 }
 
 // handleTestCaseStatusChanged processes when a test case's status changes.
 func (w *Worker) handleTestCaseStatusChanged(l zerolog.Logger, statusChange trunk.TestCaseStatusChange) error {
+	testCase := statusChange.TestCase
 	currentStatus := statusChange.StatusChange.CurrentStatus.Value
+
+	l = l.With().
+		Str("repo_url", testCase.Repository.HTMLURL).
+		Str("package", testCase.TestSuite).
+		Str("file_path", testCase.FilePath).
+		Logger()
 
 	l.Info().Msg("Processing test case status change")
 
@@ -333,19 +293,10 @@ func (w *Worker) handleFlakyTest(l zerolog.Logger, statusChange trunk.TestCaseSt
 	w.metrics.IncFlakyTestDetected(context.Background(), testCase.Name, testCase.TestSuite)
 
 	// Create a Jira ticket for the flaky test
-	issue, err := w.createJiraIssueForFlakyTest(l, statusChange)
+	_, err := w.createJiraIssueForFlakyTest(l, statusChange)
 	if err != nil {
-		l.Error().
-			Err(err).
-			Str("operation", opCreateJiraTicket).
-			Msg("Failed to create or update Jira ticket for flaky test")
 		return fmt.Errorf("failed to create Jira ticket: %w", err)
 	}
-
-	l.Info().
-		Str("operation", opCreateJiraTicket).
-		Str("jira_issue_key", issue.Key).
-		Msg("Successfully created or updated Jira ticket for flaky test")
 
 	// Quarantine the test in GitHub
 	err = w.githubClient.QuarantineTests(
@@ -360,26 +311,11 @@ func (w *Worker) handleFlakyTest(l zerolog.Logger, statusChange trunk.TestCaseSt
 		},
 	)
 	if err != nil {
-		l.Error().
-			Err(err).
-			Str("operation", opQuarantineTest).
-			Str("test_package", testCase.TestSuite).
-			Str("test_name", testCase.Name).
-			Msg("Failed to quarantine test")
 		return fmt.Errorf("failed to quarantine test: %w", err)
 	}
 
-	l.Info().
-		Str("operation", opQuarantineTest).
-		Msg("Successfully quarantined flaky test")
-
 	// Record time to quarantine
-	quarantineDuration := time.Since(start)
-	w.metrics.RecordTimeToQuarantine(context.Background(), quarantineDuration)
-
-	l.Info().
-		Dur("quarantine_duration", quarantineDuration).
-		Msg("Completed flaky test processing")
+	w.metrics.RecordTimeToQuarantine(context.Background(), time.Since(start))
 
 	return nil
 }
@@ -391,79 +327,13 @@ func (w *Worker) handleBrokenTest(l zerolog.Logger, statusChange trunk.TestCaseS
 
 // handleHealthyTest handles the case where a test is marked as healthy.
 func (w *Worker) handleHealthyTest(l zerolog.Logger, statusChange trunk.TestCaseStatusChange) error {
-	testCase := statusChange.TestCase
-
 	// Record test recovery if it was previously flaky
 	if statusChange.StatusChange.PreviousStatus == trunk.TestCaseStatusFlaky {
 		w.metrics.IncTestRecovered(context.Background())
 		l.Info().Msg("Test recovered from flaky status")
 	}
 
-	// Look for an existing open ticket for this test
-	issue, err := w.jiraClient.GetOpenFlakyTestIssue(testCase.TestSuite, testCase.Name)
-	if errors.Is(err, jira.ErrNoOpenFlakyTestIssueFound) {
-		// No open ticket found - this is normal for healthy tests
-		l.Debug().
-			Str("operation", opGetOpenTicket).
-			Msg("No open flaky test ticket found for healthy test (expected)")
-		return nil
-	} else if err != nil {
-		l.Error().
-			Err(err).
-			Str("operation", opGetOpenTicket).
-			Str("test_suite", testCase.TestSuite).
-			Str("test_name", testCase.Name).
-			Msg("Failed to check for existing Jira ticket")
-		return fmt.Errorf("failed to check for existing Jira ticket: %w", err)
-	}
-
-	l.Info().
-		Str("operation", opGetOpenTicket).
-		Str("jira_issue_key", issue.Key).
-		Msg("Found open flaky test ticket for healthy test - will close it")
-
-	// There's an open ticket - close it with a comprehensive comment about the test being healthy
-	closeComment := `*Test Status Update: HEALTHY* ✅ - *Automatically Closing Ticket*
-
-The test has recovered and is now healthy! This ticket is being automatically closed.
-
-*Status Change:* %s → %s
-*Failure Rate (Last 7d):* %g%%
-*Pull Requests Impacted (Last 7d):* %d
-*Test URL:* %s
-
-If the test becomes flaky again, a new comment will be added or a new ticket will be created as needed.
-
-This action was automatically performed by [branch-out|https://github.com/smartcontractkit/branch-out].`
-
-	// Format the comment with status change details
-	currentStatus := statusChange.StatusChange.CurrentStatus.Value
-	previousStatus := statusChange.StatusChange.PreviousStatus
-
-	formattedComment := fmt.Sprintf(closeComment,
-		previousStatus,
-		currentStatus,
-		testCase.FailureRateLast7D,
-		testCase.PullRequestsImpactedLast7D,
-		testCase.HTMLURL,
-	)
-
-	err = w.jiraClient.CloseIssue(issue.Key, formattedComment)
-	if err != nil {
-		l.Warn().
-			Err(err).
-			Str("operation", opCloseTicket).
-			Str("jira_issue_key", issue.Key).
-			Msg("Failed to close Jira ticket for healthy test (non-blocking)")
-		// Don't fail the whole operation if closing fails
-	} else {
-		l.Info().
-			Str("operation", opCloseTicket).
-			Str("jira_issue_key", issue.Key).
-			Msg("Successfully closed Jira ticket for recovered test")
-	}
-
-	return nil
+	return fmt.Errorf("healthy test handling not implemented")
 }
 
 // verifyClients verifies that all the clients are not nil.
@@ -500,10 +370,6 @@ func (w *Worker) createJiraIssueForFlakyTest(
 		"variant":                        testCase.Variant,
 	})
 	if err != nil {
-		l.Error().
-			Err(err).
-			Str("operation", opCreateJiraTicket).
-			Msg("Failed to marshal test case details for Jira ticket")
 		return jira.FlakyTestIssue{}, fmt.Errorf("failed to marshal test case details: %w", err)
 	}
 
@@ -521,61 +387,19 @@ func (w *Worker) createJiraIssueForFlakyTest(
 	issue, err := w.jiraClient.GetOpenFlakyTestIssue(testCase.TestSuite, testCase.Name)
 	if errors.Is(err, jira.ErrNoOpenFlakyTestIssueFound) {
 		// No existing ticket found, create a new one
-		l.Info().Msg("No existing Jira ticket found, creating new one")
 		issue, err = w.jiraClient.CreateFlakyTestIssue(req)
 		if err != nil {
-			l.Error().
-				Err(err).
-				Str("operation", opCreateJiraTicket).
-				Msg("Failed to create Jira ticket")
 			return jira.FlakyTestIssue{}, fmt.Errorf("failed to create Jira ticket: %w", err)
 		}
-		l.Info().
-			Str("jira_issue_key", issue.Key).
-			Str("operation", opCreateJiraTicket).
-			Msg("Successfully created new Jira ticket")
 	} else if err != nil {
 		// Some other error occurred
-		l.Error().
-			Err(err).
-			Str("operation", opGetOpenTicket).
-			Msg("Failed to get existing Jira ticket")
 		return jira.FlakyTestIssue{}, fmt.Errorf("failed to get existing Jira ticket: %w", err)
-	} else {
-		// Existing open ticket found
-		l.Info().
-			Str("jira_issue_key", issue.Key).
-			Str("operation", opCreateJiraTicket).
-			Msg("Found existing open Jira ticket, will add comment")
-	}
-
-	// Add a comment with the current status details (for both new and existing tickets)
-	err = w.jiraClient.AddCommentToFlakyTestIssue(issue, statusChange)
-	if err != nil {
-		l.Warn().
-			Err(err).
-			Str("operation", opAddJiraComment).
-			Str("jira_issue_key", issue.Key).
-			Msg("Failed to add comment to Jira ticket (non-blocking)")
-	} else {
-		l.Debug().
-			Str("jira_issue_key", issue.Key).
-			Str("operation", opAddJiraComment).
-			Msg("Successfully added status comment to Jira ticket")
 	}
 
 	// Link the Jira ticket back to the Trunk test case
 	if err := w.trunkClient.LinkTicketToTestCase(testCase.ID, issue.Key, testCase.Repository.HTMLURL); err != nil {
-		l.Warn().
-			Err(err).
-			Str("operation", opLinkToTrunk).
-			Str("jira_issue_key", issue.Key).
-			Msg("Failed to link Jira ticket to Trunk test case (non-blocking)")
-	} else {
-		l.Debug().
-			Str("jira_issue_key", issue.Key).
-			Str("operation", opLinkToTrunk).
-			Msg("Successfully linked Jira ticket to Trunk test case")
+		l.Warn().Err(err).Msg("Failed to link Jira ticket to Trunk test case (non-blocking)")
+		// Don't return error as the ticket was created successfully
 	}
 
 	return issue, nil

@@ -19,43 +19,10 @@ import (
 	"github.com/smartcontractkit/branch-out/telemetry"
 )
 
-// Operation name constants for consistent logging and metrics
-const (
-	opLinkTicket       = "link_ticket"
-	opQuarantinedTests = "quarantined_tests"
-)
-
-// TrunkAPIError provides detailed context about API failures for better caller logging
-type TrunkAPIError struct {
-	Operation   string // The operation being performed (e.g., "link_ticket", "quarantined_tests")
-	TestCaseID  string // The test case ID being operated on (if applicable)
-	StatusCode  int    // HTTP status code from the API response
-	APIResponse string // Raw API response body for debugging (truncated if large)
-	Underlying  error  // The underlying error that caused the failure
-}
-
-func (e *TrunkAPIError) Error() string {
-	if e.TestCaseID != "" {
-		return fmt.Sprintf("trunk %s operation failed for test case %s (status %d): %v",
-			e.Operation, e.TestCaseID, e.StatusCode, e.Underlying)
-	}
-	return fmt.Sprintf("trunk %s operation failed (status %d): %v",
-		e.Operation, e.StatusCode, e.Underlying)
-}
-
-func (e *TrunkAPIError) Unwrap() error {
-	return e.Underlying
-}
-
-// Doer interface for HTTP client to enable easier testing
-type Doer interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
 // Client is the standard Trunk.io Client.
 type Client struct {
 	BaseURL    *url.URL
-	HTTPClient Doer
+	HTTPClient *http.Client
 
 	secrets config.Trunk
 	logger  zerolog.Logger
@@ -125,107 +92,21 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	}, nil
 }
 
-// truncateAPIResponse truncates large API responses to avoid excessive logging
-func truncateAPIResponse(response string, maxLen int) string {
-	if len(response) <= maxLen {
-		return response
-	}
-	return response[:maxLen] + "... (truncated)"
-}
-
-// doTrunkPost performs a POST request to the Trunk API with consistent error handling and metrics
-func (c *Client) doTrunkPost(ctx context.Context, path string, payload any, opName string, testCaseID string) ([]byte, error) {
-	start := time.Now()
-	defer c.metrics.RecordTrunkAPILatency(ctx, opName, time.Since(start))
-
-	// Marshal the request payload
-	requestBody, err := json.Marshal(payload)
-	if err != nil {
-		return nil, &TrunkAPIError{
-			Operation:  opName,
-			TestCaseID: testCaseID,
-			StatusCode: 0,
-			Underlying: fmt.Errorf("failed to marshal request: %w", err),
-		}
-	}
-
-	// Create HTTP request
-	url := c.BaseURL.JoinPath(path)
-	req, err := http.NewRequestWithContext(ctx, "POST", url.String(), bytes.NewBuffer(requestBody))
-	if err != nil {
-		return nil, &TrunkAPIError{
-			Operation:  opName,
-			TestCaseID: testCaseID,
-			StatusCode: 0,
-			Underlying: fmt.Errorf("failed to create request: %w", err),
-		}
-	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "*/*")
-
-	// Make the HTTP request
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, &TrunkAPIError{
-			Operation:  opName,
-			TestCaseID: testCaseID,
-			StatusCode: 0,
-			Underlying: fmt.Errorf("HTTP request failed: %w", err),
-		}
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			c.logger.Debug().Err(closeErr).Msg("Failed to close response body")
-		}
-	}()
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, &TrunkAPIError{
-			Operation:  opName,
-			TestCaseID: testCaseID,
-			StatusCode: resp.StatusCode,
-			Underlying: fmt.Errorf("failed to read response body: %w", err),
-		}
-	}
-
-	// Check response status
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, &TrunkAPIError{
-			Operation:   opName,
-			TestCaseID:  testCaseID,
-			StatusCode:  resp.StatusCode,
-			APIResponse: truncateAPIResponse(string(body), 1024),
-			Underlying:  fmt.Errorf("non-2xx status code: %d", resp.StatusCode),
-		}
-	}
-
-	return body, nil
-}
-
 // LinkTicketToTestCase links a Jira ticket to a test case in Trunk.io
 // See: https://docs.trunk.io/references/apis/flaky-tests#post-flaky-tests-link-ticket-to-test-case
 func (c *Client) LinkTicketToTestCase(testCaseID, issueKey string, repoURL string) error {
+	start := time.Now()
 	ctx := context.Background()
 
 	l := c.logger.With().
 		Str("test_case_id", testCaseID).
 		Str("jira_ticket_key", issueKey).
-		Str("operation", opLinkTicket).
 		Logger()
 	l.Debug().Msg("Linking Jira ticket to Trunk test case")
 
 	host, owner, repo, err := github.ParseRepoURL(repoURL)
 	if err != nil {
-		return &TrunkAPIError{
-			Operation:  opLinkTicket,
-			TestCaseID: testCaseID,
-			StatusCode: 0,
-			Underlying: fmt.Errorf("failed to parse repository URL: %w", err),
-		}
+		return fmt.Errorf("failed to parse repository URL: %w", err)
 	}
 
 	// Create the request payload
@@ -239,14 +120,58 @@ func (c *Client) LinkTicketToTestCase(testCaseID, issueKey string, repoURL strin
 		},
 	}
 
-	// Make the API call using the helper
-	_, err = c.doTrunkPost(ctx, "v1/flaky-tests/link-ticket-to-test-case", linkRequest, opLinkTicket, testCaseID)
+	// Marshal the request
+	requestBody, err := json.Marshal(linkRequest)
 	if err != nil {
-		l.Error().Err(err).Msg("Failed to link Jira ticket to Trunk test case")
-		return err
+		return fmt.Errorf("failed to marshal link ticket request: %w", err)
 	}
 
-	l.Debug().Msg("Successfully linked Jira ticket to Trunk test case")
+	// Create HTTP request
+	url := c.BaseURL.JoinPath("v1/flaky-tests/link-ticket-to-test-case")
+	req, err := http.NewRequest("POST", url.String(), bytes.NewBuffer(requestBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "*/*")
+
+	// Make the HTTP request
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		c.metrics.RecordTrunkAPILatency(ctx, "link_ticket", time.Since(start))
+		return fmt.Errorf("failed to make request to Trunk API: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			l.Error().Err(closeErr).Msg("Failed to close response body")
+		}
+	}()
+
+	// Read response body for error details
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		l.Error().Err(err).Msg("Failed to read response body")
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Check response status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		l.Error().
+			Int("status_code", resp.StatusCode).
+			Str("status", resp.Status).
+			Str("response_body", string(body)).
+			Msg("Trunk API returned error status")
+		return fmt.Errorf("trunk API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Record success metrics
+	c.metrics.RecordTrunkAPILatency(ctx, "link_ticket", time.Since(start))
+	l.Info().
+		Int("status_code", resp.StatusCode).
+		Msg("Successfully linked Jira ticket to Trunk test case")
+
 	return nil
 }
 
@@ -255,11 +180,7 @@ func (c *Client) LinkTicketToTestCase(testCaseID, issueKey string, repoURL strin
 func (c *Client) QuarantinedTests(repoURL string, orgURLSlug string) ([]TestCase, error) {
 	host, owner, repo, err := github.ParseRepoURL(repoURL)
 	if err != nil {
-		return nil, &TrunkAPIError{
-			Operation:  opQuarantinedTests,
-			StatusCode: 0,
-			Underlying: fmt.Errorf("failed to parse repository URL: %w", err),
-		}
+		return nil, fmt.Errorf("failed to parse repository URL: %w", err)
 	}
 
 	if orgURLSlug == "" {
@@ -272,7 +193,6 @@ func (c *Client) QuarantinedTests(repoURL string, orgURLSlug string) ([]TestCase
 		Str("host", host).
 		Str("owner", owner).
 		Str("repo", repo).
-		Str("operation", opQuarantinedTests).
 		Logger()
 	l.Debug().Msg("Fetching quarantined tests")
 	startTime := time.Now()
@@ -294,8 +214,7 @@ func (c *Client) QuarantinedTests(repoURL string, orgURLSlug string) ([]TestCase
 	for {
 		response, err := c.getQuarantinedTests(request)
 		if err != nil {
-			l.Error().Err(err).Msg("Failed to get quarantined tests")
-			return nil, err
+			return nil, fmt.Errorf("failed to get quarantined tests: %w", err)
 		}
 
 		tests = append(tests, response.QuarantinedTests...)
@@ -307,9 +226,9 @@ func (c *Client) QuarantinedTests(repoURL string, orgURLSlug string) ([]TestCase
 		request.PageQuery.PageToken = response.PageResponse.NextPageToken
 	}
 
-	l.Debug().
+	l.Info().
 		Int("total_tests", len(tests)).
-		Dur("duration", time.Since(startTime)).
+		Str("duration", time.Since(startTime).String()).
 		Msg("Fetched all quarantined tests")
 
 	return tests, nil
@@ -317,23 +236,36 @@ func (c *Client) QuarantinedTests(repoURL string, orgURLSlug string) ([]TestCase
 
 // getQuarantinedTests makes a single request to the Trunk.io API to get the quarantined tests.
 func (c *Client) getQuarantinedTests(request *QuarantinedTestsRequest) (*QuarantinedTestsResponse, error) {
-	ctx := context.Background()
+	url := c.BaseURL.JoinPath("v1/flaky-tests/quarantined")
 
-	// Make the API call using the helper
-	body, err := c.doTrunkPost(ctx, "v1/flaky-tests/quarantined", request, opQuarantinedTests, "")
+	requestBody, err := json.Marshal(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+	req, err := http.NewRequest("POST", url.String(), bytes.NewBuffer(requestBody))
+	if err != nil {
+		c.logger.Error().Err(err).Msg("Failed to create HTTP request for Trunk API")
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Unmarshal the response
-	var response QuarantinedTestsResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, &TrunkAPIError{
-			Operation:   opQuarantinedTests,
-			StatusCode:  0,
-			APIResponse: truncateAPIResponse(string(body), 1024),
-			Underlying:  fmt.Errorf("failed to unmarshal response: %w", err),
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request to Trunk API: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Error().Err(closeErr).Msg("Failed to close response body")
 		}
+	}()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var response QuarantinedTestsResponse
+	if err := json.Unmarshal(bodyBytes, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	return &response, nil

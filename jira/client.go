@@ -20,7 +20,6 @@ import (
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/telemetry"
-	"github.com/smartcontractkit/branch-out/trunk"
 )
 
 // issueService defines the interface for go-jira issue operations.
@@ -29,9 +28,6 @@ type issueService interface {
 	Create(issue *go_jira.Issue) (*go_jira.Issue, *go_jira.Response, error)
 	Update(issue *go_jira.Issue) (*go_jira.Issue, *go_jira.Response, error)
 	Search(jql string, options *go_jira.SearchOptions) ([]go_jira.Issue, *go_jira.Response, error)
-	AddComment(issueID string, comment *go_jira.Comment) (*go_jira.Comment, *go_jira.Response, error)
-	GetTransitions(issueID string) ([]go_jira.Transition, *go_jira.Response, error)
-	DoTransition(issueID, transitionID string) (*go_jira.Response, error)
 }
 
 // fieldService defines the interface for go-jira field operations.
@@ -63,31 +59,7 @@ var (
 	ErrNoOpenFlakyTestIssueFound = errors.New("no open flaky test issue found")
 	// ErrCustomFieldsNotFound is returned when the provided custom fields are not found in Jira.
 	ErrCustomFieldsNotFound = errors.New("custom Jira fields not found")
-	// ErrNoCloseTransition is returned when no close transition is available for an issue.
-	ErrNoCloseTransition = errors.New("no close transition available")
 )
-
-// JiraAPIError provides detailed context about API failures for better caller logging
-type JiraAPIError struct {
-	Operation   string // The operation being performed (e.g., "create_issue", "add_comment")
-	IssueKey    string // The issue key being operated on (if applicable)
-	StatusCode  int    // HTTP status code from the API response
-	APIResponse string // Raw API response body for debugging
-	Underlying  error  // The underlying error that caused the failure
-}
-
-func (e *JiraAPIError) Error() string {
-	if e.IssueKey != "" {
-		return fmt.Sprintf("jira %s operation failed for issue %s (status %d): %v",
-			e.Operation, e.IssueKey, e.StatusCode, e.Underlying)
-	}
-	return fmt.Sprintf("jira %s operation failed (status %d): %v",
-		e.Operation, e.StatusCode, e.Underlying)
-}
-
-func (e *JiraAPIError) Unwrap() error {
-	return e.Underlying
-}
 
 // FlakyTestIssue represents a Jira issue for a flaky test.
 type FlakyTestIssue struct {
@@ -253,7 +225,7 @@ func NewClient(options ...Option) (*Client, error) {
 
 	err = c.validateCustomFields()
 	if errors.Is(err, ErrCustomFieldsNotFound) {
-		c.logger.Debug().
+		c.logger.Warn().
 			Err(err).
 			Msg("Provided custom field IDs are not available in Jira, some functionality will be disabled")
 		c.config.TestFieldID = ""
@@ -351,9 +323,8 @@ func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (FlakyTestIssue
 	// Create the issue first, then try to add custom fields
 	err = c.addCustomFields(issue.Key, req)
 	if err != nil {
-		c.logger.Debug().
+		c.logger.Warn().
 			Err(err).
-			Str("issue_key", issue.Key).
 			Msg("Failed to add custom fields to Jira issue")
 	}
 
@@ -361,7 +332,7 @@ func (c *Client) CreateFlakyTestIssue(req FlakyTestIssueRequest) (FlakyTestIssue
 
 	// Record success metrics
 	c.metrics.IncJiraTicket(ctx, "created")
-	c.logger.Debug().
+	c.logger.Info().
 		Str("ticket_key", flakyTestIssue.Key).
 		Str("ticket_id", flakyTestIssue.ID).
 		Str("ticket_url", flakyTestIssue.Self).
@@ -499,7 +470,7 @@ func (c *Client) searchFlakyTestIssues(jql string, searchFields []string, search
 		return nil, ErrNoOpenFlakyTestIssueFound
 	}
 	if len(issues) > 1 {
-		c.logger.Debug().
+		c.logger.Warn().
 			Int("num_issues", len(issues)).
 			Str("search_type", searchType).
 			Msg("Multiple open flaky test issues found, returning the first one")
@@ -612,30 +583,6 @@ func checkResponse(resp *go_jira.Response) error {
 	return nil
 }
 
-// checkResponseWithContext checks the response and returns a JiraAPIError with context
-func checkResponseWithContext(resp *go_jira.Response, operation, issueKey string) error {
-	if resp == nil {
-		return nil
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, err := io.ReadAll(resp.Body)
-		apiResponse := ""
-		if err == nil {
-			apiResponse = string(body)
-		}
-
-		return &JiraAPIError{
-			Operation:   operation,
-			IssueKey:    issueKey,
-			StatusCode:  resp.StatusCode,
-			APIResponse: apiResponse,
-			Underlying:  fmt.Errorf("HTTP %d", resp.StatusCode),
-		}
-	}
-	return nil
-}
-
 // wrapFlakyTestIssue converts a Jira issue to a FlakyTestIssue, extracting custom fields if available.
 func (c *Client) wrapFlakyTestIssue(issue *go_jira.Issue) FlakyTestIssue {
 	if issue == nil || issue.Fields == nil {
@@ -691,236 +638,4 @@ func (c *Client) extractFromSummary(issue *FlakyTestIssue, summary string) {
 			issue.Test = summary[lastDot+1:]
 		}
 	}
-}
-
-// callAndCheck performs a Jira API call and standardizes error handling
-func (c *Client) callAndCheck(operation, issueKey string, call func() (*go_jira.Response, error)) error {
-	resp, err := call()
-	if err != nil {
-		return &JiraAPIError{
-			Operation:  operation,
-			IssueKey:   issueKey,
-			StatusCode: 0, // Unknown since the request failed
-			Underlying: err,
-		}
-	}
-	return checkResponseWithContext(resp, operation, issueKey)
-}
-
-// AddCommentToIssue adds a comment to an issue in Jira.
-func (c *Client) AddCommentToIssue(issueKey, commentBody string) error {
-	if issueKey == "" {
-		return fmt.Errorf("issue key is required")
-	}
-	if commentBody == "" {
-		return fmt.Errorf("comment body is required")
-	}
-
-	comment := &go_jira.Comment{
-		Body: commentBody,
-	}
-
-	c.logger.Debug().
-		Str("issue_key", issueKey).
-		Int("comment_length", len(commentBody)).
-		Msg("Adding comment to Jira issue")
-
-	err := c.callAndCheck("add_comment", issueKey, func() (*go_jira.Response, error) {
-		_, resp, err := c.IssueService.AddComment(issueKey, comment)
-		return resp, err
-	})
-	if err != nil {
-		return err
-	}
-
-	c.logger.Debug().
-		Str("issue_key", issueKey).
-		Msg("Successfully added comment to Jira issue")
-
-	return nil
-}
-
-// flakyCommentData holds the data needed to build a flaky test status comment
-type flakyCommentData struct {
-	Emoji           string
-	Title           string
-	BodyIntro       string
-	Previous        string
-	Current         string
-	FailureRate     float64
-	PRCount         int
-	TestSuite       string
-	Variant         string
-	URL             string
-	AdditionalNotes string
-}
-
-// buildFlakyTestComment creates a formatted comment for flaky test status updates
-func (c *Client) buildFlakyTestComment(data flakyCommentData) string {
-	comment := fmt.Sprintf(`*Test Status Update: %s* %s
-
-%s
-
-*Status Change:* %s → %s
-*Failure Rate (Last 7d):* %g%%
-*Pull Requests Impacted (Last 7d):* %d`,
-		data.Title,
-		data.Emoji,
-		data.BodyIntro,
-		data.Previous,
-		data.Current,
-		data.FailureRate,
-		data.PRCount,
-	)
-
-	// Add test suite and variant if available
-	if data.TestSuite != "" {
-		comment += fmt.Sprintf("\n*Test Suite:* %s", data.TestSuite)
-	}
-	if data.Variant != "" {
-		comment += fmt.Sprintf("\n*Variant:* %s", data.Variant)
-	}
-
-	// Add URL and additional notes
-	comment += fmt.Sprintf("\n*Test URL:* %s", data.URL)
-
-	if data.AdditionalNotes != "" {
-		comment += fmt.Sprintf("\n\n%s", data.AdditionalNotes)
-	}
-
-	comment += "\n\nThis comment was automatically added by [branch-out|https://github.com/smartcontractkit/branch-out]."
-
-	return comment
-}
-
-// AddCommentToFlakyTestIssue adds a status-specific comment to an existing (open) flaky test issue
-func (c *Client) AddCommentToFlakyTestIssue(issue FlakyTestIssue, statusChange trunk.TestCaseStatusChange) error {
-	testCase := statusChange.TestCase
-	currentStatus := statusChange.StatusChange.CurrentStatus.Value
-	previousStatus := statusChange.StatusChange.PreviousStatus
-
-	// Build comment data based on status
-	data := flakyCommentData{
-		Previous:    previousStatus,
-		Current:     currentStatus,
-		FailureRate: testCase.FailureRateLast7D,
-		PRCount:     testCase.PullRequestsImpactedLast7D,
-		TestSuite:   testCase.TestSuite,
-		Variant:     testCase.Variant,
-		URL:         testCase.HTMLURL,
-	}
-
-	switch currentStatus {
-	case trunk.TestCaseStatusHealthy:
-		data.Emoji = "✅"
-		data.Title = "HEALTHY"
-		data.BodyIntro = "The test has recovered and is now healthy!"
-		data.AdditionalNotes = "This ticket should be closed as the test appears to be stable again."
-	case trunk.TestCaseStatusFlaky:
-		data.Emoji = "⚠️"
-		data.Title = "FLAKY"
-		data.BodyIntro = "Another flaky occurrence has been detected for this test."
-	case trunk.TestCaseStatusBroken:
-		data.Emoji = "❌"
-		data.Title = "BROKEN"
-		data.BodyIntro = "The test status has changed to broken."
-	default:
-		data.Emoji = ""
-		data.Title = strings.ToUpper(currentStatus)
-		data.BodyIntro = "The test status has been updated."
-	}
-
-	comment := c.buildFlakyTestComment(data)
-
-	// Add the comment using the existing method
-	err := c.AddCommentToIssue(issue.Key, comment)
-	if err != nil {
-		return fmt.Errorf("failed to add status comment to flaky test issue %s: %w", issue.Key, err)
-	}
-
-	c.logger.Debug().
-		Str("issue_key", issue.Key).
-		Str("status", currentStatus).
-		Str("test_case_id", testCase.ID).
-		Str("test_suite", testCase.TestSuite).
-		Str("variant", testCase.Variant).
-		Msg("Added status update comment to flaky test issue")
-
-	return nil
-}
-
-// CloseIssue closes a Jira issue by transitioning it to a "Closed" status
-func (c *Client) CloseIssue(issueKey, closeComment string) error {
-	if issueKey == "" {
-		return fmt.Errorf("issue key is required")
-	}
-
-	c.logger.Debug().
-		Str("issue_key", issueKey).
-		Bool("has_comment", closeComment != "").
-		Msg("Closing Jira issue")
-
-	// Track comment error separately
-	var commentErr error
-
-	// Add a comment explaining why the issue is being closed
-	if closeComment != "" {
-		commentErr = c.AddCommentToIssue(issueKey, closeComment)
-		if commentErr != nil {
-			c.logger.Warn().
-				Str("issue_key", issueKey).
-				Err(commentErr).
-				Msg("Failed to add closing comment (continuing with transition)")
-			// Don't fail the whole operation if comment fails
-		}
-	}
-
-	// Get available transitions for this issue
-	transitions, resp, err := c.IssueService.GetTransitions(issueKey)
-	if err != nil {
-		return &JiraAPIError{
-			Operation:  "get_transitions",
-			IssueKey:   issueKey,
-			StatusCode: 0,
-			Underlying: err,
-		}
-	}
-	if err := checkResponseWithContext(resp, "get_transitions", issueKey); err != nil {
-		return err
-	}
-
-	// Find a transition that leads to a "Closed" or "Done" status
-	var closeTransition *go_jira.Transition
-	for _, transition := range transitions {
-		if transition.To.Name != "" && (strings.ToLower(transition.To.Name) == "closed" ||
-			strings.ToLower(transition.To.Name) == "done" ||
-			strings.ToLower(transition.To.Name) == "resolved") {
-			closeTransition = &transition
-			break
-		}
-	}
-
-	if closeTransition == nil {
-		c.logger.Debug().
-			Str("issue_key", issueKey).
-			Int("available_transitions", len(transitions)).
-			Msg("No close/done/resolved transition found")
-		return fmt.Errorf("%w for issue %s", ErrNoCloseTransition, issueKey)
-	}
-
-	// Execute the transition
-	err = c.callAndCheck("do_transition", issueKey, func() (*go_jira.Response, error) {
-		return c.IssueService.DoTransition(issueKey, closeTransition.ID)
-	})
-	if err != nil {
-		return err
-	}
-
-	c.logger.Debug().
-		Str("issue_key", issueKey).
-		Str("transition_name", closeTransition.Name).
-		Bool("comment_failed", commentErr != nil).
-		Msg("Successfully closed Jira issue")
-
-	return nil
 }
