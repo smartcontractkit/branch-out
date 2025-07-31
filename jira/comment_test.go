@@ -5,11 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/smartcontractkit/branch-out/trunk"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/smartcontractkit/branch-out/trunk"
 )
 
 func TestBuildFlakyTestComment(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		statusChange trunk.TestCaseStatusChange
@@ -60,30 +63,42 @@ func TestBuildFlakyTestComment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			comment := buildFlakyTestComment(tt.statusChange)
 
 			// Verify all data values are present (without strict formatting)
-			assert.Contains(t, comment, strings.ToUpper(tt.statusChange.StatusChange.CurrentStatus.Value), "comment should contain current status")
-			assert.Contains(t, comment, tt.statusChange.StatusChange.PreviousStatus, "comment should contain previous status")
-			assert.Contains(t, comment, tt.statusChange.TestCase.HTMLURL, "comment should contain test URL")
-			assert.Contains(t, comment, "branch-out", "comment should contain branch-out reference")
+			assert.Contains(t, comment,
+				strings.ToUpper(tt.statusChange.StatusChange.CurrentStatus.Value),
+				"comment should contain current status")
+			assert.Contains(t, comment, tt.statusChange.StatusChange.PreviousStatus,
+				"comment should contain previous status")
+			assert.Contains(t, comment, tt.statusChange.TestCase.HTMLURL,
+				"comment should contain test URL")
+			assert.Contains(t, comment, "branch-out",
+				"comment should contain branch-out reference")
 
 			// Verify numeric values are present (as strings)
-			failureRateStr := strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%g", tt.statusChange.TestCase.FailureRateLast7D), ".0"), "0")
-			assert.Contains(t, comment, failureRateStr, "comment should contain failure rate")
+			failureRateStr := strings.TrimSuffix(
+				strings.TrimSuffix(fmt.Sprintf("%g", tt.statusChange.TestCase.FailureRateLast7D), ".0"),
+				"0")
+			assert.Contains(t, comment, failureRateStr,
+				"comment should contain failure rate")
 
 			prImpactedStr := fmt.Sprintf("%d", tt.statusChange.TestCase.PullRequestsImpactedLast7D)
-			assert.Contains(t, comment, prImpactedStr, "comment should contain PR impact count")
+			assert.Contains(t, comment, prImpactedStr,
+				"comment should contain PR impact count")
 
 			// Verify basic structure and formatting
 			assert.NotEmpty(t, comment)
-			assert.Greater(t, len(comment), 100, "comment should be reasonably detailed")
+			assert.Greater(t, len(comment), 100,
+				"comment should be reasonably detailed")
 			assert.Contains(t, comment, "*", "comment should contain Markdown formatting")
 		})
 	}
 }
 
 func TestFormatFlakyTestComment(t *testing.T) {
+	t.Parallel()
 	data := CommentData{
 		CurrentStatus:              "flaky",
 		PreviousStatus:             "healthy",
@@ -112,6 +127,7 @@ func TestFormatFlakyTestComment(t *testing.T) {
 }
 
 func TestCommentConsistency(t *testing.T) {
+	t.Parallel()
 	// Test that the same input always produces the same output
 	statusChange := trunk.TestCaseStatusChange{
 		TestCase: trunk.TestCase{
@@ -132,6 +148,7 @@ func TestCommentConsistency(t *testing.T) {
 }
 
 func TestCommentDataEdgeCases(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		data CommentData
@@ -170,6 +187,7 @@ func TestCommentDataEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Should not panic and should return a string
 			comment := formatFlakyTestComment(tt.data)
 			assert.IsType(t, "", comment)

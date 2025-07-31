@@ -707,7 +707,7 @@ func (c *Client) AddCommentToIssue(issueKey, comment string) error {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Response.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("%w for issue %s (status %d): %s", ErrJiraAddComment, issueKey, resp.StatusCode, string(body))
 	}
 
@@ -744,8 +744,9 @@ func (c *Client) transitionIssue(issueKey, status string) error {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Response.Body)
-		return fmt.Errorf("%w for issue %s (status %d): %s", ErrJiraGetTransitions, issueKey, resp.StatusCode, string(body))
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("%w for issue %s (status %d): %s",
+			ErrJiraGetTransitions, issueKey, resp.StatusCode, string(body))
 	}
 
 	// Find the transition that leads to the desired status
@@ -779,7 +780,7 @@ func (c *Client) transitionIssue(issueKey, status string) error {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Response.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("%w for issue %s (status %d): %s", ErrJiraTransition, issueKey, resp.StatusCode, string(body))
 	}
 
