@@ -38,6 +38,9 @@ type JiraClient interface {
 	GetOpenFlakyTestIssues() ([]jira.FlakyTestIssue, error)
 	GetOpenFlakyTestIssue(packageName, testName string) (jira.FlakyTestIssue, error)
 	GetProjectKey() string
+	AddCommentToFlakyTestIssue(issue jira.FlakyTestIssue, statusChange trunk.TestCaseStatusChange) error
+	CloseIssue(issueKey, comment string) error
+	CloseIssueWithHealthyComment(issueKey string, statusChange trunk.TestCaseStatusChange) error
 }
 
 // TrunkClient interacts with Trunk.io.

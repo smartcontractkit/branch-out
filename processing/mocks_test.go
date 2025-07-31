@@ -264,6 +264,177 @@ func (_m *MockJiraClient) EXPECT() *MockJiraClient_Expecter {
 	return &MockJiraClient_Expecter{mock: &_m.Mock}
 }
 
+// AddCommentToFlakyTestIssue provides a mock function for the type MockJiraClient
+func (_mock *MockJiraClient) AddCommentToFlakyTestIssue(issue jira.FlakyTestIssue, statusChange trunk.TestCaseStatusChange) error {
+	ret := _mock.Called(issue, statusChange)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AddCommentToFlakyTestIssue")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(jira.FlakyTestIssue, trunk.TestCaseStatusChange) error); ok {
+		r0 = returnFunc(issue, statusChange)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockJiraClient_AddCommentToFlakyTestIssue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddCommentToFlakyTestIssue'
+type MockJiraClient_AddCommentToFlakyTestIssue_Call struct {
+	*mock.Call
+}
+
+// AddCommentToFlakyTestIssue is a helper method to define mock.On call
+//   - issue jira.FlakyTestIssue
+//   - statusChange trunk.TestCaseStatusChange
+func (_e *MockJiraClient_Expecter) AddCommentToFlakyTestIssue(issue interface{}, statusChange interface{}) *MockJiraClient_AddCommentToFlakyTestIssue_Call {
+	return &MockJiraClient_AddCommentToFlakyTestIssue_Call{Call: _e.mock.On("AddCommentToFlakyTestIssue", issue, statusChange)}
+}
+
+func (_c *MockJiraClient_AddCommentToFlakyTestIssue_Call) Run(run func(issue jira.FlakyTestIssue, statusChange trunk.TestCaseStatusChange)) *MockJiraClient_AddCommentToFlakyTestIssue_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 jira.FlakyTestIssue
+		if args[0] != nil {
+			arg0 = args[0].(jira.FlakyTestIssue)
+		}
+		var arg1 trunk.TestCaseStatusChange
+		if args[1] != nil {
+			arg1 = args[1].(trunk.TestCaseStatusChange)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockJiraClient_AddCommentToFlakyTestIssue_Call) Return(err error) *MockJiraClient_AddCommentToFlakyTestIssue_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockJiraClient_AddCommentToFlakyTestIssue_Call) RunAndReturn(run func(issue jira.FlakyTestIssue, statusChange trunk.TestCaseStatusChange) error) *MockJiraClient_AddCommentToFlakyTestIssue_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CloseIssue provides a mock function for the type MockJiraClient
+func (_mock *MockJiraClient) CloseIssue(issueKey string, comment string) error {
+	ret := _mock.Called(issueKey, comment)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CloseIssue")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(string, string) error); ok {
+		r0 = returnFunc(issueKey, comment)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockJiraClient_CloseIssue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CloseIssue'
+type MockJiraClient_CloseIssue_Call struct {
+	*mock.Call
+}
+
+// CloseIssue is a helper method to define mock.On call
+//   - issueKey string
+//   - comment string
+func (_e *MockJiraClient_Expecter) CloseIssue(issueKey interface{}, comment interface{}) *MockJiraClient_CloseIssue_Call {
+	return &MockJiraClient_CloseIssue_Call{Call: _e.mock.On("CloseIssue", issueKey, comment)}
+}
+
+func (_c *MockJiraClient_CloseIssue_Call) Run(run func(issueKey string, comment string)) *MockJiraClient_CloseIssue_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockJiraClient_CloseIssue_Call) Return(err error) *MockJiraClient_CloseIssue_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockJiraClient_CloseIssue_Call) RunAndReturn(run func(issueKey string, comment string) error) *MockJiraClient_CloseIssue_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CloseIssueWithHealthyComment provides a mock function for the type MockJiraClient
+func (_mock *MockJiraClient) CloseIssueWithHealthyComment(issueKey string, statusChange trunk.TestCaseStatusChange) error {
+	ret := _mock.Called(issueKey, statusChange)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CloseIssueWithHealthyComment")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(string, trunk.TestCaseStatusChange) error); ok {
+		r0 = returnFunc(issueKey, statusChange)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockJiraClient_CloseIssueWithHealthyComment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CloseIssueWithHealthyComment'
+type MockJiraClient_CloseIssueWithHealthyComment_Call struct {
+	*mock.Call
+}
+
+// CloseIssueWithHealthyComment is a helper method to define mock.On call
+//   - issueKey string
+//   - statusChange trunk.TestCaseStatusChange
+func (_e *MockJiraClient_Expecter) CloseIssueWithHealthyComment(issueKey interface{}, statusChange interface{}) *MockJiraClient_CloseIssueWithHealthyComment_Call {
+	return &MockJiraClient_CloseIssueWithHealthyComment_Call{Call: _e.mock.On("CloseIssueWithHealthyComment", issueKey, statusChange)}
+}
+
+func (_c *MockJiraClient_CloseIssueWithHealthyComment_Call) Run(run func(issueKey string, statusChange trunk.TestCaseStatusChange)) *MockJiraClient_CloseIssueWithHealthyComment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 trunk.TestCaseStatusChange
+		if args[1] != nil {
+			arg1 = args[1].(trunk.TestCaseStatusChange)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockJiraClient_CloseIssueWithHealthyComment_Call) Return(err error) *MockJiraClient_CloseIssueWithHealthyComment_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockJiraClient_CloseIssueWithHealthyComment_Call) RunAndReturn(run func(issueKey string, statusChange trunk.TestCaseStatusChange) error) *MockJiraClient_CloseIssueWithHealthyComment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateFlakyTestIssue provides a mock function for the type MockJiraClient
 func (_mock *MockJiraClient) CreateFlakyTestIssue(req jira.FlakyTestIssueRequest) (jira.FlakyTestIssue, error) {
 	ret := _mock.Called(req)
