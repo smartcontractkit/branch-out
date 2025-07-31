@@ -68,7 +68,7 @@ var (
 	// ErrJiraGetTransitions is returned when we fail to get the Jira transition statuses.
 	ErrJiraGetTransitions = errors.New("jira get transitions operation failed")
 	// ErrNoTransitionFound is returned when we fail to find a transition for a Jira issue.
-	ErrNoTransitionFound  = errors.New("no transition found")
+	ErrNoTransitionFound = errors.New("no transition found")
 )
 
 // FlakyTestIssue represents a Jira issue for a flaky test.

@@ -23,7 +23,7 @@ func TestBuildFlakyTestComment(t *testing.T) {
 					HTMLURL:                    "https://trunk.io/test/123",
 				},
 				StatusChange: trunk.StatusChange{
-					CurrentStatus: trunk.Status{Value: "broken"},
+					CurrentStatus:  trunk.Status{Value: "broken"},
 					PreviousStatus: "flaky",
 				},
 			},
@@ -37,7 +37,7 @@ func TestBuildFlakyTestComment(t *testing.T) {
 					HTMLURL:                    "https://trunk.io/test/456",
 				},
 				StatusChange: trunk.StatusChange{
-					CurrentStatus: trunk.Status{Value: "healthy"},
+					CurrentStatus:  trunk.Status{Value: "healthy"},
 					PreviousStatus: "broken",
 				},
 			},
@@ -51,7 +51,7 @@ func TestBuildFlakyTestComment(t *testing.T) {
 					HTMLURL:                    "https://trunk.io/test/789",
 				},
 				StatusChange: trunk.StatusChange{
-					CurrentStatus: trunk.Status{Value: "flaky"},
+					CurrentStatus:  trunk.Status{Value: "flaky"},
 					PreviousStatus: "healthy",
 				},
 			},
@@ -61,20 +61,20 @@ func TestBuildFlakyTestComment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			comment := buildFlakyTestComment(tt.statusChange)
-			
+
 			// Verify all data values are present (without strict formatting)
 			assert.Contains(t, comment, strings.ToUpper(tt.statusChange.StatusChange.CurrentStatus.Value), "comment should contain current status")
 			assert.Contains(t, comment, tt.statusChange.StatusChange.PreviousStatus, "comment should contain previous status")
 			assert.Contains(t, comment, tt.statusChange.TestCase.HTMLURL, "comment should contain test URL")
 			assert.Contains(t, comment, "branch-out", "comment should contain branch-out reference")
-			
+
 			// Verify numeric values are present (as strings)
 			failureRateStr := strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%g", tt.statusChange.TestCase.FailureRateLast7D), ".0"), "0")
 			assert.Contains(t, comment, failureRateStr, "comment should contain failure rate")
-			
+
 			prImpactedStr := fmt.Sprintf("%d", tt.statusChange.TestCase.PullRequestsImpactedLast7D)
 			assert.Contains(t, comment, prImpactedStr, "comment should contain PR impact count")
-			
+
 			// Verify basic structure and formatting
 			assert.NotEmpty(t, comment)
 			assert.Greater(t, len(comment), 100, "comment should be reasonably detailed")
@@ -86,7 +86,7 @@ func TestBuildFlakyTestComment(t *testing.T) {
 func TestFormatFlakyTestComment(t *testing.T) {
 	data := CommentData{
 		CurrentStatus:              "flaky",
-		PreviousStatus:             "healthy", 
+		PreviousStatus:             "healthy",
 		FailureRateLast7D:          15.5,
 		PullRequestsImpactedLast7D: 3,
 		TestURL:                    "https://trunk.io/test/example",
@@ -106,7 +106,7 @@ func TestFormatFlakyTestComment(t *testing.T) {
 	// Verify basic structure
 	assert.NotEmpty(t, comment)
 	assert.Contains(t, comment, "*", "comment should contain Markdown formatting")
-	
+
 	lines := strings.Split(comment, "\n")
 	assert.Greater(t, len(lines), 5, "comment should have multiple lines")
 }
@@ -120,7 +120,7 @@ func TestCommentConsistency(t *testing.T) {
 			HTMLURL:                    "https://trunk.io/consistent",
 		},
 		StatusChange: trunk.StatusChange{
-			CurrentStatus: trunk.Status{Value: "broken"},
+			CurrentStatus:  trunk.Status{Value: "broken"},
 			PreviousStatus: "flaky",
 		},
 	}
@@ -173,7 +173,7 @@ func TestCommentDataEdgeCases(t *testing.T) {
 			// Should not panic and should return a string
 			comment := formatFlakyTestComment(tt.data)
 			assert.IsType(t, "", comment)
-			
+
 			// Should contain the data values
 			if tt.data.CurrentStatus != "" {
 				assert.Contains(t, comment, strings.ToUpper(tt.data.CurrentStatus))
