@@ -20,6 +20,7 @@ import (
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
 	"github.com/smartcontractkit/branch-out/telemetry"
+	"github.com/smartcontractkit/branch-out/trunk"
 )
 
 // issueService defines the interface for go-jira issue operations.
@@ -59,6 +60,15 @@ var (
 	ErrNoOpenFlakyTestIssueFound = errors.New("no open flaky test issue found")
 	// ErrCustomFieldsNotFound is returned when the provided custom fields are not found in Jira.
 	ErrCustomFieldsNotFound = errors.New("custom Jira fields not found")
+
+	// ErrJiraAddComment is returned when we fail to add a comment to a Jira issue.
+	ErrJiraAddComment = errors.New("jira add comment operation failed")
+	// ErrJiraTransition is returned when we fail to e.g. close a Jira ticket.
+	ErrJiraTransition = errors.New("jira transition operation failed")
+	// ErrJiraGetTransitions is returned when we fail to get the Jira transition statuses.
+	ErrJiraGetTransitions = errors.New("jira get transitions operation failed")
+	// ErrNoTransitionFound is returned when we fail to find a transition for a Jira issue.
+	ErrNoTransitionFound = errors.New("no transition found")
 )
 
 // FlakyTestIssue represents a Jira issue for a flaky test.
@@ -638,4 +648,232 @@ func (c *Client) extractFromSummary(issue *FlakyTestIssue, summary string) {
 			issue.Test = summary[lastDot+1:]
 		}
 	}
+}
+
+// AddCommentToFlakyTestIssue adds a comment to a flaky test Jira issue with status change details.
+func (c *Client) AddCommentToFlakyTestIssue(issue FlakyTestIssue, statusChange trunk.TestCaseStatusChange) error {
+	comment := buildFlakyTestComment(statusChange)
+	return c.AddCommentToIssue(issue.Key, comment)
+}
+
+// CloseIssueWithHealthyComment closes a Jira issue with a comment about the test being healthy.
+func (c *Client) CloseIssueWithHealthyComment(issueKey string, statusChange trunk.TestCaseStatusChange) error {
+	comment := buildClosingComment(statusChange)
+	return c.CloseIssue(issueKey, comment)
+}
+
+// CloseIssue closes a Jira issue and optionally adds a comment.
+func (c *Client) CloseIssue(issueKey, comment string) error {
+	c.logger.Debug().
+		Str("issue_key", issueKey).
+		Bool("has_comment", comment != "").
+		Msg("Closing Jira issue")
+
+	// Add comment first if provided
+	if comment != "" {
+		if err := c.AddCommentToIssue(issueKey, comment); err != nil {
+			c.logger.Debug().
+				Err(err).
+				Str("issue_key", issueKey).
+				Msg("Failed to add closing comment (non-blocking)")
+			// Don't fail the close operation if comment fails
+		}
+	}
+
+	// Close the issue by transitioning to "Done" status
+	return c.transitionIssue(issueKey, "Done")
+}
+
+// AddCommentToIssue adds a comment to a Jira issue.
+func (c *Client) AddCommentToIssue(issueKey, comment string) error {
+	c.logger.Debug().
+		Str("issue_key", issueKey).
+		Int("comment_length", len(comment)).
+		Msg("Adding comment to Jira issue")
+
+	commentPayload := map[string]interface{}{
+		"body": comment,
+	}
+
+	url := fmt.Sprintf("/rest/api/3/issue/%s/comment", issueKey)
+	req, err := c.NewRequest("POST", url, commentPayload)
+	if err != nil {
+		return fmt.Errorf("%w for issue %s: %w", ErrJiraAddComment, issueKey, err)
+	}
+
+	resp, err := c.Do(req, nil)
+	if err != nil {
+		return fmt.Errorf("%w for issue %s: %w", ErrJiraAddComment, issueKey, err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("%w for issue %s (status %d): %s", ErrJiraAddComment, issueKey, resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// transitionIssue transitions a Jira issue to a specified status.
+func (c *Client) transitionIssue(issueKey, status string) error {
+	c.logger.Debug().
+		Str("issue_key", issueKey).
+		Str("target_status", status).
+		Msg("Transitioning Jira issue")
+
+	// Get available transitions for the issue
+	transitionsURL := fmt.Sprintf("/rest/api/3/issue/%s/transitions", issueKey)
+	req, err := c.NewRequest("GET", transitionsURL, nil)
+	if err != nil {
+		return fmt.Errorf("%w for issue %s: %w", ErrJiraGetTransitions, issueKey, err)
+	}
+
+	var transitionsResp struct {
+		Transitions []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+			To   struct {
+				Name string `json:"name"`
+			} `json:"to"`
+		} `json:"transitions"`
+	}
+
+	resp, err := c.Do(req, &transitionsResp)
+	if err != nil {
+		return fmt.Errorf("%w for issue %s: %w", ErrJiraGetTransitions, issueKey, err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("%w for issue %s (status %d): %s",
+			ErrJiraGetTransitions, issueKey, resp.StatusCode, string(body))
+	}
+
+	// Find the transition that leads to the desired status
+	var transitionID string
+	for _, transition := range transitionsResp.Transitions {
+		if strings.EqualFold(transition.To.Name, status) {
+			transitionID = transition.ID
+			break
+		}
+	}
+
+	if transitionID == "" {
+		return fmt.Errorf("%w to status '%s' for issue %s", ErrNoTransitionFound, status, issueKey)
+	}
+
+	// Execute the transition
+	transitionPayload := map[string]interface{}{
+		"transition": map[string]string{
+			"id": transitionID,
+		},
+	}
+
+	req, err = c.NewRequest("POST", fmt.Sprintf("/rest/api/3/issue/%s/transitions", issueKey), transitionPayload)
+	if err != nil {
+		return fmt.Errorf("%w for issue %s: %w", ErrJiraTransition, issueKey, err)
+	}
+
+	resp, err = c.Do(req, nil)
+	if err != nil {
+		return fmt.Errorf("%w for issue %s: %w", ErrJiraTransition, issueKey, err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("%w for issue %s (status %d): %s", ErrJiraTransition, issueKey, resp.StatusCode, string(body))
+	}
+
+	c.logger.Debug().
+		Str("issue_key", issueKey).
+		Str("target_status", status).
+		Str("transition_id", transitionID).
+		Msg("Successfully transitioned Jira issue")
+
+	return nil
+}
+
+// CommentData holds the data for building Jira comments.
+type CommentData struct {
+	CurrentStatus              string
+	PreviousStatus             string
+	FailureRateLast7D          float64
+	PullRequestsImpactedLast7D int
+	TestURL                    string
+}
+
+// buildFlakyTestComment creates a Jira comment for flaky test status changes.
+func buildFlakyTestComment(statusChange trunk.TestCaseStatusChange) string {
+	testCase := statusChange.TestCase
+	data := CommentData{
+		CurrentStatus:              statusChange.StatusChange.CurrentStatus.Value,
+		PreviousStatus:             statusChange.StatusChange.PreviousStatus,
+		FailureRateLast7D:          testCase.FailureRateLast7D,
+		PullRequestsImpactedLast7D: testCase.PullRequestsImpactedLast7D,
+		TestURL:                    testCase.HTMLURL,
+	}
+
+	return formatFlakyTestComment(data)
+}
+
+// buildClosingComment creates a Jira comment for closing healthy test tickets.
+func buildClosingComment(statusChange trunk.TestCaseStatusChange) string {
+	testCase := statusChange.TestCase
+	data := CommentData{
+		CurrentStatus:              statusChange.StatusChange.CurrentStatus.Value,
+		PreviousStatus:             statusChange.StatusChange.PreviousStatus,
+		FailureRateLast7D:          testCase.FailureRateLast7D,
+		PullRequestsImpactedLast7D: testCase.PullRequestsImpactedLast7D,
+		TestURL:                    testCase.HTMLURL,
+	}
+
+	return formatClosingComment(data)
+}
+
+// formatFlakyTestComment formats the comment with the provided data.
+func formatFlakyTestComment(data CommentData) string {
+	const commentTemplate = `*Test Status Update: %s* - *Automated Comment*
+
+The test status has been updated in Trunk.
+
+*Status Change:* %s → %s
+*Failure Rate (Last 7d):* %g%%
+*Pull Requests Impacted (Last 7d):* %d
+*Test URL:* %s
+
+This comment was automatically added by [branch-out|https://github.com/smartcontractkit/branch-out].`
+
+	return fmt.Sprintf(commentTemplate,
+		strings.ToUpper(data.CurrentStatus),
+		data.PreviousStatus,
+		data.CurrentStatus,
+		data.FailureRateLast7D,
+		data.PullRequestsImpactedLast7D,
+		data.TestURL,
+	)
+}
+
+// formatClosingComment formats a closing comment for healthy test tickets.
+func formatClosingComment(data CommentData) string {
+	const closingTemplate = `*Test Status Update: %s* ✅ - *Automatically Closing Ticket*
+
+The test has recovered and is now healthy! This ticket is being automatically closed.
+
+*Status Change:* %s → %s
+*Failure Rate (Last 7d):* %g%%
+*Pull Requests Impacted (Last 7d):* %d
+*Test URL:* %s
+
+If the test becomes flaky again, a new comment will be added or a new ticket will be created as needed.
+
+This action was automatically performed by [branch-out|https://github.com/smartcontractkit/branch-out].`
+
+	return fmt.Sprintf(closingTemplate,
+		strings.ToUpper(data.CurrentStatus),
+		data.PreviousStatus,
+		data.CurrentStatus,
+		data.FailureRateLast7D,
+		data.PullRequestsImpactedLast7D,
+		data.TestURL,
+	)
 }

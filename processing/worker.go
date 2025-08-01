@@ -293,9 +293,22 @@ func (w *Worker) handleFlakyTest(l zerolog.Logger, statusChange trunk.TestCaseSt
 	w.metrics.IncFlakyTestDetected(context.Background(), testCase.Name, testCase.TestSuite)
 
 	// Create a Jira ticket for the flaky test
-	_, err := w.createJiraIssueForFlakyTest(l, statusChange)
+	issue, err := w.createJiraIssueForFlakyTest(l, statusChange)
 	if err != nil {
 		return fmt.Errorf("failed to create Jira ticket: %w", err)
+	}
+
+	// Add a comment with the current status details (for both new and existing tickets)
+	err = w.jiraClient.AddCommentToFlakyTestIssue(issue, statusChange)
+	if err != nil {
+		l.Warn().
+			Err(err).
+			Str("jira_issue_key", issue.Key).
+			Msg("Failed to add comment to Jira ticket (non-blocking)")
+	} else {
+		l.Debug().
+			Str("jira_issue_key", issue.Key).
+			Msg("Successfully added status comment to Jira ticket")
 	}
 
 	// Quarantine the test in GitHub
@@ -327,13 +340,50 @@ func (w *Worker) handleBrokenTest(l zerolog.Logger, statusChange trunk.TestCaseS
 
 // handleHealthyTest handles the case where a test is marked as healthy.
 func (w *Worker) handleHealthyTest(l zerolog.Logger, statusChange trunk.TestCaseStatusChange) error {
+	testCase := statusChange.TestCase
+
 	// Record test recovery if it was previously flaky
 	if statusChange.StatusChange.PreviousStatus == trunk.TestCaseStatusFlaky {
 		w.metrics.IncTestRecovered(context.Background())
 		l.Info().Msg("Test recovered from flaky status")
 	}
 
-	return fmt.Errorf("healthy test handling not implemented")
+	// Look for an existing open ticket for this test
+	issue, err := w.jiraClient.GetOpenFlakyTestIssue(testCase.TestSuite, testCase.Name)
+	if errors.Is(err, jira.ErrNoOpenFlakyTestIssueFound) {
+		l.Debug().
+			Str("test_suite", testCase.TestSuite).
+			Str("test_name", testCase.Name).
+			Msg("No open flaky test ticket found for healthy test")
+		return nil
+	} else if err != nil {
+		l.Error().
+			Err(err).
+			Str("test_suite", testCase.TestSuite).
+			Str("test_name", testCase.Name).
+			Msg("Failed to check for existing Jira ticket")
+		return fmt.Errorf("failed to check for existing Jira ticket: %w", err)
+	}
+
+	l.Info().
+		Str("jira_issue_key", issue.Key).
+		Msg("Found open flaky test ticket for healthy test - will close it")
+
+	// Close the ticket with a formatted healthy comment
+	err = w.jiraClient.CloseIssueWithHealthyComment(issue.Key, statusChange)
+	if err != nil {
+		l.Warn().
+			Err(err).
+			Str("jira_issue_key", issue.Key).
+			Msg("Failed to close Jira ticket for healthy test (non-blocking)")
+		// Don't fail the whole operation if closing fails
+	} else {
+		l.Info().
+			Str("jira_issue_key", issue.Key).
+			Msg("Successfully closed Jira ticket for recovered test")
+	}
+
+	return nil
 }
 
 // verifyClients verifies that all the clients are not nil.
