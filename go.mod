@@ -15,7 +15,7 @@ require (
 	github.com/charmbracelet/fang v0.3.0
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/gofri/go-github-ratelimit/v2 v2.0.2
-	github.com/google/go-github/v73 v73.0.0
+	github.com/google/go-github/v74 v74.0.0
 	github.com/jferrl/go-githubauth v1.2.0
 	github.com/rs/zerolog v1.34.0
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
