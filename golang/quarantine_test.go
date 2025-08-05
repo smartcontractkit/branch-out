@@ -6,21 +6,21 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSanitizeQuarantineTargets(t *testing.T) {
+func TestSanitizeTestTargets(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name              string
-		quarantineTargets []QuarantineTarget
-		expected          []QuarantineTarget
+		quarantineTargets []TestTarget
+		expected          []TestTarget
 	}{
 		{
 			name: "no duplicates",
-			quarantineTargets: []QuarantineTarget{
+			quarantineTargets: []TestTarget{
 				{Package: "github.com/example/pkg", Tests: []string{"TestA", "TestB"}},
 				{Package: "github.com/example/pkg", Tests: []string{"TestB", "TestC"}},
 			},
-			expected: []QuarantineTarget{
+			expected: []TestTarget{
 				{Package: "github.com/example/pkg", Tests: []string{"TestA", "TestB", "TestC"}},
 			},
 		},
@@ -30,7 +30,7 @@ func TestSanitizeQuarantineTargets(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual := sanitizeQuarantineTargets(test.quarantineTargets)
+			actual := sanitizeTestTargets(test.quarantineTargets)
 			assert.Equal(t, test.expected, actual)
 		})
 	}

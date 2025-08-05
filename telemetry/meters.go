@@ -148,6 +148,35 @@ func (m *Metrics) RecordQuarantineDuration(ctx context.Context, duration time.Du
 	histogram.Record(ctx, duration.Seconds()*1000)
 }
 
+// Test Unquarantine Metrics
+
+// IncUnquarantineOperation increments unquarantine operations by package and result.
+func (m *Metrics) IncUnquarantineOperation(ctx context.Context, packageName, result string) {
+	counter, _ := quarantineMeter.Int64Counter("unquarantine.operations",
+		metric.WithDescription("Count of test unquarantine operations"),
+		metric.WithUnit("1"))
+	counter.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("package", packageName),
+		attribute.String("result", result),
+	))
+}
+
+// RecordUnquarantineFilesModified records the number of files modified in an unquarantine operation.
+func (m *Metrics) RecordUnquarantineFilesModified(ctx context.Context, count int64) {
+	histogram, _ := quarantineMeter.Int64Histogram("unquarantine.files.modified",
+		metric.WithDescription("Number of files modified per unquarantine"),
+		metric.WithUnit("1"))
+	histogram.Record(ctx, count)
+}
+
+// RecordUnquarantineDuration records the duration of an unquarantine operation.
+func (m *Metrics) RecordUnquarantineDuration(ctx context.Context, duration time.Duration) {
+	histogram, _ := quarantineMeter.Float64Histogram("unquarantine.duration",
+		metric.WithDescription("Duration of unquarantine operation"),
+		metric.WithUnit("ms"))
+	histogram.Record(ctx, duration.Seconds()*1000)
+}
+
 // GitHub API Metrics
 
 // RecordGitHubAPILatency records GitHub API call latency.

@@ -55,7 +55,14 @@ type GithubClient interface {
 		ctx context.Context,
 		l zerolog.Logger,
 		repoURL string,
-		targets []golang.QuarantineTarget,
-		options ...github.QuarantineOption,
+		targets []golang.TestTarget,
+		options ...github.FlakyTestOption,
+	) error
+	UnquarantineTests(
+		ctx context.Context,
+		l zerolog.Logger,
+		repoURL string,
+		targets []golang.TestTarget,
+		options ...github.FlakyTestOption,
 	) error
 }

@@ -8,9 +8,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -21,12 +19,6 @@ import (
 // RunQuarantinedTestsEnvVar is the environment variable that controls whether quarantined tests are run.
 const RunQuarantinedTestsEnvVar = "RUN_QUARANTINED_TESTS"
 
-// QuarantineTarget describes a package and a list of test functions to quarantine.
-type QuarantineTarget struct {
-	Package string   // Import path of the Go package
-	Tests   []string // Names of the test functions in the package to quarantine
-}
-
 // QuarantineResults describes the result of quarantining multiple packages.
 // The key is the import path of the package, and the value is the result of quarantining that package.
 type QuarantineResults map[string]QuarantinePackageResults
@@ -34,87 +26,13 @@ type QuarantineResults map[string]QuarantinePackageResults
 // String returns a string representation of the quarantine results.
 // Good for debugging and logging.
 func (q QuarantineResults) String() string {
-	var b strings.Builder
-	for _, result := range q {
-		b.WriteString(result.Package)
-		b.WriteString("\n")
-		b.WriteString("--------------------------------\n")
-		if len(result.Successes) > 0 {
-			b.WriteString("Successes\n\n")
-			for _, success := range result.Successes {
-				if len(success.TestNames()) > 0 {
-					b.WriteString(fmt.Sprintf("%s: %s\n", success.File, strings.Join(success.TestNames(), ", ")))
-				} else {
-					b.WriteString(fmt.Sprintf("%s: No tests quarantined\n", success.File))
-				}
-			}
-		} else {
-			b.WriteString("\nNo successes!\n")
-		}
-
-		if len(result.Failures) > 0 {
-			b.WriteString("\nFailures\n\n")
-			for _, failure := range result.Failures {
-				b.WriteString(fmt.Sprintf("%s\n", failure))
-			}
-		} else {
-			b.WriteString("\nNo failures!\n")
-		}
-	}
-	return b.String()
+	return generateResultsString(q, "quarantined")
 }
 
 // Markdown returns a Markdown representation of the quarantine results.
 // Good for a PR description.
 func (q QuarantineResults) Markdown(owner, repo, branch string) string {
-	var md strings.Builder
-	md.WriteString("# Quarantined Flaky Tests using branch-out\n\n")
-
-	for _, result := range q {
-		emoji := "🟢"
-		if len(result.Failures) > 0 {
-			emoji = "🔴"
-		}
-		md.WriteString(fmt.Sprintf("## `%s` %s\n\n", result.Package, emoji))
-
-		// Process successes
-		if len(result.Successes) > 0 {
-			md.WriteString(fmt.Sprintf("### Successfully Quarantined %d tests\n\n", result.SuccessfulTestsCount()))
-			md.WriteString("| File | Tests |\n")
-			md.WriteString("|------|-------|\n")
-			for _, file := range result.Successes {
-				githubBlobURL := fmt.Sprintf("https://github.com/%s/%s/blob/%s/%s", owner, repo, branch, file.File)
-
-				// Create individual test links with line numbers
-				var testLinks []string
-				for _, test := range file.Tests {
-					testLink := fmt.Sprintf("[%s](%s#L%d)", test.Name, githubBlobURL, test.OriginalLine)
-					testLinks = append(testLinks, testLink)
-				}
-
-				md.WriteString(
-					fmt.Sprintf("| [%s](%s) | %s |\n", file.File, githubBlobURL, strings.Join(testLinks, ", ")),
-				)
-			}
-			md.WriteString("\n")
-		}
-
-		// Process failures
-		if len(result.Failures) > 0 {
-			md.WriteString(
-				fmt.Sprintf("### Failed to Quarantine %d tests. Need manual intervention!\n\n", len(result.Failures)),
-			)
-			for _, test := range result.Failures {
-				md.WriteString(fmt.Sprintf("- %s\n", test))
-			}
-			md.WriteString("\n")
-		}
-	}
-	md.WriteString("\n\n---\n\n")
-	md.WriteString(
-		"Created automatically by [branch-out](https://github.com/smartcontractkit/branch-out).",
-	)
-	return md.String()
+	return generateResultsMarkdown(q, "quarantined", owner, repo, branch)
 }
 
 // QuarantinePackageResults describes the result of quarantining a list of tests in a package.
@@ -182,7 +100,7 @@ func WithBuildFlags(buildFlags []string) QuarantineOption {
 func QuarantineTests(
 	l zerolog.Logger,
 	repoPath string,
-	quarantineTargets []QuarantineTarget,
+	quarantineTargets []TestTarget,
 	options ...QuarantineOption,
 ) (QuarantineResults, error) {
 	quarantineOptions := &quarantineOptions{
@@ -198,7 +116,7 @@ func QuarantineTests(
 	}
 
 	var (
-		sanitizedTargets  = sanitizeQuarantineTargets(quarantineTargets)
+		sanitizedTargets  = sanitizeTestTargets(quarantineTargets)
 		testsToQuarantine int
 	)
 	for _, target := range sanitizedTargets { // Calculate the largest possible amount of results by how many tests we have to quarantine
@@ -258,44 +176,7 @@ func QuarantineTests(
 
 // WriteQuarantineResultsToFiles writes successfully quarantined tests to the file system.
 func WriteQuarantineResultsToFiles(l zerolog.Logger, results QuarantineResults) error {
-	for _, result := range results {
-		for _, success := range result.Successes {
-			if err := os.WriteFile(success.FileAbs, []byte(success.ModifiedSourceCode), 0600); err != nil {
-				return fmt.Errorf("failed to write quarantine results to %s: %w", success.FileAbs, err)
-			}
-			l.Trace().
-				Str("file", success.FileAbs).
-				Str("package", success.Package).
-				Strs("quarantined_tests", success.TestNames()).
-				Msg("Wrote quarantine results")
-		}
-	}
-	return nil
-}
-
-// sanitizeQuarantineTargets condenses the quarantine targets and removes duplicates.
-func sanitizeQuarantineTargets(quarantineTargets []QuarantineTarget) []QuarantineTarget {
-	// Package -> tests
-	seen := make(map[string][]string)
-	for _, target := range quarantineTargets {
-		if _, ok := seen[target.Package]; !ok {
-			seen[target.Package] = make([]string, 0, len(target.Tests))
-		}
-		for _, test := range target.Tests {
-			if !slices.Contains(seen[target.Package], test) {
-				seen[target.Package] = append(seen[target.Package], test)
-			}
-		}
-	}
-
-	sanitizedTargets := make([]QuarantineTarget, 0, len(seen))
-	for packageName, tests := range seen {
-		sanitizedTargets = append(sanitizedTargets, QuarantineTarget{
-			Package: packageName,
-			Tests:   tests,
-		})
-	}
-	return sanitizedTargets
+	return writeResultsToFiles(l, results, "quarantine")
 }
 
 // quarantinePackage looks for test functions in all test files in a package and quarantines them.
@@ -338,6 +219,11 @@ func quarantinePackage(
 		}
 
 		foundTests := testsInFile(node, testsToQuarantine)
+		if len(foundTests) == 0 {
+			l.Debug().Msg("No target tests found in file")
+			continue
+		}
+
 		foundTestNames := make([]string, 0, len(foundTests))
 		for _, test := range foundTests {
 			haveQuarantined[test.Name.Name] = true
@@ -374,50 +260,6 @@ func quarantinePackage(
 	}
 
 	return results, nil
-}
-
-// testsInFile searches for all test functions in the Go test file's AST that match the given test names.
-func testsInFile(node *ast.File, testNames []string) []*ast.FuncDecl {
-	found := make([]*ast.FuncDecl, 0, len(node.Decls))
-	for _, decl := range node.Decls {
-		// Check if this declaration is a function
-		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
-			// Check if it's a test function with the right name
-			if isTestFunction(funcDecl) && slices.Contains(testNames, funcDecl.Name.Name) {
-				found = append(found, funcDecl)
-			}
-		}
-	}
-	return found
-}
-
-// isTestFunction checks if a function declaration is a test function
-func isTestFunction(funcDecl *ast.FuncDecl) bool {
-	if funcDecl.Name == nil {
-		return false
-	}
-
-	if !strings.HasPrefix(funcDecl.Name.Name, "Test") && !strings.HasPrefix(funcDecl.Name.Name, "Fuzz") {
-		return false
-	}
-
-	// Check the function signature
-	if funcDecl.Type.Params == nil || len(funcDecl.Type.Params.List) != 1 {
-		return false
-	}
-
-	param := funcDecl.Type.Params.List[0]
-
-	// Check if parameter is *testing.T or *testing.F
-	if starExpr, ok := param.Type.(*ast.StarExpr); ok {
-		if selectorExpr, ok := starExpr.X.(*ast.SelectorExpr); ok {
-			if ident, ok := selectorExpr.X.(*ast.Ident); ok {
-				return (ident.Name == "testing" && (selectorExpr.Sel.Name == "T" || selectorExpr.Sel.Name == "F"))
-			}
-		}
-	}
-
-	return false
 }
 
 // skipTests adds conditional quarantine logic to the beginning of the test function

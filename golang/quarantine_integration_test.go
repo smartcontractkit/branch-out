@@ -27,7 +27,7 @@ func TestQuarantineTests_Integration_EnvVarGate(t *testing.T) {
 		t.Skip("skipping integration tests in short mode")
 	}
 
-	quarantineTargets := []golang.QuarantineTarget{
+	quarantineTargets := []golang.TestTarget{
 		{
 			Package: baseProjectPackage,
 			Tests:   standardTestNames,
@@ -112,63 +112,63 @@ func TestQuarantineTests_Integration(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		quarantineTargets []golang.QuarantineTarget
+		quarantineTargets []golang.TestTarget
 	}{
-		{name: "standard base tests", quarantineTargets: []golang.QuarantineTarget{
+		{name: "standard base tests", quarantineTargets: []golang.TestTarget{
 			{
 				Package: baseProjectPackage,
 				Tests:   standardTestNames,
 			},
 		}},
-		{name: "standard nested tests", quarantineTargets: []golang.QuarantineTarget{
+		{name: "standard nested tests", quarantineTargets: []golang.TestTarget{
 			{
 				Package: nestedProjectPackage,
 				Tests:   standardTestNames,
 			},
 		}},
-		{name: "sub tests", quarantineTargets: []golang.QuarantineTarget{
+		{name: "sub tests", quarantineTargets: []golang.TestTarget{
 			{
 				Package: baseProjectPackage,
 				Tests:   subTestNames,
 			},
 		}},
-		{name: "sub tests nested", quarantineTargets: []golang.QuarantineTarget{
+		{name: "sub tests nested", quarantineTargets: []golang.TestTarget{
 			{
 				Package: nestedProjectPackage,
 				Tests:   subTestNames,
 			},
 		}},
-		{name: "unusual tests", quarantineTargets: []golang.QuarantineTarget{
+		{name: "unusual tests", quarantineTargets: []golang.TestTarget{
 			{
 				Package: baseProjectPackage,
 				Tests:   unusualTestNames,
 			},
 		}},
-		{name: "unusual tests nested", quarantineTargets: []golang.QuarantineTarget{
+		{name: "unusual tests nested", quarantineTargets: []golang.TestTarget{
 			{
 				Package: nestedProjectPackage,
 				Tests:   unusualTestNames,
 			},
 		}},
-		{name: "test package tests", quarantineTargets: []golang.QuarantineTarget{
+		{name: "test package tests", quarantineTargets: []golang.TestTarget{
 			{
 				Package: baseProjectTestPackage,
 				Tests:   testPackageTestNames,
 			},
 		}},
-		{name: "test package tests nested", quarantineTargets: []golang.QuarantineTarget{
+		{name: "test package tests nested", quarantineTargets: []golang.TestTarget{
 			{
 				Package: nestedProjectTestPackage,
 				Tests:   testPackageTestNames,
 			},
 		}},
-		{name: "oddly named package tests", quarantineTargets: []golang.QuarantineTarget{
+		{name: "oddly named package tests", quarantineTargets: []golang.TestTarget{
 			{
 				Package: baseProjectOddlyNamedPackage,
 				Tests:   oddlyNamedPackageTestNames,
 			},
 		}},
-		{name: "oddly named package tests nested", quarantineTargets: []golang.QuarantineTarget{
+		{name: "oddly named package tests nested", quarantineTargets: []golang.TestTarget{
 			{
 				Package: nestedProjectOddlyNamedPackage,
 				Tests:   oddlyNamedPackageTestNames,
@@ -284,8 +284,8 @@ func quarantineTests(
 	t *testing.T,
 	l zerolog.Logger,
 	dir string,
-	targets []golang.QuarantineTarget,
-) (golang.QuarantineResults, []golang.QuarantineTarget) {
+	targets []golang.TestTarget,
+) (golang.QuarantineResults, []golang.TestTarget) {
 	t.Helper()
 
 	quarantineResults, err := golang.QuarantineTests(
@@ -300,10 +300,10 @@ func quarantineTests(
 
 	// Build a list of all the tests we successfully quarantined to check in our runs later
 	// Don't bother checking the tests that we know weren't quarantined
-	successfullyQuarantinedTests := []golang.QuarantineTarget{}
+	successfullyQuarantinedTests := []golang.TestTarget{}
 	for _, result := range quarantineResults {
 		for _, success := range result.Successes {
-			successfullyQuarantinedTests = append(successfullyQuarantinedTests, golang.QuarantineTarget{
+			successfullyQuarantinedTests = append(successfullyQuarantinedTests, golang.TestTarget{
 				Package: success.Package,
 				Tests:   success.TestNames(),
 			})

@@ -316,7 +316,7 @@ func (w *Worker) handleFlakyTest(l zerolog.Logger, statusChange trunk.TestCaseSt
 		context.Background(),
 		l,
 		testCase.Repository.HTMLURL,
-		[]golang.QuarantineTarget{
+		[]golang.TestTarget{
 			{
 				Package: testCase.TestSuite,
 				Tests:   []string{testCase.Name},
@@ -382,6 +382,34 @@ func (w *Worker) handleHealthyTest(l zerolog.Logger, statusChange trunk.TestCase
 			Str("jira_issue_key", issue.Key).
 			Msg("Successfully closed Jira ticket for recovered test")
 	}
+
+	// Unquarantine the test in GitHub
+	err = w.githubClient.UnquarantineTests(
+		context.Background(),
+		l,
+		testCase.Repository.HTMLURL,
+		[]golang.TestTarget{
+			{
+				Package: testCase.TestSuite,
+				Tests:   []string{testCase.Name},
+			},
+		},
+	)
+	if err != nil {
+		l.Error().
+			Err(err).
+			Str("test_suite", testCase.TestSuite).
+			Str("test_name", testCase.Name).
+			Msg("Failed to unquarantine test")
+		w.metrics.IncUnquarantineOperation(context.Background(), testCase.TestSuite, "failure")
+		return fmt.Errorf("failed to unquarantine test: %w", err)
+	}
+
+	l.Info().
+		Str("test_suite", testCase.TestSuite).
+		Str("test_name", testCase.Name).
+		Msg("Successfully unquarantined test")
+	w.metrics.IncUnquarantineOperation(context.Background(), testCase.TestSuite, "success")
 
 	return nil
 }

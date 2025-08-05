@@ -846,7 +846,7 @@ func (_m *MockGithubClient) EXPECT() *MockGithubClient_Expecter {
 }
 
 // QuarantineTests provides a mock function for the type MockGithubClient
-func (_mock *MockGithubClient) QuarantineTests(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.QuarantineTarget, options ...github.QuarantineOption) error {
+func (_mock *MockGithubClient) QuarantineTests(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.TestTarget, options ...github.FlakyTestOption) error {
 	var tmpRet mock.Arguments
 	if len(options) > 0 {
 		tmpRet = _mock.Called(ctx, l, repoURL, targets, options)
@@ -860,7 +860,7 @@ func (_mock *MockGithubClient) QuarantineTests(ctx context.Context, l zerolog.Lo
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, zerolog.Logger, string, []golang.QuarantineTarget, ...github.QuarantineOption) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, zerolog.Logger, string, []golang.TestTarget, ...github.FlakyTestOption) error); ok {
 		r0 = returnFunc(ctx, l, repoURL, targets, options...)
 	} else {
 		r0 = ret.Error(0)
@@ -877,14 +877,14 @@ type MockGithubClient_QuarantineTests_Call struct {
 //   - ctx context.Context
 //   - l zerolog.Logger
 //   - repoURL string
-//   - targets []golang.QuarantineTarget
-//   - options ...github.QuarantineOption
+//   - targets []golang.TestTarget
+//   - options ...github.FlakyTestOption
 func (_e *MockGithubClient_Expecter) QuarantineTests(ctx interface{}, l interface{}, repoURL interface{}, targets interface{}, options ...interface{}) *MockGithubClient_QuarantineTests_Call {
 	return &MockGithubClient_QuarantineTests_Call{Call: _e.mock.On("QuarantineTests",
 		append([]interface{}{ctx, l, repoURL, targets}, options...)...)}
 }
 
-func (_c *MockGithubClient_QuarantineTests_Call) Run(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.QuarantineTarget, options ...github.QuarantineOption)) *MockGithubClient_QuarantineTests_Call {
+func (_c *MockGithubClient_QuarantineTests_Call) Run(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.TestTarget, options ...github.FlakyTestOption)) *MockGithubClient_QuarantineTests_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -898,14 +898,14 @@ func (_c *MockGithubClient_QuarantineTests_Call) Run(run func(ctx context.Contex
 		if args[2] != nil {
 			arg2 = args[2].(string)
 		}
-		var arg3 []golang.QuarantineTarget
+		var arg3 []golang.TestTarget
 		if args[3] != nil {
-			arg3 = args[3].([]golang.QuarantineTarget)
+			arg3 = args[3].([]golang.TestTarget)
 		}
-		var arg4 []github.QuarantineOption
-		var variadicArgs []github.QuarantineOption
+		var arg4 []github.FlakyTestOption
+		var variadicArgs []github.FlakyTestOption
 		if len(args) > 4 {
-			variadicArgs = args[4].([]github.QuarantineOption)
+			variadicArgs = args[4].([]github.FlakyTestOption)
 		}
 		arg4 = variadicArgs
 		run(
@@ -924,13 +924,13 @@ func (_c *MockGithubClient_QuarantineTests_Call) Return(err error) *MockGithubCl
 	return _c
 }
 
-func (_c *MockGithubClient_QuarantineTests_Call) RunAndReturn(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.QuarantineTarget, options ...github.QuarantineOption) error) *MockGithubClient_QuarantineTests_Call {
+func (_c *MockGithubClient_QuarantineTests_Call) RunAndReturn(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.TestTarget, options ...github.FlakyTestOption) error) *MockGithubClient_QuarantineTests_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UnquarantineTests provides a mock function for the type MockGithubClient
-func (_mock *MockGithubClient) UnquarantineTests(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.UnquarantineTarget, options ...github.UnquarantineOption) error {
+func (_mock *MockGithubClient) UnquarantineTests(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.TestTarget, options ...github.FlakyTestOption) error {
 	var tmpRet mock.Arguments
 	if len(options) > 0 {
 		tmpRet = _mock.Called(ctx, l, repoURL, targets, options)
@@ -944,7 +944,7 @@ func (_mock *MockGithubClient) UnquarantineTests(ctx context.Context, l zerolog.
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, zerolog.Logger, string, []golang.UnquarantineTarget, ...github.UnquarantineOption) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, zerolog.Logger, string, []golang.TestTarget, ...github.FlakyTestOption) error); ok {
 		r0 = returnFunc(ctx, l, repoURL, targets, options...)
 	} else {
 		r0 = ret.Error(0)
@@ -961,14 +961,14 @@ type MockGithubClient_UnquarantineTests_Call struct {
 //   - ctx context.Context
 //   - l zerolog.Logger
 //   - repoURL string
-//   - targets []golang.UnquarantineTarget
-//   - options ...github.UnquarantineOption
+//   - targets []golang.TestTarget
+//   - options ...github.FlakyTestOption
 func (_e *MockGithubClient_Expecter) UnquarantineTests(ctx interface{}, l interface{}, repoURL interface{}, targets interface{}, options ...interface{}) *MockGithubClient_UnquarantineTests_Call {
 	return &MockGithubClient_UnquarantineTests_Call{Call: _e.mock.On("UnquarantineTests",
 		append([]interface{}{ctx, l, repoURL, targets}, options...)...)}
 }
 
-func (_c *MockGithubClient_UnquarantineTests_Call) Run(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.UnquarantineTarget, options ...github.UnquarantineOption)) *MockGithubClient_UnquarantineTests_Call {
+func (_c *MockGithubClient_UnquarantineTests_Call) Run(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.TestTarget, options ...github.FlakyTestOption)) *MockGithubClient_UnquarantineTests_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -982,14 +982,14 @@ func (_c *MockGithubClient_UnquarantineTests_Call) Run(run func(ctx context.Cont
 		if args[2] != nil {
 			arg2 = args[2].(string)
 		}
-		var arg3 []golang.UnquarantineTarget
+		var arg3 []golang.TestTarget
 		if args[3] != nil {
-			arg3 = args[3].([]golang.UnquarantineTarget)
+			arg3 = args[3].([]golang.TestTarget)
 		}
-		var arg4 []github.UnquarantineOption
-		var variadicArgs []github.UnquarantineOption
+		var arg4 []github.FlakyTestOption
+		var variadicArgs []github.FlakyTestOption
 		if len(args) > 4 {
-			variadicArgs = args[4].([]github.UnquarantineOption)
+			variadicArgs = args[4].([]github.FlakyTestOption)
 		}
 		arg4 = variadicArgs
 		run(
@@ -1008,7 +1008,7 @@ func (_c *MockGithubClient_UnquarantineTests_Call) Return(err error) *MockGithub
 	return _c
 }
 
-func (_c *MockGithubClient_UnquarantineTests_Call) RunAndReturn(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.UnquarantineTarget, options ...github.UnquarantineOption) error) *MockGithubClient_UnquarantineTests_Call {
+func (_c *MockGithubClient_UnquarantineTests_Call) RunAndReturn(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.TestTarget, options ...github.FlakyTestOption) error) *MockGithubClient_UnquarantineTests_Call {
 	_c.Call.Return(run)
 	return _c
 }
