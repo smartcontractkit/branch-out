@@ -285,7 +285,7 @@ func quarantineTests(
 	l zerolog.Logger,
 	dir string,
 	targets []golang.TestTarget,
-) (golang.QuarantineResults, []golang.TestTarget) {
+) (golang.Results, []golang.TestTarget) {
 	t.Helper()
 
 	quarantineResults, err := golang.QuarantineTests(

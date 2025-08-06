@@ -1,4 +1,3 @@
-// Package golang provides utilities for the Go programming language.
 package golang
 
 import (
@@ -9,131 +8,216 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// TestResultsInterface defines the common interface for quarantine and unquarantine results.
-type TestResultsInterface interface {
-	QuarantineResults | UnquarantineResults
+// OperationType represents the type of operation performed on tests.
+type OperationType string
+
+const (
+	// OperationQuarantine indicates tests were quarantined.
+	OperationQuarantine OperationType = "quarantine"
+	// OperationUnquarantine indicates tests were unquarantined.
+	OperationUnquarantine OperationType = "unquarantine"
+)
+
+// ------------- core domain types ------------------------------------------------
+
+// Test describes a test function that was processed.
+type Test struct {
+	Name         string // Name of the test function
+	OriginalLine int    // Line number of the test function
+	ModifiedLine int    // Line number after modification (only used for quarantine)
 }
 
-// PackageResultsInterface defines the common interface for package-level results.
-type PackageResultsInterface interface {
-	QuarantinePackageResults | UnquarantinePackageResults
+// File describes the outputs of successfully processing tests in a single file.
+type File struct {
+	Package            string // Import path of the Go package
+	File               string // Relative path to the file where the tests were found
+	FileAbs            string // Absolute path to the file on the local filesystem
+	Tests              []Test // All the test functions successfully processed in this file
+	ModifiedSourceCode string // Modified source code after processing the tests
 }
 
-// FileResultsInterface defines the common interface for file-level results.
-type FileResultsInterface interface {
-	QuarantinedFile | UnquarantinedFile
+// TestNames returns the names of the test functions that were processed in this file.
+func (f File) TestNames() []string {
+	names := make([]string, len(f.Tests))
+	for i, test := range f.Tests {
+		names[i] = test.Name
+	}
+	return names
 }
 
-// TestInterface defines the common interface for individual test results.
-type TestInterface interface {
-	QuarantinedTest | UnquarantinedTest
+// PackageResults describes the results of processing tests in a package.
+type PackageResults struct {
+	Package   string   // Import path of the Go package
+	Successes []File   // Every file where we found and processed tests
+	Failures  []string // Names of the test functions that were not able to be processed
 }
 
-// forEachResult applies a function to each package result in the collection.
-// This eliminates duplication between QuarantineResults and UnquarantineResults processing.
-func forEachResult[T TestResultsInterface](results T, fn func(any) error) error {
-	switch r := any(results).(type) {
-	case QuarantineResults:
-		for _, result := range r {
-			if err := fn(result); err != nil {
-				return err
-			}
-		}
-	case UnquarantineResults:
-		for _, result := range r {
-			if err := fn(result); err != nil {
-				return err
-			}
+// SuccessfulTestsCount returns the number of tests that were successfully processed.
+func (p PackageResults) SuccessfulTestsCount() int {
+	count := 0
+	for _, success := range p.Successes {
+		count += len(success.TestNames())
+	}
+	return count
+}
+
+// Results represents the results of processing tests across multiple packages.
+type Results map[string]PackageResults
+
+// ForEach iterates over all package results in the collection.
+func (r Results) ForEach(fn func(PackageResults)) {
+	for _, packageResult := range r {
+		fn(packageResult)
+	}
+}
+
+// String returns a **generic** string representation of the results.
+//
+// NOTE: For quarantine/unquarantine specific output use ResultsView.
+func (r Results) String() string {
+	return generateResultsString(r, "processed")
+}
+
+// Markdown returns a **generic** Markdown representation of the results.
+//
+// NOTE: For quarantine/unquarantine specific output use ResultsView.
+func (r Results) Markdown(owner, repo, branch string) string {
+	return generateResultsMarkdown(r, "processed", owner, repo, branch)
+}
+
+// ------------- interfaces -------------------------------------------------------
+
+// MarkdownGenerator defines the interface for types that can generate markdown.
+type MarkdownGenerator interface {
+	Markdown(owner, repo, branch string) string
+}
+
+// StringGenerator defines the interface for types that can generate string representations.
+type StringGenerator interface {
+	String() string
+}
+
+// ResultsInterface combines all common methods for result types.
+type ResultsInterface interface {
+	MarkdownGenerator
+	StringGenerator
+}
+
+// ------------- generic, interface-based adapter ---------------------------------
+
+// ResultsView is a lightweight adapter that attaches an OperationType
+// to a set of Results and implements String()/Markdown() accordingly.
+type ResultsView struct {
+	Results       Results
+	OperationType OperationType
+}
+
+// NewResultsView creates a new adapter for the given Results and operation.
+func NewResultsView(r Results, op OperationType) ResultsView {
+	return ResultsView{Results: r, OperationType: op}
+}
+
+// String implements StringGenerator for ResultsView.
+func (v ResultsView) String() string {
+	return generateResultsString(v.Results, pastTense(v.OperationType))
+}
+
+// Markdown implements MarkdownGenerator for ResultsView.
+func (v ResultsView) Markdown(owner, repo, branch string) string {
+	return generateResultsMarkdown(v.Results, pastTense(v.OperationType), owner, repo, branch)
+}
+
+// Helper to convert an OperationType into the past-tense token used in output.
+func pastTense(op OperationType) string {
+	switch op {
+	case OperationQuarantine:
+		return "quarantined"
+	case OperationUnquarantine:
+		return "unquarantined"
+	default:
+		return string(op)
+	}
+}
+
+// ------------- high-level helpers ----------------------------------------------
+
+// GetMarkdown extracts markdown from any MarkdownGenerator implementation.
+func GetMarkdown(gen MarkdownGenerator, owner, repo, branch string) string {
+	return gen.Markdown(owner, repo, branch)
+}
+
+// GetCommitInfo extracts commit information from Results type.
+// Returns the full commit message and a map of file paths to their modified content.
+func GetCommitInfo(results Results, operationType OperationType) (string, map[string]string) {
+	allFileUpdates := make(map[string]string)
+	var commitMessage strings.Builder
+
+	commitMessage.WriteString(fmt.Sprintf("branch-out %s tests\n", operationType))
+
+	// Helper function to process a single package result
+	processPackageResult := func(packageResult PackageResults) {
+		for _, success := range packageResult.Successes {
+			commitMessage.WriteString(fmt.Sprintf("%s: %s\n",
+				success.File, strings.Join(success.TestNames(), ", ")))
+			allFileUpdates[success.File] = success.ModifiedSourceCode
 		}
 	}
-	return nil
+
+	results.ForEach(processPackageResult)
+	return commitMessage.String(), allFileUpdates
 }
 
-// forEachResultVoid applies a function to each package result in the collection (no error return).
-// This eliminates duplication between QuarantineResults and UnquarantineResults processing.
-func forEachResultVoid[T TestResultsInterface](results T, fn func(any)) {
-	switch r := any(results).(type) {
-	case QuarantineResults:
-		for _, result := range r {
-			fn(result)
+// ------------- internal helpers -------------------------------------------------
+
+// forEachPackageResult applies a function to each package result in the collection.
+func forEachPackageResult(results Results, fn func(PackageResults) error) error {
+	var firstError error
+	results.ForEach(func(result PackageResults) {
+		if firstError == nil {
+			if err := fn(result); err != nil {
+				firstError = err
+			}
 		}
-	case UnquarantineResults:
-		for _, result := range r {
-			fn(result)
-		}
-	}
+	})
+	return firstError
 }
 
 // writeFileResults is a helper function that writes files for any result type.
-func writeFileResults(result any, l zerolog.Logger, operationType string) error {
-	var successes []any
-
-	// Extract successes based on type
-	switch r := result.(type) {
-	case QuarantinePackageResults:
-		for _, s := range r.Successes {
-			successes = append(successes, s)
-		}
-	case UnquarantinePackageResults:
-		for _, s := range r.Successes {
-			successes = append(successes, s)
-		}
-	}
-
-	// Process each success file
-	for _, success := range successes {
-		var fileAbs, packageName string
-		var modifiedSourceCode string
-		var testNames []string
-
-		switch s := success.(type) {
-		case QuarantinedFile:
-			fileAbs = s.FileAbs
-			packageName = s.Package
-			modifiedSourceCode = s.ModifiedSourceCode
-			testNames = s.TestNames()
-		case UnquarantinedFile:
-			fileAbs = s.FileAbs
-			packageName = s.Package
-			modifiedSourceCode = s.ModifiedSourceCode
-			testNames = s.TestNames()
-		}
-
-		if err := os.WriteFile(fileAbs, []byte(modifiedSourceCode), 0600); err != nil {
-			return fmt.Errorf("failed to write %s results to %s: %w", operationType, fileAbs, err)
+func writeFileResults(packageResult PackageResults, l zerolog.Logger, operationType string) error {
+	for _, success := range packageResult.Successes {
+		if err := os.WriteFile(success.FileAbs, []byte(success.ModifiedSourceCode), 0o600); err != nil {
+			return fmt.Errorf("failed to write %s results to %s: %w",
+				operationType, success.FileAbs, err)
 		}
 		l.Trace().
-			Str("file", fileAbs).
-			Str("package", packageName).
-			Strs(operationType+"d_tests", testNames).
+			Str("file", success.FileAbs).
+			Str("package", success.Package).
+			Strs(operationType+"d_tests", success.TestNames()).
 			Msgf("Wrote %s results", operationType)
 	}
 	return nil
 }
 
 // generateResultsMarkdown creates a Markdown representation of test results.
-// It generates a formatted table for successfully processed tests and lists any failures.
-func generateResultsMarkdown[T TestResultsInterface](
-	results T,
-	operationType, owner, repo, branch string,
+func generateResultsMarkdown(
+	results Results,
+	operationPast, // "quarantined" | "unquarantined" | "processed"
+	owner, repo, branch string,
 ) string {
 	var md strings.Builder
 
-	// Write header based on operation type
-	if operationType == "quarantined" {
+	switch operationPast {
+	case "quarantined":
 		md.WriteString("# Quarantined Flaky Tests using branch-out\n\n")
-	} else {
+	case "unquarantined":
 		md.WriteString("# Unquarantined Recovered Tests using branch-out\n\n")
+	default:
+		md.WriteString("# Processed Tests using branch-out\n\n")
 	}
 
-	// Use helper to iterate over results
-	forEachResultVoid(results, func(result any) {
-		switch r := result.(type) {
-		case QuarantinePackageResults:
-			generatePackageMarkdown(&md, r, operationType, owner, repo, branch)
-		case UnquarantinePackageResults:
-			generatePackageMarkdown(&md, r, operationType, owner, repo, branch)
-		}
+	_ = forEachPackageResult(results, func(result PackageResults) error {
+		generatePackageMarkdown(&md, result, operationPast, owner, repo, branch)
+		return nil
 	})
 
 	md.WriteString("\n\n---\n\n")
@@ -142,57 +226,45 @@ func generateResultsMarkdown[T TestResultsInterface](
 }
 
 // generatePackageMarkdown generates markdown for a single package result.
-func generatePackageMarkdown[T PackageResultsInterface](
+func generatePackageMarkdown(
 	md *strings.Builder,
-	result T,
-	operationType, owner, repo, branch string,
+	result PackageResults,
+	operationPast, owner, repo, branch string,
 ) {
-	var packageName string
-	var successCount int
-	var failures []string
-	var successes []any
-
-	// Extract data based on type
-	switch r := any(result).(type) {
-	case QuarantinePackageResults:
-		packageName = r.Package
-		successCount = r.SuccessfulTestsCount()
-		failures = r.Failures
-		for _, s := range r.Successes {
-			successes = append(successes, s)
-		}
-	case UnquarantinePackageResults:
-		packageName = r.Package
-		successCount = r.SuccessfulTestsCount()
-		failures = r.Failures
-		for _, s := range r.Successes {
-			successes = append(successes, s)
-		}
-	}
-
-	// Package header with emoji
 	emoji := "🟢"
-	if len(failures) > 0 {
+	if len(result.Failures) > 0 {
 		emoji = "🔴"
 	}
-	fmt.Fprintf(md, "## `%s` %s\n\n", packageName, emoji)
+	fmt.Fprintf(md, "## `%s` %s\n\n", result.Package, emoji)
 
-	// Process successes
-	if len(successes) > 0 {
-		fmt.Fprintf(md, "### Successfully %s %d tests\n\n", operationType, successCount)
+	// Successes
+	if len(result.Successes) > 0 {
+		fmt.Fprintf(md, "### Successfully %s %d tests\n\n",
+			operationPast, result.SuccessfulTestsCount())
 		md.WriteString("| File | Tests |\n")
 		md.WriteString("|------|-------|\n")
 
-		for _, success := range successes {
+		for _, success := range result.Successes {
 			generateFileMarkdown(md, success, owner, repo, branch)
 		}
 		md.WriteString("\n")
 	}
 
-	// Process failures
-	if len(failures) > 0 {
-		fmt.Fprintf(md, "### Failed to %s %d tests. Need manual intervention!\n\n", operationType, len(failures))
-		for _, test := range failures {
+	// Failures
+	if len(result.Failures) > 0 {
+		// Use the infinitive form for "Failed to X" (quarantine/unquarantine)
+		var infinitiveForm string
+		switch operationPast {
+		case "quarantined":
+			infinitiveForm = "quarantine"
+		case "unquarantined":
+			infinitiveForm = "unquarantine"
+		default:
+			infinitiveForm = "process"
+		}
+		fmt.Fprintf(md, "### Failed to %s %d tests. Need manual intervention!\n\n",
+			infinitiveForm, len(result.Failures))
+		for _, test := range result.Failures {
 			fmt.Fprintf(md, "- %s\n", test)
 		}
 		md.WriteString("\n")
@@ -200,94 +272,55 @@ func generatePackageMarkdown[T PackageResultsInterface](
 }
 
 // generateFileMarkdown generates markdown for a single file result.
-func generateFileMarkdown(md *strings.Builder, file any, owner, repo, branch string) {
-	var fileName string
-	var testLinks []string
+func generateFileMarkdown(md *strings.Builder, file File, owner, repo, branch string) {
+	githubBlobURL := fmt.Sprintf("https://github.com/%s/%s/blob/%s/%s",
+		owner, repo, branch, file.File)
 
-	switch f := file.(type) {
-	case QuarantinedFile:
-		fileName = f.File
-		githubBlobURL := fmt.Sprintf("https://github.com/%s/%s/blob/%s/%s", owner, repo, branch, f.File)
-		for _, test := range f.Tests {
-			testLink := fmt.Sprintf("[%s](%s#L%d)", test.Name, githubBlobURL, test.OriginalLine)
-			testLinks = append(testLinks, testLink)
-		}
-	case UnquarantinedFile:
-		fileName = f.File
-		githubBlobURL := fmt.Sprintf("https://github.com/%s/%s/blob/%s/%s", owner, repo, branch, f.File)
-		for _, test := range f.Tests {
-			testLink := fmt.Sprintf("[%s](%s#L%d)", test.Name, githubBlobURL, test.OriginalLine)
-			testLinks = append(testLinks, testLink)
-		}
+	var testLinks []string
+	for _, test := range file.Tests {
+		link := fmt.Sprintf("[%s](%s#L%d)", test.Name, githubBlobURL, test.OriginalLine)
+		testLinks = append(testLinks, link)
 	}
 
-	githubBlobURL := fmt.Sprintf("https://github.com/%s/%s/blob/%s/%s", owner, repo, branch, fileName)
-	fmt.Fprintf(md, "| [%s](%s) | %s |\n", fileName, githubBlobURL, strings.Join(testLinks, ", "))
+	fmt.Fprintf(md, "| [%s](%s) | %s |\n",
+		file.File, githubBlobURL, strings.Join(testLinks, ", "))
 }
 
 // generateResultsString creates a string representation of test results.
-// It handles both quarantine and unquarantine results using generics for type safety.
-func generateResultsString[T TestResultsInterface](
-	results T,
-	actionPast string, // "quarantined" | "unquarantined"
+func generateResultsString(
+	results Results,
+	operationPast string, // "quarantined" | "unquarantined" | "processed"
 ) string {
 	var b strings.Builder
-
-	// Use helper to iterate over results
-	forEachResultVoid(results, func(result any) {
-		switch r := result.(type) {
-		case QuarantinePackageResults:
-			generatePackageString(&b, r, actionPast)
-		case UnquarantinePackageResults:
-			generatePackageString(&b, r, actionPast)
-		}
+	_ = forEachPackageResult(results, func(result PackageResults) error {
+		generatePackageString(&b, result, operationPast)
+		return nil
 	})
 	return b.String()
 }
 
 // generatePackageString generates string representation for a single package result.
-func generatePackageString[T PackageResultsInterface](
+func generatePackageString(
 	b *strings.Builder,
-	result T,
-	actionPast string,
+	result PackageResults,
+	operationPast string,
 ) {
-	var packageName string
-	var failures []string
-	var successes []any
-
-	// Extract data based on type
-	switch r := any(result).(type) {
-	case QuarantinePackageResults:
-		packageName = r.Package
-		failures = r.Failures
-		for _, s := range r.Successes {
-			successes = append(successes, s)
-		}
-	case UnquarantinePackageResults:
-		packageName = r.Package
-		failures = r.Failures
-		for _, s := range r.Successes {
-			successes = append(successes, s)
-		}
-	}
-
-	b.WriteString(packageName)
-	b.WriteString("\n")
+	b.WriteString(result.Package + "\n")
 	b.WriteString("--------------------------------\n")
 
-	if len(successes) > 0 {
+	if len(result.Successes) > 0 {
 		b.WriteString("Successes\n\n")
-		for _, success := range successes {
-			generateFileString(b, success, actionPast)
+		for _, success := range result.Successes {
+			generateFileString(b, success, operationPast)
 		}
 	} else {
 		b.WriteString("\nNo successes!\n")
 	}
 
-	if len(failures) > 0 {
+	if len(result.Failures) > 0 {
 		b.WriteString("\nFailures\n\n")
-		for _, failure := range failures {
-			fmt.Fprintf(b, "%s\n", failure)
+		for _, failure := range result.Failures {
+			fmt.Fprintln(b, failure)
 		}
 	} else {
 		b.WriteString("\nNo failures!\n")
@@ -295,35 +328,22 @@ func generatePackageString[T PackageResultsInterface](
 }
 
 // generateFileString generates string representation for a single file result.
-func generateFileString(b *strings.Builder, file any, actionPast string) {
-	var fileName string
-	var testNames []string
-
-	switch f := file.(type) {
-	case QuarantinedFile:
-		fileName = f.File
-		testNames = f.TestNames()
-	case UnquarantinedFile:
-		fileName = f.File
-		testNames = f.TestNames()
-	}
-
-	if len(testNames) > 0 {
-		fmt.Fprintf(b, "%s: %s\n", fileName, strings.Join(testNames, ", "))
+func generateFileString(b *strings.Builder, file File, operationPast string) {
+	if len(file.TestNames()) > 0 {
+		fmt.Fprintf(b, "%s: %s\n",
+			file.File, strings.Join(file.TestNames(), ", "))
 	} else {
-		fmt.Fprintf(b, "%s: No tests %s\n", fileName, actionPast)
+		fmt.Fprintf(b, "%s: No tests %s\n", file.File, operationPast)
 	}
 }
 
 // writeResultsToFiles writes test results to the file system.
-// It handles both quarantine and unquarantine results using generics for type safety.
-func writeResultsToFiles[T TestResultsInterface](
+func writeResultsToFiles(
 	l zerolog.Logger,
-	results T,
-	operationType string, // "quarantine" | "unquarantine" - for logging
+	results Results,
+	operationType string, // "quarantine" | "unquarantine" – for logging only
 ) error {
-	// Use helper to iterate over results and write files
-	return forEachResult(results, func(result any) error {
+	return forEachPackageResult(results, func(result PackageResults) error {
 		return writeFileResults(result, l, operationType)
 	})
 }

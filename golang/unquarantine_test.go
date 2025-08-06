@@ -89,15 +89,15 @@ func TestExample(t *testing.T) {
 	assert.True(t, true)
 }`
 
-	results := UnquarantineResults{
-		"test/package": UnquarantinePackageResults{
+	results := Results{
+		"test/package": PackageResults{
 			Package: "test/package",
-			Successes: []UnquarantinedFile{
+			Successes: []File{
 				{
 					Package: "test/package",
 					File:    "test_file.go",
 					FileAbs: "/path/to/test_file.go",
-					Tests: []UnquarantinedTest{
+					Tests: []Test{
 						{Name: "TestExample", OriginalLine: 8},
 					},
 					ModifiedSourceCode: expectedUnquarantinedCode,

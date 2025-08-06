@@ -76,7 +76,7 @@ func TestQuarantineUnquarantineCycle(t *testing.T) {
 		l,
 		dir,
 		unquarantineTargets,
-		golang.WithUnquarantineBuildFlags(exampleProjectBuildFlags),
+		golang.WithBuildFlags(exampleProjectBuildFlags),
 	)
 	require.NoError(t, err, "failed to unquarantine test")
 
@@ -136,7 +136,7 @@ func TestUnquarantineNonQuarantinedTest(t *testing.T) {
 		l,
 		dir,
 		unquarantineTargets,
-		golang.WithUnquarantineBuildFlags(exampleProjectBuildFlags),
+		golang.WithBuildFlags(exampleProjectBuildFlags),
 	)
 
 	// Should not error - graceful handling is expected

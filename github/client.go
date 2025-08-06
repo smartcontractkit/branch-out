@@ -271,8 +271,9 @@ func (c *Client) createOrUpdatePullRequest(
 }
 
 // ResultsCommitter defines the interface for types that can be committed to Git.
+// We use Results directly since the operation type distinguishes behavior.
 type ResultsCommitter interface {
-	golang.QuarantineResults | golang.UnquarantineResults
+	golang.Results
 }
 
 // TestOperationConfig contains the operation-specific configuration for processing tests.
@@ -366,14 +367,15 @@ func processTests[T ResultsCommitter](
 	prStart := time.Now()
 	title := fmt.Sprintf("[Auto] [branch-out] %s: %s", config.PRTitlePrefix, time.Now().Format("2006-01-02"))
 
-	// Get markdown using the Markdown method via interface
-	var prBody string
-	switch r := any(results).(type) {
-	case golang.QuarantineResults:
-		prBody = r.Markdown(owner, repo, prBranch)
-	case golang.UnquarantineResults:
-		prBody = r.Markdown(owner, repo, prBranch)
+	// Get markdown using the new ResultsView - convert T to golang.Results
+	var opType golang.OperationType
+	if config.OperationType == "quarantine" {
+		opType = golang.OperationQuarantine
+	} else {
+		opType = golang.OperationUnquarantine
 	}
+	resultsView := golang.NewResultsView(golang.Results(results), opType)
+	prBody := golang.GetMarkdown(resultsView, owner, repo, prBranch)
 
 	prURL, err := c.createOrUpdatePullRequest(ctx, l, owner, repo, prBranch, defaultBranch, title, prBody)
 	if err != nil {
@@ -385,9 +387,10 @@ func processTests[T ResultsCommitter](
 
 	// Record final success metrics
 	for _, packageName := range packageNames {
-		config.MetricsInc(ctx, packageName, "success")
+		pkg := packageName // shadow the loop variable to prevent capture issues
+		config.MetricsInc(ctx, pkg, "success")
 	}
-	config.MetricsRecord(ctx, int64(len(results)))
+	config.MetricsRecord(ctx, int64(len(golang.Results(results))))
 	config.MetricsDuration(ctx, time.Since(start))
 
 	l.Info().
@@ -406,34 +409,16 @@ func generateCommitAndPush[T ResultsCommitter](
 	c *Client,
 	owner, repo, prBranch, branchHeadSHA string,
 	results T,
-	_ string,
+	operationType string,
 ) (string, error) {
-	var commitMessage = strings.Builder{}
-	allFileUpdates := make(map[string]string)
-
-	// Handle different result types using type assertion
-	switch r := any(results).(type) {
-	case golang.QuarantineResults:
-		commitMessage.WriteString("branch-out quarantine tests\n")
-		for _, result := range r {
-			// Process successes
-			for _, file := range result.Successes {
-				commitMessage.WriteString(fmt.Sprintf("%s: %s\n", file.File, strings.Join(file.TestNames(), ", ")))
-				allFileUpdates[file.File] = file.ModifiedSourceCode
-			}
-		}
-	case golang.UnquarantineResults:
-		commitMessage.WriteString("branch-out unquarantine tests\n")
-		for _, result := range r {
-			// Process successes
-			for _, file := range result.Successes {
-				commitMessage.WriteString(fmt.Sprintf("%s: %s\n", file.File, strings.Join(file.TestNames(), ", ")))
-				allFileUpdates[file.File] = file.ModifiedSourceCode
-			}
-		}
-	default:
-		return "", fmt.Errorf("unsupported result type: %T", results)
+	// Get commit info using the helper function - convert string to OperationType
+	var opType golang.OperationType
+	if operationType == "quarantine" {
+		opType = golang.OperationQuarantine
+	} else {
+		opType = golang.OperationUnquarantine
 	}
+	commitMessage, allFileUpdates := golang.GetCommitInfo(golang.Results(results), opType)
 
 	// Update files on the branch
 	sha, err := c.createCommitOnBranch(
@@ -441,7 +426,7 @@ func generateCommitAndPush[T ResultsCommitter](
 		owner,
 		repo,
 		prBranch,
-		commitMessage.String(),
+		commitMessage,
 		branchHeadSHA,
 		allFileUpdates,
 	)

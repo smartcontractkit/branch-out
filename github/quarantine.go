@@ -1,4 +1,3 @@
-// Package github provides utilities for manipulating GitHub branches and PRs.
 package github
 
 import (
@@ -17,12 +16,12 @@ func (c *Client) QuarantineTests(
 	targets []golang.TestTarget,
 	options ...FlakyTestOption,
 ) error {
-	return processTests(ctx, c, l, repoURL, targets, TestOperationConfig[golang.QuarantineResults]{
+	return processTests(ctx, c, l, repoURL, targets, TestOperationConfig[golang.Results]{
 		OperationType: "quarantine",
 		PRTitlePrefix: "Quarantine Flaky Tests",
-		CoreFunc: func(l zerolog.Logger, repoPath string, targets []golang.TestTarget, buildFlagsOpt ...interface{}) (golang.QuarantineResults, error) {
+		CoreFunc: func(l zerolog.Logger, repoPath string, targets []golang.TestTarget, buildFlagsOpt ...interface{}) (golang.Results, error) {
 			if len(buildFlagsOpt) > 0 {
-				if opt, ok := buildFlagsOpt[0].(golang.QuarantineOption); ok {
+				if opt, ok := buildFlagsOpt[0].(golang.Option); ok {
 					return golang.QuarantineTests(l, repoPath, targets, opt)
 				}
 			}

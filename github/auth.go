@@ -1,5 +1,3 @@
-// Package github provides GitHub App authentication via oauth2.TokenSource.
-// It always returns installation tokens using a mandatory installation ID.
 package github
 
 import (

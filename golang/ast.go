@@ -1,4 +1,3 @@
-// Package golang provides utilities for the Go programming language.
 package golang
 
 import (

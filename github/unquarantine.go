@@ -1,4 +1,3 @@
-// Package github provides utilities for manipulating GitHub branches and PRs.
 package github
 
 import (
@@ -17,19 +16,19 @@ func (c *Client) UnquarantineTests(
 	targets []golang.TestTarget,
 	options ...FlakyTestOption,
 ) error {
-	return processTests(ctx, c, l, repoURL, targets, TestOperationConfig[golang.UnquarantineResults]{
+	return processTests(ctx, c, l, repoURL, targets, TestOperationConfig[golang.Results]{
 		OperationType: "unquarantine",
 		PRTitlePrefix: "Unquarantine Recovered Tests",
-		CoreFunc: func(l zerolog.Logger, repoPath string, targets []golang.TestTarget, buildFlagsOpt ...interface{}) (golang.UnquarantineResults, error) {
+		CoreFunc: func(l zerolog.Logger, repoPath string, targets []golang.TestTarget, buildFlagsOpt ...interface{}) (golang.Results, error) {
 			if len(buildFlagsOpt) > 0 {
-				if opt, ok := buildFlagsOpt[0].(golang.UnquarantineOption); ok {
+				if opt, ok := buildFlagsOpt[0].(golang.Option); ok {
 					return golang.UnquarantineTests(l, repoPath, targets, opt)
 				}
 			}
 			return golang.UnquarantineTests(l, repoPath, targets)
 		},
 		BuildFlagsOption: func(buildFlags []string) interface{} {
-			return golang.WithUnquarantineBuildFlags(buildFlags)
+			return golang.WithBuildFlags(buildFlags)
 		},
 		MetricsInc:      c.metrics.IncUnquarantineOperation,
 		MetricsRecord:   c.metrics.RecordUnquarantineFilesModified,
