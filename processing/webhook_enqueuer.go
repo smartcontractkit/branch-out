@@ -17,22 +17,22 @@ import (
 	svix "github.com/svix/svix-webhooks/go"
 )
 
-// WebhookHandler handles incoming Trunk webhooks by validating and queuing them for processing.
-type WebhookHandler struct {
+// WebhookEnqueuer handles incoming Trunk webhooks by validating and queuing them for processing.
+type WebhookEnqueuer struct {
 	logger        zerolog.Logger
 	signingSecret string
 	awsClient     AWSClient
 	metrics       *telemetry.Metrics
 }
 
-// NewWebhookHandler creates a new webhook handler.
-func NewWebhookHandler(
+// NewWebhookEnqueuer creates a new webhook handler.
+func NewWebhookEnqueuer(
 	logger zerolog.Logger,
 	signingSecret string,
 	awsClient AWSClient,
 	metrics *telemetry.Metrics,
-) *WebhookHandler {
-	return &WebhookHandler{
+) *WebhookEnqueuer {
+	return &WebhookEnqueuer{
 		logger:        logger.With().Str("component", "trunk_webhook_handler").Logger(),
 		signingSecret: signingSecret,
 		awsClient:     awsClient,
@@ -40,8 +40,8 @@ func NewWebhookHandler(
 	}
 }
 
-// HandleWebhook processes an incoming webhook by validating it and queuing for async processing.
-func (h *WebhookHandler) HandleWebhook(req *http.Request) error {
+// VerifyAndEnqueueWebhook processes an incoming webhook by validating it and queuing for async processing.
+func (h *WebhookEnqueuer) VerifyAndEnqueueWebhook(req *http.Request) error {
 	start := time.Now()
 	ctx := req.Context()
 
