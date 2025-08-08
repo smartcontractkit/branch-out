@@ -15,32 +15,33 @@ import (
 	"github.com/smartcontractkit/branch-out/trunk"
 )
 
+// WebhookProcessor processes webhook payloads, handling test case status changes.
 type WebhookProcessor struct {
 	logger       zerolog.Logger
 	jiraClient   JiraClient
 	trunkClient  TrunkClient
 	githubClient GithubClient
-	// golangClient golang.Client
-	metrics *telemetry.Metrics
+	metrics      *telemetry.Metrics
 }
 
+// NewWebhookProcessor creates a new WebhookProcessor instance with the provided clients and configuration.
 func NewWebhookProcessor(
 	logger zerolog.Logger,
 	jiraClient JiraClient,
 	trunkClient TrunkClient,
 	githubClient GithubClient,
-	// golangClient golang.Client,
 	metrics *telemetry.Metrics,
 ) *WebhookProcessor {
 	return &WebhookProcessor{
 		logger:       logger.With().Str("component", "webhook_processor").Logger(),
+		jiraClient:   jiraClient,
+		trunkClient:  trunkClient,
 		githubClient: githubClient,
-		// golangClient: golangClient,
-		metrics: metrics,
+		metrics:      metrics,
 	}
 }
 
-// processWebhookPayload processes a webhook payload that came from SQS.
+// ProcessWebhookPayload processes a webhook payload that came from SQS.
 func (w *WebhookProcessor) ProcessWebhookPayload(payload string) error {
 	if err := w.verifyClients(); err != nil {
 		return err
@@ -82,7 +83,10 @@ func (w *WebhookProcessor) verifyClients() error {
 }
 
 // handleTestCaseStatusChanged processes when a test case's status changes.
-func (w *WebhookProcessor) handleTestCaseStatusChanged(l zerolog.Logger, statusChange trunk.TestCaseStatusChange) error {
+func (w *WebhookProcessor) handleTestCaseStatusChanged(
+	l zerolog.Logger,
+	statusChange trunk.TestCaseStatusChange,
+) error {
 	testCase := statusChange.TestCase
 	currentStatus := statusChange.StatusChange.CurrentStatus.Value
 
