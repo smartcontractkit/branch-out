@@ -140,7 +140,7 @@ func (w *WebhookProcessor) handleFlakyTest(l zerolog.Logger, statusChange trunk.
 	}
 
 	// Quarantine the test in GitHub
-	err = w.githubClient.QuarantineTests(
+	err = w.QuarantineTests(
 		context.Background(),
 		l,
 		testCase.Repository.HTMLURL,

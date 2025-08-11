@@ -8,8 +8,8 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/go-git/go-git/v5"
 	"github.com/rs/zerolog"
-	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/golang"
 	"github.com/smartcontractkit/branch-out/jira"
 	"github.com/smartcontractkit/branch-out/trunk"
@@ -845,46 +845,50 @@ func (_m *MockGithubClient) EXPECT() *MockGithubClient_Expecter {
 	return &MockGithubClient_Expecter{mock: &_m.Mock}
 }
 
-// QuarantineTests provides a mock function for the type MockGithubClient
-func (_mock *MockGithubClient) QuarantineTests(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.QuarantineTarget, options ...github.QuarantineOption) error {
-	var tmpRet mock.Arguments
-	if len(options) > 0 {
-		tmpRet = _mock.Called(ctx, l, repoURL, targets, options)
-	} else {
-		tmpRet = _mock.Called(ctx, l, repoURL, targets)
-	}
-	ret := tmpRet
+// CreateOrUpdatePullRequest provides a mock function for the type MockGithubClient
+func (_mock *MockGithubClient) CreateOrUpdatePullRequest(ctx context.Context, l zerolog.Logger, owner string, repo string, prBranch string, defaultBranch string, results *golang.QuarantineResults) (string, error) {
+	ret := _mock.Called(ctx, l, owner, repo, prBranch, defaultBranch, results)
 
 	if len(ret) == 0 {
-		panic("no return value specified for QuarantineTests")
+		panic("no return value specified for CreateOrUpdatePullRequest")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, zerolog.Logger, string, []golang.QuarantineTarget, ...github.QuarantineOption) error); ok {
-		r0 = returnFunc(ctx, l, repoURL, targets, options...)
-	} else {
-		r0 = ret.Error(0)
+	var r0 string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, zerolog.Logger, string, string, string, string, *golang.QuarantineResults) (string, error)); ok {
+		return returnFunc(ctx, l, owner, repo, prBranch, defaultBranch, results)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(0).(func(context.Context, zerolog.Logger, string, string, string, string, *golang.QuarantineResults) string); ok {
+		r0 = returnFunc(ctx, l, owner, repo, prBranch, defaultBranch, results)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, zerolog.Logger, string, string, string, string, *golang.QuarantineResults) error); ok {
+		r1 = returnFunc(ctx, l, owner, repo, prBranch, defaultBranch, results)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
-// MockGithubClient_QuarantineTests_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'QuarantineTests'
-type MockGithubClient_QuarantineTests_Call struct {
+// MockGithubClient_CreateOrUpdatePullRequest_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateOrUpdatePullRequest'
+type MockGithubClient_CreateOrUpdatePullRequest_Call struct {
 	*mock.Call
 }
 
-// QuarantineTests is a helper method to define mock.On call
+// CreateOrUpdatePullRequest is a helper method to define mock.On call
 //   - ctx context.Context
 //   - l zerolog.Logger
-//   - repoURL string
-//   - targets []golang.QuarantineTarget
-//   - options ...github.QuarantineOption
-func (_e *MockGithubClient_Expecter) QuarantineTests(ctx interface{}, l interface{}, repoURL interface{}, targets interface{}, options ...interface{}) *MockGithubClient_QuarantineTests_Call {
-	return &MockGithubClient_QuarantineTests_Call{Call: _e.mock.On("QuarantineTests",
-		append([]interface{}{ctx, l, repoURL, targets}, options...)...)}
+//   - owner string
+//   - repo string
+//   - prBranch string
+//   - defaultBranch string
+//   - results *golang.QuarantineResults
+func (_e *MockGithubClient_Expecter) CreateOrUpdatePullRequest(ctx interface{}, l interface{}, owner interface{}, repo interface{}, prBranch interface{}, defaultBranch interface{}, results interface{}) *MockGithubClient_CreateOrUpdatePullRequest_Call {
+	return &MockGithubClient_CreateOrUpdatePullRequest_Call{Call: _e.mock.On("CreateOrUpdatePullRequest", ctx, l, owner, repo, prBranch, defaultBranch, results)}
 }
 
-func (_c *MockGithubClient_QuarantineTests_Call) Run(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.QuarantineTarget, options ...github.QuarantineOption)) *MockGithubClient_QuarantineTests_Call {
+func (_c *MockGithubClient_CreateOrUpdatePullRequest_Call) Run(run func(ctx context.Context, l zerolog.Logger, owner string, repo string, prBranch string, defaultBranch string, results *golang.QuarantineResults)) *MockGithubClient_CreateOrUpdatePullRequest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -898,33 +902,418 @@ func (_c *MockGithubClient_QuarantineTests_Call) Run(run func(ctx context.Contex
 		if args[2] != nil {
 			arg2 = args[2].(string)
 		}
-		var arg3 []golang.QuarantineTarget
+		var arg3 string
 		if args[3] != nil {
-			arg3 = args[3].([]golang.QuarantineTarget)
+			arg3 = args[3].(string)
 		}
-		var arg4 []github.QuarantineOption
-		var variadicArgs []github.QuarantineOption
-		if len(args) > 4 {
-			variadicArgs = args[4].([]github.QuarantineOption)
+		var arg4 string
+		if args[4] != nil {
+			arg4 = args[4].(string)
 		}
-		arg4 = variadicArgs
+		var arg5 string
+		if args[5] != nil {
+			arg5 = args[5].(string)
+		}
+		var arg6 *golang.QuarantineResults
+		if args[6] != nil {
+			arg6 = args[6].(*golang.QuarantineResults)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
-			arg4...,
+			arg4,
+			arg5,
+			arg6,
 		)
 	})
 	return _c
 }
 
-func (_c *MockGithubClient_QuarantineTests_Call) Return(err error) *MockGithubClient_QuarantineTests_Call {
+func (_c *MockGithubClient_CreateOrUpdatePullRequest_Call) Return(s string, err error) *MockGithubClient_CreateOrUpdatePullRequest_Call {
+	_c.Call.Return(s, err)
+	return _c
+}
+
+func (_c *MockGithubClient_CreateOrUpdatePullRequest_Call) RunAndReturn(run func(ctx context.Context, l zerolog.Logger, owner string, repo string, prBranch string, defaultBranch string, results *golang.QuarantineResults) (string, error)) *MockGithubClient_CreateOrUpdatePullRequest_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GenerateCommitAndPush provides a mock function for the type MockGithubClient
+func (_mock *MockGithubClient) GenerateCommitAndPush(ctx context.Context, owner string, repoName string, branchName string, brancHeadSHA string, results *golang.QuarantineResults) (string, error) {
+	ret := _mock.Called(ctx, owner, repoName, branchName, brancHeadSHA, results)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GenerateCommitAndPush")
+	}
+
+	var r0 string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, string, string, *golang.QuarantineResults) (string, error)); ok {
+		return returnFunc(ctx, owner, repoName, branchName, brancHeadSHA, results)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, string, string, *golang.QuarantineResults) string); ok {
+		r0 = returnFunc(ctx, owner, repoName, branchName, brancHeadSHA, results)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string, string, string, *golang.QuarantineResults) error); ok {
+		r1 = returnFunc(ctx, owner, repoName, branchName, brancHeadSHA, results)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockGithubClient_GenerateCommitAndPush_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GenerateCommitAndPush'
+type MockGithubClient_GenerateCommitAndPush_Call struct {
+	*mock.Call
+}
+
+// GenerateCommitAndPush is a helper method to define mock.On call
+//   - ctx context.Context
+//   - owner string
+//   - repoName string
+//   - branchName string
+//   - brancHeadSHA string
+//   - results *golang.QuarantineResults
+func (_e *MockGithubClient_Expecter) GenerateCommitAndPush(ctx interface{}, owner interface{}, repoName interface{}, branchName interface{}, brancHeadSHA interface{}, results interface{}) *MockGithubClient_GenerateCommitAndPush_Call {
+	return &MockGithubClient_GenerateCommitAndPush_Call{Call: _e.mock.On("GenerateCommitAndPush", ctx, owner, repoName, branchName, brancHeadSHA, results)}
+}
+
+func (_c *MockGithubClient_GenerateCommitAndPush_Call) Run(run func(ctx context.Context, owner string, repoName string, branchName string, brancHeadSHA string, results *golang.QuarantineResults)) *MockGithubClient_GenerateCommitAndPush_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 string
+		if args[3] != nil {
+			arg3 = args[3].(string)
+		}
+		var arg4 string
+		if args[4] != nil {
+			arg4 = args[4].(string)
+		}
+		var arg5 *golang.QuarantineResults
+		if args[5] != nil {
+			arg5 = args[5].(*golang.QuarantineResults)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+			arg5,
+		)
+	})
+	return _c
+}
+
+func (_c *MockGithubClient_GenerateCommitAndPush_Call) Return(s string, err error) *MockGithubClient_GenerateCommitAndPush_Call {
+	_c.Call.Return(s, err)
+	return _c
+}
+
+func (_c *MockGithubClient_GenerateCommitAndPush_Call) RunAndReturn(run func(ctx context.Context, owner string, repoName string, branchName string, brancHeadSHA string, results *golang.QuarantineResults) (string, error)) *MockGithubClient_GenerateCommitAndPush_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetBranchNames provides a mock function for the type MockGithubClient
+func (_mock *MockGithubClient) GetBranchNames(ctx context.Context, owner string, repo string) (string, string, error) {
+	ret := _mock.Called(ctx, owner, repo)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetBranchNames")
+	}
+
+	var r0 string
+	var r1 string
+	var r2 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) (string, string, error)); ok {
+		return returnFunc(ctx, owner, repo)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) string); ok {
+		r0 = returnFunc(ctx, owner, repo)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string) string); ok {
+		r1 = returnFunc(ctx, owner, repo)
+	} else {
+		r1 = ret.Get(1).(string)
+	}
+	if returnFunc, ok := ret.Get(2).(func(context.Context, string, string) error); ok {
+		r2 = returnFunc(ctx, owner, repo)
+	} else {
+		r2 = ret.Error(2)
+	}
+	return r0, r1, r2
+}
+
+// MockGithubClient_GetBranchNames_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetBranchNames'
+type MockGithubClient_GetBranchNames_Call struct {
+	*mock.Call
+}
+
+// GetBranchNames is a helper method to define mock.On call
+//   - ctx context.Context
+//   - owner string
+//   - repo string
+func (_e *MockGithubClient_Expecter) GetBranchNames(ctx interface{}, owner interface{}, repo interface{}) *MockGithubClient_GetBranchNames_Call {
+	return &MockGithubClient_GetBranchNames_Call{Call: _e.mock.On("GetBranchNames", ctx, owner, repo)}
+}
+
+func (_c *MockGithubClient_GetBranchNames_Call) Run(run func(ctx context.Context, owner string, repo string)) *MockGithubClient_GetBranchNames_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockGithubClient_GetBranchNames_Call) Return(s string, s1 string, err error) *MockGithubClient_GetBranchNames_Call {
+	_c.Call.Return(s, s1, err)
+	return _c
+}
+
+func (_c *MockGithubClient_GetBranchNames_Call) RunAndReturn(run func(ctx context.Context, owner string, repo string) (string, string, error)) *MockGithubClient_GetBranchNames_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetOrCreateRemoteBranch provides a mock function for the type MockGithubClient
+func (_mock *MockGithubClient) GetOrCreateRemoteBranch(ctx context.Context, owner string, repo string, branchName string) (string, error) {
+	ret := _mock.Called(ctx, owner, repo, branchName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetOrCreateRemoteBranch")
+	}
+
+	var r0 string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, string) (string, error)); ok {
+		return returnFunc(ctx, owner, repo, branchName)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, string) string); ok {
+		r0 = returnFunc(ctx, owner, repo, branchName)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = returnFunc(ctx, owner, repo, branchName)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockGithubClient_GetOrCreateRemoteBranch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetOrCreateRemoteBranch'
+type MockGithubClient_GetOrCreateRemoteBranch_Call struct {
+	*mock.Call
+}
+
+// GetOrCreateRemoteBranch is a helper method to define mock.On call
+//   - ctx context.Context
+//   - owner string
+//   - repo string
+//   - branchName string
+func (_e *MockGithubClient_Expecter) GetOrCreateRemoteBranch(ctx interface{}, owner interface{}, repo interface{}, branchName interface{}) *MockGithubClient_GetOrCreateRemoteBranch_Call {
+	return &MockGithubClient_GetOrCreateRemoteBranch_Call{Call: _e.mock.On("GetOrCreateRemoteBranch", ctx, owner, repo, branchName)}
+}
+
+func (_c *MockGithubClient_GetOrCreateRemoteBranch_Call) Run(run func(ctx context.Context, owner string, repo string, branchName string)) *MockGithubClient_GetOrCreateRemoteBranch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 string
+		if args[3] != nil {
+			arg3 = args[3].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockGithubClient_GetOrCreateRemoteBranch_Call) Return(s string, err error) *MockGithubClient_GetOrCreateRemoteBranch_Call {
+	_c.Call.Return(s, err)
+	return _c
+}
+
+func (_c *MockGithubClient_GetOrCreateRemoteBranch_Call) RunAndReturn(run func(ctx context.Context, owner string, repo string, branchName string) (string, error)) *MockGithubClient_GetOrCreateRemoteBranch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GitCheckoutBranch provides a mock function for the type MockGithubClient
+func (_mock *MockGithubClient) GitCheckoutBranch(repo *git.Repository, branchName string) error {
+	ret := _mock.Called(repo, branchName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GitCheckoutBranch")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(*git.Repository, string) error); ok {
+		r0 = returnFunc(repo, branchName)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockGithubClient_GitCheckoutBranch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GitCheckoutBranch'
+type MockGithubClient_GitCheckoutBranch_Call struct {
+	*mock.Call
+}
+
+// GitCheckoutBranch is a helper method to define mock.On call
+//   - repo *git.Repository
+//   - branchName string
+func (_e *MockGithubClient_Expecter) GitCheckoutBranch(repo interface{}, branchName interface{}) *MockGithubClient_GitCheckoutBranch_Call {
+	return &MockGithubClient_GitCheckoutBranch_Call{Call: _e.mock.On("GitCheckoutBranch", repo, branchName)}
+}
+
+func (_c *MockGithubClient_GitCheckoutBranch_Call) Run(run func(repo *git.Repository, branchName string)) *MockGithubClient_GitCheckoutBranch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 *git.Repository
+		if args[0] != nil {
+			arg0 = args[0].(*git.Repository)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockGithubClient_GitCheckoutBranch_Call) Return(err error) *MockGithubClient_GitCheckoutBranch_Call {
 	_c.Call.Return(err)
 	return _c
 }
 
-func (_c *MockGithubClient_QuarantineTests_Call) RunAndReturn(run func(ctx context.Context, l zerolog.Logger, repoURL string, targets []golang.QuarantineTarget, options ...github.QuarantineOption) error) *MockGithubClient_QuarantineTests_Call {
+func (_c *MockGithubClient_GitCheckoutBranch_Call) RunAndReturn(run func(repo *git.Repository, branchName string) error) *MockGithubClient_GitCheckoutBranch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GitCloneRepo provides a mock function for the type MockGithubClient
+func (_mock *MockGithubClient) GitCloneRepo(owner string, repoName string) (*git.Repository, string, error) {
+	ret := _mock.Called(owner, repoName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GitCloneRepo")
+	}
+
+	var r0 *git.Repository
+	var r1 string
+	var r2 error
+	if returnFunc, ok := ret.Get(0).(func(string, string) (*git.Repository, string, error)); ok {
+		return returnFunc(owner, repoName)
+	}
+	if returnFunc, ok := ret.Get(0).(func(string, string) *git.Repository); ok {
+		r0 = returnFunc(owner, repoName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*git.Repository)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(string, string) string); ok {
+		r1 = returnFunc(owner, repoName)
+	} else {
+		r1 = ret.Get(1).(string)
+	}
+	if returnFunc, ok := ret.Get(2).(func(string, string) error); ok {
+		r2 = returnFunc(owner, repoName)
+	} else {
+		r2 = ret.Error(2)
+	}
+	return r0, r1, r2
+}
+
+// MockGithubClient_GitCloneRepo_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GitCloneRepo'
+type MockGithubClient_GitCloneRepo_Call struct {
+	*mock.Call
+}
+
+// GitCloneRepo is a helper method to define mock.On call
+//   - owner string
+//   - repoName string
+func (_e *MockGithubClient_Expecter) GitCloneRepo(owner interface{}, repoName interface{}) *MockGithubClient_GitCloneRepo_Call {
+	return &MockGithubClient_GitCloneRepo_Call{Call: _e.mock.On("GitCloneRepo", owner, repoName)}
+}
+
+func (_c *MockGithubClient_GitCloneRepo_Call) Run(run func(owner string, repoName string)) *MockGithubClient_GitCloneRepo_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockGithubClient_GitCloneRepo_Call) Return(repository *git.Repository, s string, err error) *MockGithubClient_GitCloneRepo_Call {
+	_c.Call.Return(repository, s, err)
+	return _c
+}
+
+func (_c *MockGithubClient_GitCloneRepo_Call) RunAndReturn(run func(owner string, repoName string) (*git.Repository, string, error)) *MockGithubClient_GitCloneRepo_Call {
 	_c.Call.Return(run)
 	return _c
 }

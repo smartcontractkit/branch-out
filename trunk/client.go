@@ -9,13 +9,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/smartcontractkit/branch-out/base"
 	"github.com/smartcontractkit/branch-out/config"
-	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/telemetry"
 )
 
@@ -104,7 +104,7 @@ func (c *Client) LinkTicketToTestCase(testCaseID, issueKey string, repoURL strin
 		Logger()
 	l.Debug().Msg("Linking Jira ticket to Trunk test case")
 
-	host, owner, repo, err := github.ParseRepoURL(repoURL)
+	host, owner, repo, err := ParseRepoURL(repoURL)
 	if err != nil {
 		return fmt.Errorf("failed to parse repository URL: %w", err)
 	}
@@ -178,7 +178,7 @@ func (c *Client) LinkTicketToTestCase(testCaseID, issueKey string, repoURL strin
 // QuarantinedTests returns the list of tests that are currently quarantined by Trunk.io.
 // See: https://docs.trunk.io/references/apis/flaky-tests#post-flaky-tests-list-quarantined-tests
 func (c *Client) QuarantinedTests(repoURL string, orgURLSlug string) ([]TestCase, error) {
-	host, owner, repo, err := github.ParseRepoURL(repoURL)
+	host, owner, repo, err := ParseRepoURL(repoURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse repository URL: %w", err)
 	}
@@ -269,4 +269,35 @@ func (c *Client) getQuarantinedTests(request *QuarantinedTestsRequest) (*Quarant
 	}
 
 	return &response, nil
+}
+
+// ParseRepoURL parses a GitHub repository URL and returns owner and repo name
+func ParseRepoURL(repoURL string) (host, owner, repo string, err error) {
+	if repoURL == "" {
+		return "", "", "", fmt.Errorf("repository URL is required")
+	}
+
+	// Parse the URL
+	u, err := url.Parse(repoURL)
+	if err != nil {
+		return "", "", "", fmt.Errorf("invalid repository URL: %w", err)
+	}
+
+	host = u.Host
+
+	// Extract owner and repo from path
+	path := strings.Trim(u.Path, "/")
+	parts := strings.Split(path, "/")
+
+	if len(parts) < 2 {
+		return "", "", "", fmt.Errorf("invalid repository URL format, expected: https://github.com/owner/repo")
+	}
+
+	owner = parts[0]
+	repo = parts[1]
+
+	// Remove .git suffix if present
+	repo = strings.TrimSuffix(repo, ".git")
+
+	return host, owner, repo, nil
 }
