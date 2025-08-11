@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/go-git/go-git/v5"
 	"github.com/rs/zerolog"
 
-	"github.com/smartcontractkit/branch-out/github"
 	"github.com/smartcontractkit/branch-out/golang"
 	"github.com/smartcontractkit/branch-out/jira"
 	"github.com/smartcontractkit/branch-out/trunk"
@@ -51,11 +51,19 @@ type TrunkClient interface {
 
 // GithubClient interacts with GitHub.
 type GithubClient interface {
-	QuarantineTests(
+	GetBranchNames(ctx context.Context, owner, repo string) (string, string, error)
+	GetOrCreateRemoteBranch(ctx context.Context, owner, repo, branchName string) (string, error)
+	GitCloneRepo(owner, repoName string) (*git.Repository, string, error)
+	GitCheckoutBranch(repo *git.Repository, branchName string) error
+	GenerateCommitAndPush(
+		ctx context.Context,
+		owner, repoName, branchName, brancHeadSHA string,
+		results *golang.QuarantineResults,
+	) (string, error)
+	CreateOrUpdatePullRequest(
 		ctx context.Context,
 		l zerolog.Logger,
-		repoURL string,
-		targets []golang.QuarantineTarget,
-		options ...github.QuarantineOption,
-	) error
+		owner, repo, prBranch, defaultBranch string,
+		results *golang.QuarantineResults,
+	) (string, error)
 }
