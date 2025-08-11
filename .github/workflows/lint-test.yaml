@@ -41,11 +41,11 @@ jobs:
         run: go mod download
       - name: Test
         run: go tool gotestsum -- -coverprofile=coverage.out ./...
-      - name: Upload Coverage
-        uses: actions/upload-artifact@v4
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          name: coverage.out
-          path: coverage.out
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.out
 
   test-race:
     name: Test (race)
@@ -61,23 +61,3 @@ jobs:
         run: go mod download
       - name: Test
         run: go tool gotestsum -- -race ./...
-
-  test-coverage:
-    permissions:
-      contents: write
-      pull-requests: write
-    needs: test
-    name: Test Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download Coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage.out
-          path: .
-      - name: Check Test Coverage
-        uses: vladopajic/go-test-coverage@d4177aaab9307eb783516275d495c01254da2fb9 # v2.16.0
-        id: coverage
-        with:
-          config: ./.testcoverage.yml
