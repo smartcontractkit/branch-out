@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -103,6 +102,8 @@ func SetupRequest(t *testing.T, payload interface{}) *http.Request {
 }
 
 func TestWebhookEnqueuer_VerifyAndEnqueueWebhook(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		setupRequest     func(t *testing.T) *http.Request
@@ -115,7 +116,7 @@ func TestWebhookEnqueuer_VerifyAndEnqueueWebhook(t *testing.T) {
 			setupRequest: func(t *testing.T) *http.Request {
 				return SetupRequest(t, quarantinedPayload)
 			},
-			setupMocks: func(t *testing.T, mockAWS *MockAWSClient) {
+			setupMocks: func(_ *testing.T, mockAWS *MockAWSClient) {
 				// Expect successful SQS push
 				mockAWS.EXPECT().PushMessageToQueue(
 					mock.Anything,
@@ -144,7 +145,7 @@ func TestWebhookEnqueuer_VerifyAndEnqueueWebhook(t *testing.T) {
 				}
 				return req
 			},
-			setupMocks: func(t *testing.T, mockAWS *MockAWSClient) {
+			setupMocks: func(_ *testing.T, _ *MockAWSClient) {
 				// No SQS call expected - should fail at signature verification
 			},
 			expectError:      true,
@@ -166,7 +167,7 @@ func TestWebhookEnqueuer_VerifyAndEnqueueWebhook(t *testing.T) {
 				require.NoError(t, err)
 				return signed
 			},
-			setupMocks: func(t *testing.T, mockAWS *MockAWSClient) {
+			setupMocks: func(_ *testing.T, _ *MockAWSClient) {
 				// No SQS call expected - should fail at JSON parsing
 			},
 			expectError:      true,
@@ -177,7 +178,7 @@ func TestWebhookEnqueuer_VerifyAndEnqueueWebhook(t *testing.T) {
 			setupRequest: func(t *testing.T) *http.Request {
 				return SetupRequest(t, quarantinedPayload)
 			},
-			setupMocks: func(t *testing.T, mockAWS *MockAWSClient) {
+			setupMocks: func(_ *testing.T, mockAWS *MockAWSClient) {
 				// Expect SQS push to fail
 				mockAWS.EXPECT().PushMessageToQueue(
 					mock.Anything,
@@ -191,9 +192,9 @@ func TestWebhookEnqueuer_VerifyAndEnqueueWebhook(t *testing.T) {
 		{
 			name: "healthy test case payload",
 			setupRequest: func(t *testing.T) *http.Request {
-				return SetupRequest(t, healthyTestCase)
+				return SetupRequest(t, unQuarantinedPayload)
 			},
-			setupMocks: func(t *testing.T, mockAWS *MockAWSClient) {
+			setupMocks: func(_ *testing.T, mockAWS *MockAWSClient) {
 				// Expect successful SQS push
 				mockAWS.EXPECT().PushMessageToQueue(
 					mock.Anything,
@@ -216,7 +217,7 @@ func TestWebhookEnqueuer_VerifyAndEnqueueWebhook(t *testing.T) {
 				require.NoError(t, err)
 				return signed
 			},
-			setupMocks: func(t *testing.T, mockAWS *MockAWSClient) {
+			setupMocks: func(_ *testing.T, _ *MockAWSClient) {
 				// No SQS call expected - should fail at JSON parsing
 			},
 			expectError:      true,
@@ -226,6 +227,7 @@ func TestWebhookEnqueuer_VerifyAndEnqueueWebhook(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Create mocks
 			mockAWS := NewMockAWSClient(t)
 
@@ -254,12 +256,12 @@ func TestWebhookEnqueuer_VerifyAndEnqueueWebhook(t *testing.T) {
 
 			// Verify results
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if tt.expectedErrorMsg != "" {
-					assert.Contains(t, err.Error(), tt.expectedErrorMsg)
+					require.Contains(t, err.Error(), tt.expectedErrorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
