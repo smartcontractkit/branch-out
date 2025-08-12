@@ -431,8 +431,7 @@ func (s *Server) ReceiveWebhook(req *http.Request) *WebhookResponse {
 	switch req.URL.Path {
 	case "/webhooks/trunk":
 		// Create webhook handler for this request
-		handler := NewWebhookEnqueuer(l, s.config.Trunk.WebhookSecret, s.awsClient, s.metrics)
-		err = handler.VerifyAndEnqueueWebhook(req)
+		err = VerifyAndEnqueueWebhook(l, s.config.Trunk.WebhookSecret, s.awsClient, s.metrics, req)
 	default:
 		err = fmt.Errorf("unknown webhook endpoint: %s", req.URL.Path)
 	}
