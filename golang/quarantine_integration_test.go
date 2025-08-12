@@ -23,6 +23,7 @@ var exampleProjectBuildFlags = []string{
 }
 
 func TestQuarantineTests_Integration_EnvVarGate(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration tests in short mode")
 	}
@@ -52,11 +53,15 @@ func TestQuarantineTests_Integration_EnvVarGate(t *testing.T) {
 		t.Run(
 			fmt.Sprintf("%s='%s'", golang.RunQuarantinedTestsEnvVar, testCase.runQuarantinedTests),
 			func(t *testing.T) {
-				t.Setenv(golang.RunQuarantinedTestsEnvVar, testCase.runQuarantinedTests)
+				t.Parallel()
+				env := map[string]string{
+					golang.RunQuarantinedTestsEnvVar: testCase.runQuarantinedTests,
+				}
 
 				baseTestOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
 					t,
 					dir,
+					env,
 				)
 				testResults, err := testhelpers.ParseTestOutputs(baseTestOutput)
 				require.NoError(t, err, "failed to parse test output")
@@ -197,10 +202,12 @@ func TestQuarantineTests_Integration(t *testing.T) {
 			baseTestOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
 				t,
 				dir,
+				map[string]string{},
 			)
 			nestedTestOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
 				t,
 				filepath.Join(dir, "nested_project"),
+				map[string]string{},
 			)
 			testResults, err := testhelpers.ParseTestOutputs(baseTestOutput, nestedTestOutput)
 			require.NoError(t, err, "failed to parse test output")
@@ -233,12 +240,14 @@ func TestQuarantineTests_Integration(t *testing.T) {
 
 }
 
-// runExampleTests runs go test for the example_project and returns the test results.
+// runExampleTestsWithEnv runs go test for the example_project with additional env vars
+// and returns the test results.
 // It returns the test output and any error that occurred while running the tests.
 // It can optionally run only a subset of tests by passing in the test names.
 func runExampleTests(
 	tb testing.TB,
 	dir string,
+	env map[string]string,
 	specificTests ...string,
 ) (testOutput []byte, runError error) {
 	tb.Helper()
@@ -254,6 +263,12 @@ func runExampleTests(
 
 	testCmd := exec.Command("go", command...)
 	testCmd.Dir = dir
+
+	// inherit the current environment and apply overrides/additions
+	testCmd.Env = os.Environ()
+	for k, v := range env {
+		testCmd.Env = append(testCmd.Env, fmt.Sprintf("%s=%s", k, v))
+	}
 
 	return testCmd.CombinedOutput()
 }

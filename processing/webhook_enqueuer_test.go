@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
@@ -77,4 +78,26 @@ func TestSignWebhookRequest(t *testing.T) {
 
 	err = verifyWebhookRequest(l, webhookRequest, webhookSecret)
 	require.NoError(t, err, "failed to verify webhook request")
+}
+
+func TestVerifyAndEnqueueWebhook(t *testing.T) {
+	t.Parallel()
+
+	l := testhelpers.Logger(t)
+
+	quarantinedPayloadJSON, err := json.Marshal(quarantinedPayload)
+	require.NoError(t, err, "failed to marshal payload")
+
+	request := &http.Request{
+		Method: "POST",
+		URL:    &url.URL{Path: "/webhooks/trunk"},
+		Body:   io.NopCloser(bytes.NewBuffer(quarantinedPayloadJSON)),
+	}
+	request, err = SelfSignWebhookRequest(l, request, webhookSecret)
+	require.NoError(t, err, "failed to sign webhook request")
+
+	mockAWSClient := NewMockAWSClient(t)
+	mockAWSClient.EXPECT().PushMessageToQueue(mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	err = VerifyAndEnqueueWebhook(l, webhookSecret, mockAWSClient, nil, request)
+	require.NoError(t, err, "failed to verify and enqueue webhook")
 }

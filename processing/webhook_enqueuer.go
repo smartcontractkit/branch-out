@@ -17,69 +17,52 @@ import (
 	svix "github.com/svix/svix-webhooks/go"
 )
 
-// WebhookEnqueuer handles incoming Trunk webhooks by validating and queuing them for processing.
-type WebhookEnqueuer struct {
-	logger        zerolog.Logger
-	signingSecret string
-	awsClient     AWSClient
-	metrics       *telemetry.Metrics
-}
-
-// NewWebhookEnqueuer creates a new webhook handler.
-func NewWebhookEnqueuer(
+// VerifyAndEnqueueWebhook processes an incoming webhook by validating it and queuing for async processing.
+func VerifyAndEnqueueWebhook(
 	logger zerolog.Logger,
 	signingSecret string,
 	awsClient AWSClient,
 	metrics *telemetry.Metrics,
-) *WebhookEnqueuer {
-	return &WebhookEnqueuer{
-		logger:        logger.With().Str("component", "trunk_webhook_handler").Logger(),
-		signingSecret: signingSecret,
-		awsClient:     awsClient,
-		metrics:       metrics,
-	}
-}
-
-// VerifyAndEnqueueWebhook processes an incoming webhook by validating it and queuing for async processing.
-func (h *WebhookEnqueuer) VerifyAndEnqueueWebhook(req *http.Request) error {
+	req *http.Request,
+) error {
 	start := time.Now()
 	ctx := req.Context()
 
 	// Record webhook received
-	h.metrics.IncWebhook(ctx, "trunk", "received")
+	metrics.IncWebhook(ctx, "trunk", "received")
 
 	// Verify the webhook signature
-	if err := verifyWebhookRequest(h.logger, req, h.signingSecret); err != nil {
-		h.metrics.IncWebhookValidationFailure(ctx, "signature_verification")
+	if err := verifyWebhookRequest(logger, req, signingSecret); err != nil {
+		metrics.IncWebhookValidationFailure(ctx, "signature_verification")
 		return fmt.Errorf("webhook call cannot be verified: %w", err)
 	}
 
 	// Read and validate payload
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
-		h.logger.Error().Err(err).Msg("Failed to read request body")
+		logger.Error().Err(err).Msg("Failed to read request body")
 		return fmt.Errorf("failed to read request body: %w", err)
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
-			h.logger.Error().Err(err).Msg("Failed to close request body")
+			logger.Error().Err(err).Msg("Failed to close request body")
 		}
 	}()
 
-	h.logger.Debug().Str("payload", string(payload)).Msg("Raw webhook payload")
+	logger.Debug().Str("payload", string(payload)).Msg("Raw webhook payload")
 
 	// Validate payload structure (Trunk-specific validation)
 	var webhookData trunk.TestCaseStatusChange
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
-		h.metrics.IncWebhookValidationFailure(ctx, "json_parsing")
-		h.logger.Error().
+		metrics.IncWebhookValidationFailure(ctx, "json_parsing")
+		logger.Error().
 			Err(err).
 			Str("payload", string(payload)).
 			Msg("Failed to parse test_case.status_changed payload")
 		return fmt.Errorf("failed to parse test_case.status_changed payload: %w", err)
 	}
 
-	l := h.logger.With().
+	l := logger.With().
 		Str("id", webhookData.TestCase.ID).
 		Str("name", webhookData.TestCase.Name).
 		Str("current_status", webhookData.StatusChange.CurrentStatus.Value).
@@ -88,21 +71,21 @@ func (h *WebhookEnqueuer) VerifyAndEnqueueWebhook(req *http.Request) error {
 
 	// Push to SQS for async processing
 	sqsStart := time.Now()
-	err = h.awsClient.PushMessageToQueue(
+	err = awsClient.PushMessageToQueue(
 		context.Background(),
 		l,
 		string(payload),
 	)
 	if err != nil {
-		h.metrics.IncWebhook(ctx, "trunk", "sqs_failed")
+		metrics.IncWebhook(ctx, "trunk", "sqs_failed")
 		l.Error().Err(err).Msg("Failed to push webhook payload to AWS SQS")
 		return fmt.Errorf("failed to push webhook payload to AWS SQS: %w", err)
 	}
 
 	// Record metrics for successful processing
-	h.metrics.RecordSQSSendLatency(ctx, time.Since(sqsStart))
-	h.metrics.IncWebhook(ctx, "trunk", "processed")
-	h.metrics.RecordWebhookDuration(ctx, "trunk", time.Since(start))
+	metrics.RecordSQSSendLatency(ctx, time.Since(sqsStart))
+	metrics.IncWebhook(ctx, "trunk", "processed")
+	metrics.RecordWebhookDuration(ctx, "trunk", time.Since(start))
 
 	l.Info().Msg("Webhook payload successfully queued for processing")
 	return nil
