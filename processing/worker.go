@@ -187,7 +187,7 @@ func (w *Worker) processMessage(ctx context.Context, message types.Message) {
 	receiptHandle := *message.ReceiptHandle
 
 	l := w.logger.With().
-		Str("message_id", getStringPtr(message.MessageId)).
+		Str("message_id", deref(message.MessageId)).
 		Str("receipt_handle", receiptHandle[:20]+"..."). // Log partial receipt handle for debugging
 		Logger()
 
@@ -221,10 +221,10 @@ func (w *Worker) processMessage(ctx context.Context, message types.Message) {
 	l.Info().Msg("Successfully processed and deleted SQS message")
 }
 
-// getStringPtr safely dereferences a string pointer, returning empty string if nil.
-func getStringPtr(ptr *string) string {
+// deref safely dereferences a pointer, returning a zero value if nil.
+func deref[T any](ptr *T) T {
 	if ptr == nil {
-		return ""
+		return *new(T)
 	}
 	return *ptr
 }
