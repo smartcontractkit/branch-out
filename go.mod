@@ -1,6 +1,6 @@
 module github.com/smartcontractkit/branch-out
 
-go 1.24.6
+go 1.25.0
 
 tool (
 	github.com/vektra/mockery/v3
