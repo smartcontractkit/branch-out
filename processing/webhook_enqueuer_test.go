@@ -240,19 +240,13 @@ func TestWebhookEnqueuer_VerifyAndEnqueueWebhook(t *testing.T) {
 
 			// Create webhook enqueuer
 			logger := testhelpers.Logger(t)
-			enqueuer := NewWebhookEnqueuer(
-				logger,
-				webhookSecret,
-				mockAWS,
-				metrics,
-			)
 
 			// Setup request
 			req := tt.setupRequest(t)
 			req = req.WithContext(context.Background())
 
 			// Execute
-			err = enqueuer.VerifyAndEnqueueWebhook(req)
+			err = VerifyAndEnqueueWebhook(logger, webhookSecret, mockAWS, metrics, req)
 
 			// Verify results
 			if tt.expectError {
