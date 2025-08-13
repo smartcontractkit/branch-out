@@ -25,6 +25,9 @@ var (
 
 func TestPackages_Integration(t *testing.T) {
 	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 
 	l := testhelpers.Logger(t)
 	packages, err := golang.Packages(l, exampleProjectDir, exampleProjectBuildFlags)

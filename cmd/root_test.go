@@ -10,6 +10,10 @@ import (
 )
 
 func TestRoot_Config(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long test in short mode")
+	}
+
 	var (
 		defaultLogLevel      string
 		defaultGitHubBaseURL string
