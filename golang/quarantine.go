@@ -19,9 +19,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// RunQuarantinedTestsEnvVar is the environment variable that controls whether quarantined tests are run.
-const RunQuarantinedTestsEnvVar = "RUN_QUARANTINED_TESTS"
-
 // QuarantineTarget describes a package and a list of test functions to quarantine.
 type QuarantineTarget struct {
 	Package string   // Import path of the Go package
@@ -262,6 +259,10 @@ func QuarantineTests(
 func WriteQuarantineResultsToFiles(l zerolog.Logger, results QuarantineResults) error {
 	for _, result := range results {
 		for _, success := range result.Successes {
+			if len(success.Tests) == 0 {
+				continue
+			}
+
 			if err := os.WriteFile(success.FileAbs, []byte(success.ModifiedSourceCode), 0600); err != nil {
 				return fmt.Errorf("failed to write quarantine results to %s: %w", success.FileAbs, err)
 			}

@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// RunFlakyTestsEnvVar is the environment variable that controls whether to run flaky tests.
-const RunFlakyTestsEnvVar = "RUN_FLAKY_TESTS"
+// RunQuarantinedTestsEnvVar is the environment variable that controls whether to run quarantined tests.
+const RunQuarantinedTestsEnvVar = "RUN_QUARANTINED_TESTS"
 
 // Flaky marks a test as flaky.
 // To run tests marked as flaky, set the RUN_FLAKY_TESTS environment variable to true.
@@ -29,19 +29,19 @@ func Flaky(tb testing.TB, ticket string) {
 	// Add this when we can use Go 1.25.0.
 	// tb.Attr("flaky", "true")
 	//nolint:forbidigo // Config doesn't make sense here
-	if os.Getenv(RunFlakyTestsEnvVar) != "true" {
+	if os.Getenv(RunQuarantinedTestsEnvVar) != "true" {
 		tb.Skipf(
-			"Skipping %s. To run flaky tests, set the %s environment variable to true.",
+			"Skipping %s. To run quarantined tests, set the %s environment variable to true.",
 			explanationStr,
-			RunFlakyTestsEnvVar,
+			RunQuarantinedTestsEnvVar,
 		)
 	} else {
 		tb.Logf("Running %s", explanationStr)
 		tb.Cleanup(func() {
 			tb.Logf(
-				"Test is marked as flaky, but still ran. %s. To skip flaky tests, ensure the %s environment variable is set to false.",
+				"Test is marked as quarantined, but still ran. %s. To skip quarantined tests, ensure the %s environment variable is set to false.",
 				explanationStr,
-				RunFlakyTestsEnvVar,
+				RunQuarantinedTestsEnvVar,
 			)
 		})
 	}
