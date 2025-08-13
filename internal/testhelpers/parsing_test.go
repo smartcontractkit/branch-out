@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	exampleProjectPackage = "github.com/smartcontractkit/branch-out/golang/example_project"
-	oddlyNamedPackage     = "github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package"
-	testPackage           = "github.com/smartcontractkit/branch-out/golang/example_project/test_package"
+	exampleProjectPackage = "github.com/smartcontractkit/branch-out-example-project"
+	oddlyNamedPackage     = "github.com/smartcontractkit/branch-out-example-project/oddly_named_package"
+	testPackage           = "github.com/smartcontractkit/branch-out-example-project/test_package"
 )
 
 var (

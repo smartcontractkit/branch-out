@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/smartcontractkit/branch-out/golang/example_project"
+	example_project "github.com/smartcontractkit/branch-out-example-project"
 )
 
 func FuzzExampleProject(f *testing.F) {

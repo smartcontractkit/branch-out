@@ -336,13 +336,13 @@ func quarantineTests(
 }
 
 var (
-	baseProjectPackage           = "github.com/smartcontractkit/branch-out/golang/example_project"
-	baseProjectTestPackage       = "github.com/smartcontractkit/branch-out/golang/example_project/test_package"
-	baseProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package"
+	baseProjectPackage           = "github.com/smartcontractkit/branch-out-example-project"
+	baseProjectTestPackage       = "github.com/smartcontractkit/branch-out-example-project/test_package"
+	baseProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out-example-project/oddly_named_package"
 
-	nestedProjectPackage           = "github.com/smartcontractkit/branch-out/golang/example_project/nested_project"
-	nestedProjectTestPackage       = "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_test_package"
-	nestedProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_oddly_named_package"
+	nestedProjectPackage           = "github.com/smartcontractkit/branch-out-example-project/nested_project"
+	nestedProjectTestPackage       = "github.com/smartcontractkit/branch-out-example-project/nested_project/nested_test_package"
+	nestedProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out-example-project/nested_project/nested_oddly_named_package"
 
 	standardTestNames = []string{
 		"TestStandard1",

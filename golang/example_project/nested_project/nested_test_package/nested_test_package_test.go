@@ -5,7 +5,7 @@ package nested_test_package_test
 import (
 	"testing"
 
-	"github.com/smartcontractkit/branch-out/golang/example_project"
+	example_project "github.com/smartcontractkit/branch-out-example-project"
 )
 
 func TestTestPackage(t *testing.T) {

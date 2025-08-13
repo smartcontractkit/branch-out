@@ -1,157 +1,157 @@
-{"Time":"2025-06-26T10:05:55.534788-04:00","Action":"start","Package":"github.com/smartcontractkit/branch-out/golang/example_project"}
-{"Time":"2025-06-26T10:05:55.53491-04:00","Action":"start","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package"}
-{"Time":"2025-06-26T10:05:55.534964-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Test":"TestOddlyNamedPackage"}
-{"Time":"2025-06-26T10:05:55.534973-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Test":"TestOddlyNamedPackage","Output":"=== RUN   TestOddlyNamedPackage\n"}
-{"Time":"2025-06-26T10:05:55.534989-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Test":"TestOddlyNamedPackage","Output":"=== PAUSE TestOddlyNamedPackage\n"}
-{"Time":"2025-06-26T10:05:55.534976-04:00","Action":"start","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package"}
-{"Time":"2025-06-26T10:05:55.535014-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Test":"TestTestPackage"}
-{"Time":"2025-06-26T10:05:55.535023-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Test":"TestTestPackage","Output":"=== RUN   TestTestPackage\n"}
-{"Time":"2025-06-26T10:05:55.535039-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Test":"TestTestPackage","Output":"=== PAUSE TestTestPackage\n"}
-{"Time":"2025-06-26T10:05:55.534997-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Test":"TestOddlyNamedPackage"}
-{"Time":"2025-06-26T10:05:55.535046-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Test":"TestTestPackage"}
-{"Time":"2025-06-26T10:05:55.535076-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Test":"TestTestPackage"}
-{"Time":"2025-06-26T10:05:55.535086-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Test":"TestTestPackage","Output":"=== CONT  TestTestPackage\n"}
-{"Time":"2025-06-26T10:05:55.53507-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Test":"TestOddlyNamedPackage"}
-{"Time":"2025-06-26T10:05:55.535104-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Test":"TestOddlyNamedPackage","Output":"=== CONT  TestOddlyNamedPackage\n"}
-{"Time":"2025-06-26T10:05:55.535095-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Test":"TestTestPackage","Output":"    test_package_test.go:14: This test lives in a package with the _test suffix (skip)\n"}
-{"Time":"2025-06-26T10:05:55.535124-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Test":"TestTestPackage","Output":"--- SKIP: TestTestPackage (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.535112-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Test":"TestOddlyNamedPackage","Output":"    oddly_named_package_test.go:14: This test's package name doesn't match the standard directory path naming scheme (pass)\n"}
-{"Time":"2025-06-26T10:05:55.535151-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Test":"TestOddlyNamedPackage","Output":"--- PASS: TestOddlyNamedPackage (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.535131-04:00","Action":"skip","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Test":"TestTestPackage","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.535203-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Output":"PASS\n"}
-{"Time":"2025-06-26T10:05:55.535205-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Test":"TestOddlyNamedPackage","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.535238-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Output":"ok  \tgithub.com/smartcontractkit/branch-out/golang/example_project/test_package\t(cached)\n"}
-{"Time":"2025-06-26T10:05:55.535249-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Output":"PASS\n"}
-{"Time":"2025-06-26T10:05:55.535295-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Output":"ok  \tgithub.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package\t(cached)\n"}
-{"Time":"2025-06-26T10:05:55.535324-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.535312-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out/golang/example_project/test_package","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.714265-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard1"}
-{"Time":"2025-06-26T10:05:55.714335-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard1","Output":"=== RUN   TestStandard1\n"}
-{"Time":"2025-06-26T10:05:55.714348-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard1","Output":"=== PAUSE TestStandard1\n"}
-{"Time":"2025-06-26T10:05:55.714355-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard1"}
-{"Time":"2025-06-26T10:05:55.714362-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard2"}
-{"Time":"2025-06-26T10:05:55.714368-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard2","Output":"=== RUN   TestStandard2\n"}
-{"Time":"2025-06-26T10:05:55.714374-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard2","Output":"=== PAUSE TestStandard2\n"}
-{"Time":"2025-06-26T10:05:55.714381-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard2"}
-{"Time":"2025-06-26T10:05:55.714418-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard3"}
-{"Time":"2025-06-26T10:05:55.714424-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard3","Output":"=== RUN   TestStandard3\n"}
-{"Time":"2025-06-26T10:05:55.71443-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard3","Output":"=== PAUSE TestStandard3\n"}
-{"Time":"2025-06-26T10:05:55.714436-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard3"}
-{"Time":"2025-06-26T10:05:55.714449-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic"}
-{"Time":"2025-06-26T10:05:55.714457-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic","Output":"=== RUN   TestSubTestsStatic\n"}
-{"Time":"2025-06-26T10:05:55.714467-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic","Output":"=== PAUSE TestSubTestsStatic\n"}
-{"Time":"2025-06-26T10:05:55.714472-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic"}
-{"Time":"2025-06-26T10:05:55.714487-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic"}
-{"Time":"2025-06-26T10:05:55.714497-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic","Output":"=== RUN   TestSubTestsTableStatic\n"}
-{"Time":"2025-06-26T10:05:55.714506-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic","Output":"=== PAUSE TestSubTestsTableStatic\n"}
-{"Time":"2025-06-26T10:05:55.714511-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic"}
-{"Time":"2025-06-26T10:05:55.714529-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic"}
-{"Time":"2025-06-26T10:05:55.714537-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic","Output":"=== RUN   TestSubTestsTableDynamic\n"}
-{"Time":"2025-06-26T10:05:55.714543-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic","Output":"=== PAUSE TestSubTestsTableDynamic\n"}
-{"Time":"2025-06-26T10:05:55.714548-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic"}
-{"Time":"2025-06-26T10:05:55.714554-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestDifferentParam"}
-{"Time":"2025-06-26T10:05:55.714559-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestDifferentParam","Output":"=== RUN   TestDifferentParam\n"}
-{"Time":"2025-06-26T10:05:55.714565-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestDifferentParam","Output":"=== PAUSE TestDifferentParam\n"}
-{"Time":"2025-06-26T10:05:55.71457-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestDifferentParam"}
-{"Time":"2025-06-26T10:05:55.714576-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard1"}
-{"Time":"2025-06-26T10:05:55.714581-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard1","Output":"=== CONT  TestStandard1\n"}
-{"Time":"2025-06-26T10:05:55.714585-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic"}
-{"Time":"2025-06-26T10:05:55.714589-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic","Output":"=== CONT  TestSubTestsTableStatic\n"}
-{"Time":"2025-06-26T10:05:55.714594-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_1"}
-{"Time":"2025-06-26T10:05:55.714598-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_1","Output":"=== RUN   TestSubTestsTableStatic/subtest_1\n"}
-{"Time":"2025-06-26T10:05:55.714604-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard1","Output":"    standard_test.go:12: This is a standard test (pass)\n"}
-{"Time":"2025-06-26T10:05:55.714609-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestDifferentParam"}
-{"Time":"2025-06-26T10:05:55.714613-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestDifferentParam","Output":"=== CONT  TestDifferentParam\n"}
-{"Time":"2025-06-26T10:05:55.714621-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_1","Output":"=== PAUSE TestSubTestsTableStatic/subtest_1\n"}
-{"Time":"2025-06-26T10:05:55.714625-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_1"}
-{"Time":"2025-06-26T10:05:55.714647-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard1","Output":"--- PASS: TestStandard1 (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.714654-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard1","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.714662-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard3"}
-{"Time":"2025-06-26T10:05:55.714667-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard3","Output":"=== CONT  TestStandard3\n"}
-{"Time":"2025-06-26T10:05:55.714673-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard2"}
-{"Time":"2025-06-26T10:05:55.714678-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard2","Output":"=== CONT  TestStandard2\n"}
-{"Time":"2025-06-26T10:05:55.714683-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard2","Output":"    standard_test.go:18: This is a standard test (fail)\n"}
-{"Time":"2025-06-26T10:05:55.714688-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard2","Output":"--- FAIL: TestStandard2 (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.714692-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard2","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.714697-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard3","Output":"    standard_test.go:24: This is a standard test (fail)\n"}
-{"Time":"2025-06-26T10:05:55.714702-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard3","Output":"--- FAIL: TestStandard3 (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.714706-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestStandard3","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.71471-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_2"}
-{"Time":"2025-06-26T10:05:55.71472-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_2","Output":"=== RUN   TestSubTestsTableStatic/subtest_2\n"}
-{"Time":"2025-06-26T10:05:55.714726-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_2","Output":"=== PAUSE TestSubTestsTableStatic/subtest_2\n"}
-{"Time":"2025-06-26T10:05:55.714732-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_2"}
-{"Time":"2025-06-26T10:05:55.714739-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic"}
-{"Time":"2025-06-26T10:05:55.714747-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic","Output":"=== CONT  TestSubTestsStatic\n"}
-{"Time":"2025-06-26T10:05:55.714755-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_1"}
-{"Time":"2025-06-26T10:05:55.714767-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_1","Output":"=== RUN   TestSubTestsStatic/subtest_1\n"}
-{"Time":"2025-06-26T10:05:55.714776-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_1","Output":"=== PAUSE TestSubTestsStatic/subtest_1\n"}
-{"Time":"2025-06-26T10:05:55.714782-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_1"}
-{"Time":"2025-06-26T10:05:55.714788-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestDifferentParam","Output":"    unusual_test.go:27: This test uses 'x' instead of 't' (fail)\n"}
-{"Time":"2025-06-26T10:05:55.714794-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestDifferentParam","Output":"--- FAIL: TestDifferentParam (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.714799-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestDifferentParam","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.714805-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic","Output":"    sub_test.go:48: This is a parent test of static table tests (pass)\n"}
-{"Time":"2025-06-26T10:05:55.71481-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_2"}
-{"Time":"2025-06-26T10:05:55.714816-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_2","Output":"=== RUN   TestSubTestsStatic/subtest_2\n"}
-{"Time":"2025-06-26T10:05:55.714821-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_1"}
-{"Time":"2025-06-26T10:05:55.714831-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_1","Output":"=== CONT  TestSubTestsTableStatic/subtest_1\n"}
-{"Time":"2025-06-26T10:05:55.714838-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_1","Output":"    sub_test.go:44: This is a static table test test (pass)\n"}
-{"Time":"2025-06-26T10:05:55.714843-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_2","Output":"=== PAUSE TestSubTestsStatic/subtest_2\n"}
-{"Time":"2025-06-26T10:05:55.714847-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_2"}
-{"Time":"2025-06-26T10:05:55.714852-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_2"}
-{"Time":"2025-06-26T10:05:55.714856-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_2","Output":"=== CONT  TestSubTestsTableStatic/subtest_2\n"}
-{"Time":"2025-06-26T10:05:55.714862-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic"}
-{"Time":"2025-06-26T10:05:55.714868-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic","Output":"=== CONT  TestSubTestsTableDynamic\n"}
-{"Time":"2025-06-26T10:05:55.714874-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_1"}
-{"Time":"2025-06-26T10:05:55.714882-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_1","Output":"=== RUN   TestSubTestsTableDynamic/subtest_1\n"}
-{"Time":"2025-06-26T10:05:55.71489-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic","Output":"    sub_test.go:26: This is a parent test of static subtests (pass)\n"}
-{"Time":"2025-06-26T10:05:55.714895-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_1","Output":"=== PAUSE TestSubTestsTableDynamic/subtest_1\n"}
-{"Time":"2025-06-26T10:05:55.7149-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_1"}
-{"Time":"2025-06-26T10:05:55.714906-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_2"}
-{"Time":"2025-06-26T10:05:55.714911-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_2","Output":"=== RUN   TestSubTestsTableDynamic/subtest_2\n"}
-{"Time":"2025-06-26T10:05:55.714916-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_2","Output":"    sub_test.go:44: This is a static table test test (pass)\n"}
-{"Time":"2025-06-26T10:05:55.714922-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_1"}
-{"Time":"2025-06-26T10:05:55.714927-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_1","Output":"=== CONT  TestSubTestsStatic/subtest_1\n"}
-{"Time":"2025-06-26T10:05:55.714941-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_1","Output":"--- PASS: TestSubTestsTableStatic/subtest_1 (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.714947-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_1","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.714956-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_1","Output":"    sub_test.go:17: This is a static subtest (fail)\n"}
-{"Time":"2025-06-26T10:05:55.714962-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_1","Output":"--- FAIL: TestSubTestsStatic/subtest_1 (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.714967-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_1","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.714974-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_2"}
-{"Time":"2025-06-26T10:05:55.714983-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_2","Output":"=== CONT  TestSubTestsStatic/subtest_2\n"}
-{"Time":"2025-06-26T10:05:55.714989-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_2","Output":"    sub_test.go:23: This is a static subtest (skip)\n"}
-{"Time":"2025-06-26T10:05:55.714995-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_2","Output":"=== PAUSE TestSubTestsTableDynamic/subtest_2\n"}
-{"Time":"2025-06-26T10:05:55.714999-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_2"}
-{"Time":"2025-06-26T10:05:55.715003-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_2","Output":"--- PASS: TestSubTestsTableStatic/subtest_2 (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.71501-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic/subtest_2","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.715014-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic","Output":"--- PASS: TestSubTestsTableStatic (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.715017-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableStatic","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.715021-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic","Output":"    sub_test.go:71: This is a parent test of dynamic table tests (fail)\n"}
-{"Time":"2025-06-26T10:05:55.715028-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_1"}
-{"Time":"2025-06-26T10:05:55.715034-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_1","Output":"=== CONT  TestSubTestsTableDynamic/subtest_1\n"}
-{"Time":"2025-06-26T10:05:55.71504-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_2"}
-{"Time":"2025-06-26T10:05:55.715044-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_2","Output":"=== CONT  TestSubTestsTableDynamic/subtest_2\n"}
-{"Time":"2025-06-26T10:05:55.715048-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_2","Output":"    sub_test.go:67: This is a dynamic table test (fail)\n"}
-{"Time":"2025-06-26T10:05:55.715053-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_2","Output":"--- FAIL: TestSubTestsTableDynamic/subtest_2 (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.715057-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_2","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.715061-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_1","Output":"    sub_test.go:67: This is a dynamic table test (fail)\n"}
-{"Time":"2025-06-26T10:05:55.715065-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_1","Output":"--- FAIL: TestSubTestsTableDynamic/subtest_1 (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.715069-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic/subtest_1","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.715073-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic","Output":"--- FAIL: TestSubTestsTableDynamic (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.715077-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsTableDynamic","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.715081-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_2","Output":"--- SKIP: TestSubTestsStatic/subtest_2 (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.715085-04:00","Action":"skip","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic/subtest_2","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.715088-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic","Output":"--- FAIL: TestSubTestsStatic (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.715095-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"TestSubTestsStatic","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.715099-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"FuzzExampleProject"}
-{"Time":"2025-06-26T10:05:55.715103-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"FuzzExampleProject","Output":"=== RUN   FuzzExampleProject\n"}
-{"Time":"2025-06-26T10:05:55.715107-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"FuzzExampleProject/seed#0"}
-{"Time":"2025-06-26T10:05:55.71511-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"FuzzExampleProject/seed#0","Output":"=== RUN   FuzzExampleProject/seed#0\n"}
-{"Time":"2025-06-26T10:05:55.715114-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"FuzzExampleProject/seed#0","Output":"    unusual_test.go:18: This is a fuzz test seed #1 (pass)\n"}
-{"Time":"2025-06-26T10:05:55.715118-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"FuzzExampleProject/seed#0","Output":"--- PASS: FuzzExampleProject/seed#0 (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.715122-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"FuzzExampleProject/seed#0","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.715126-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"FuzzExampleProject","Output":"    unusual_test.go:21: This is a fuzz test (fail)\n"}
-{"Time":"2025-06-26T10:05:55.715129-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"FuzzExampleProject","Output":"--- FAIL: FuzzExampleProject (0.00s)\n"}
-{"Time":"2025-06-26T10:05:55.715133-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Test":"FuzzExampleProject","Elapsed":0}
-{"Time":"2025-06-26T10:05:55.715137-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Output":"FAIL\n"}
-{"Time":"2025-06-26T10:05:55.715174-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Output":"FAIL\tgithub.com/smartcontractkit/branch-out/golang/example_project\t0.180s\n"}
-{"Time":"2025-06-26T10:05:55.715189-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out/golang/example_project","Elapsed":0.18}
+{"Time":"2025-06-26T10:05:55.534788-04:00","Action":"start","Package":"github.com/smartcontractkit/branch-out-example-project"}
+{"Time":"2025-06-26T10:05:55.53491-04:00","Action":"start","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package"}
+{"Time":"2025-06-26T10:05:55.534964-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Test":"TestOddlyNamedPackage"}
+{"Time":"2025-06-26T10:05:55.534973-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Test":"TestOddlyNamedPackage","Output":"=== RUN   TestOddlyNamedPackage\n"}
+{"Time":"2025-06-26T10:05:55.534989-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Test":"TestOddlyNamedPackage","Output":"=== PAUSE TestOddlyNamedPackage\n"}
+{"Time":"2025-06-26T10:05:55.534976-04:00","Action":"start","Package":"github.com/smartcontractkit/branch-out-example-project/test_package"}
+{"Time":"2025-06-26T10:05:55.535014-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Test":"TestTestPackage"}
+{"Time":"2025-06-26T10:05:55.535023-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Test":"TestTestPackage","Output":"=== RUN   TestTestPackage\n"}
+{"Time":"2025-06-26T10:05:55.535039-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Test":"TestTestPackage","Output":"=== PAUSE TestTestPackage\n"}
+{"Time":"2025-06-26T10:05:55.534997-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Test":"TestOddlyNamedPackage"}
+{"Time":"2025-06-26T10:05:55.535046-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Test":"TestTestPackage"}
+{"Time":"2025-06-26T10:05:55.535076-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Test":"TestTestPackage"}
+{"Time":"2025-06-26T10:05:55.535086-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Test":"TestTestPackage","Output":"=== CONT  TestTestPackage\n"}
+{"Time":"2025-06-26T10:05:55.53507-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Test":"TestOddlyNamedPackage"}
+{"Time":"2025-06-26T10:05:55.535104-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Test":"TestOddlyNamedPackage","Output":"=== CONT  TestOddlyNamedPackage\n"}
+{"Time":"2025-06-26T10:05:55.535095-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Test":"TestTestPackage","Output":"    test_package_test.go:14: This test lives in a package with the _test suffix (skip)\n"}
+{"Time":"2025-06-26T10:05:55.535124-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Test":"TestTestPackage","Output":"--- SKIP: TestTestPackage (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.535112-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Test":"TestOddlyNamedPackage","Output":"    oddly_named_package_test.go:14: This test's package name doesn't match the standard directory path naming scheme (pass)\n"}
+{"Time":"2025-06-26T10:05:55.535151-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Test":"TestOddlyNamedPackage","Output":"--- PASS: TestOddlyNamedPackage (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.535131-04:00","Action":"skip","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Test":"TestTestPackage","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.535203-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Output":"PASS\n"}
+{"Time":"2025-06-26T10:05:55.535205-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Test":"TestOddlyNamedPackage","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.535238-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Output":"ok  \tgithub.com/smartcontractkit/branch-out-example-project/test_package\t(cached)\n"}
+{"Time":"2025-06-26T10:05:55.535249-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Output":"PASS\n"}
+{"Time":"2025-06-26T10:05:55.535295-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Output":"ok  \tgithub.com/smartcontractkit/branch-out-example-project/oddly_named_package\t(cached)\n"}
+{"Time":"2025-06-26T10:05:55.535324-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out-example-project/oddly_named_package","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.535312-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out-example-project/test_package","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.714265-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard1"}
+{"Time":"2025-06-26T10:05:55.714335-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard1","Output":"=== RUN   TestStandard1\n"}
+{"Time":"2025-06-26T10:05:55.714348-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard1","Output":"=== PAUSE TestStandard1\n"}
+{"Time":"2025-06-26T10:05:55.714355-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard1"}
+{"Time":"2025-06-26T10:05:55.714362-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard2"}
+{"Time":"2025-06-26T10:05:55.714368-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard2","Output":"=== RUN   TestStandard2\n"}
+{"Time":"2025-06-26T10:05:55.714374-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard2","Output":"=== PAUSE TestStandard2\n"}
+{"Time":"2025-06-26T10:05:55.714381-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard2"}
+{"Time":"2025-06-26T10:05:55.714418-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard3"}
+{"Time":"2025-06-26T10:05:55.714424-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard3","Output":"=== RUN   TestStandard3\n"}
+{"Time":"2025-06-26T10:05:55.71443-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard3","Output":"=== PAUSE TestStandard3\n"}
+{"Time":"2025-06-26T10:05:55.714436-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard3"}
+{"Time":"2025-06-26T10:05:55.714449-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic"}
+{"Time":"2025-06-26T10:05:55.714457-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic","Output":"=== RUN   TestSubTestsStatic\n"}
+{"Time":"2025-06-26T10:05:55.714467-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic","Output":"=== PAUSE TestSubTestsStatic\n"}
+{"Time":"2025-06-26T10:05:55.714472-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic"}
+{"Time":"2025-06-26T10:05:55.714487-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic"}
+{"Time":"2025-06-26T10:05:55.714497-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic","Output":"=== RUN   TestSubTestsTableStatic\n"}
+{"Time":"2025-06-26T10:05:55.714506-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic","Output":"=== PAUSE TestSubTestsTableStatic\n"}
+{"Time":"2025-06-26T10:05:55.714511-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic"}
+{"Time":"2025-06-26T10:05:55.714529-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic"}
+{"Time":"2025-06-26T10:05:55.714537-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic","Output":"=== RUN   TestSubTestsTableDynamic\n"}
+{"Time":"2025-06-26T10:05:55.714543-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic","Output":"=== PAUSE TestSubTestsTableDynamic\n"}
+{"Time":"2025-06-26T10:05:55.714548-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic"}
+{"Time":"2025-06-26T10:05:55.714554-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestDifferentParam"}
+{"Time":"2025-06-26T10:05:55.714559-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestDifferentParam","Output":"=== RUN   TestDifferentParam\n"}
+{"Time":"2025-06-26T10:05:55.714565-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestDifferentParam","Output":"=== PAUSE TestDifferentParam\n"}
+{"Time":"2025-06-26T10:05:55.71457-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestDifferentParam"}
+{"Time":"2025-06-26T10:05:55.714576-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard1"}
+{"Time":"2025-06-26T10:05:55.714581-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard1","Output":"=== CONT  TestStandard1\n"}
+{"Time":"2025-06-26T10:05:55.714585-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic"}
+{"Time":"2025-06-26T10:05:55.714589-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic","Output":"=== CONT  TestSubTestsTableStatic\n"}
+{"Time":"2025-06-26T10:05:55.714594-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_1"}
+{"Time":"2025-06-26T10:05:55.714598-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_1","Output":"=== RUN   TestSubTestsTableStatic/subtest_1\n"}
+{"Time":"2025-06-26T10:05:55.714604-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard1","Output":"    standard_test.go:12: This is a standard test (pass)\n"}
+{"Time":"2025-06-26T10:05:55.714609-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestDifferentParam"}
+{"Time":"2025-06-26T10:05:55.714613-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestDifferentParam","Output":"=== CONT  TestDifferentParam\n"}
+{"Time":"2025-06-26T10:05:55.714621-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_1","Output":"=== PAUSE TestSubTestsTableStatic/subtest_1\n"}
+{"Time":"2025-06-26T10:05:55.714625-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_1"}
+{"Time":"2025-06-26T10:05:55.714647-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard1","Output":"--- PASS: TestStandard1 (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.714654-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard1","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.714662-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard3"}
+{"Time":"2025-06-26T10:05:55.714667-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard3","Output":"=== CONT  TestStandard3\n"}
+{"Time":"2025-06-26T10:05:55.714673-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard2"}
+{"Time":"2025-06-26T10:05:55.714678-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard2","Output":"=== CONT  TestStandard2\n"}
+{"Time":"2025-06-26T10:05:55.714683-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard2","Output":"    standard_test.go:18: This is a standard test (fail)\n"}
+{"Time":"2025-06-26T10:05:55.714688-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard2","Output":"--- FAIL: TestStandard2 (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.714692-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard2","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.714697-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard3","Output":"    standard_test.go:24: This is a standard test (fail)\n"}
+{"Time":"2025-06-26T10:05:55.714702-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard3","Output":"--- FAIL: TestStandard3 (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.714706-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestStandard3","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.71471-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_2"}
+{"Time":"2025-06-26T10:05:55.71472-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_2","Output":"=== RUN   TestSubTestsTableStatic/subtest_2\n"}
+{"Time":"2025-06-26T10:05:55.714726-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_2","Output":"=== PAUSE TestSubTestsTableStatic/subtest_2\n"}
+{"Time":"2025-06-26T10:05:55.714732-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_2"}
+{"Time":"2025-06-26T10:05:55.714739-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic"}
+{"Time":"2025-06-26T10:05:55.714747-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic","Output":"=== CONT  TestSubTestsStatic\n"}
+{"Time":"2025-06-26T10:05:55.714755-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_1"}
+{"Time":"2025-06-26T10:05:55.714767-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_1","Output":"=== RUN   TestSubTestsStatic/subtest_1\n"}
+{"Time":"2025-06-26T10:05:55.714776-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_1","Output":"=== PAUSE TestSubTestsStatic/subtest_1\n"}
+{"Time":"2025-06-26T10:05:55.714782-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_1"}
+{"Time":"2025-06-26T10:05:55.714788-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestDifferentParam","Output":"    unusual_test.go:27: This test uses 'x' instead of 't' (fail)\n"}
+{"Time":"2025-06-26T10:05:55.714794-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestDifferentParam","Output":"--- FAIL: TestDifferentParam (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.714799-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestDifferentParam","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.714805-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic","Output":"    sub_test.go:48: This is a parent test of static table tests (pass)\n"}
+{"Time":"2025-06-26T10:05:55.71481-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_2"}
+{"Time":"2025-06-26T10:05:55.714816-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_2","Output":"=== RUN   TestSubTestsStatic/subtest_2\n"}
+{"Time":"2025-06-26T10:05:55.714821-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_1"}
+{"Time":"2025-06-26T10:05:55.714831-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_1","Output":"=== CONT  TestSubTestsTableStatic/subtest_1\n"}
+{"Time":"2025-06-26T10:05:55.714838-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_1","Output":"    sub_test.go:44: This is a static table test test (pass)\n"}
+{"Time":"2025-06-26T10:05:55.714843-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_2","Output":"=== PAUSE TestSubTestsStatic/subtest_2\n"}
+{"Time":"2025-06-26T10:05:55.714847-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_2"}
+{"Time":"2025-06-26T10:05:55.714852-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_2"}
+{"Time":"2025-06-26T10:05:55.714856-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_2","Output":"=== CONT  TestSubTestsTableStatic/subtest_2\n"}
+{"Time":"2025-06-26T10:05:55.714862-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic"}
+{"Time":"2025-06-26T10:05:55.714868-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic","Output":"=== CONT  TestSubTestsTableDynamic\n"}
+{"Time":"2025-06-26T10:05:55.714874-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_1"}
+{"Time":"2025-06-26T10:05:55.714882-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_1","Output":"=== RUN   TestSubTestsTableDynamic/subtest_1\n"}
+{"Time":"2025-06-26T10:05:55.71489-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic","Output":"    sub_test.go:26: This is a parent test of static subtests (pass)\n"}
+{"Time":"2025-06-26T10:05:55.714895-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_1","Output":"=== PAUSE TestSubTestsTableDynamic/subtest_1\n"}
+{"Time":"2025-06-26T10:05:55.7149-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_1"}
+{"Time":"2025-06-26T10:05:55.714906-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_2"}
+{"Time":"2025-06-26T10:05:55.714911-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_2","Output":"=== RUN   TestSubTestsTableDynamic/subtest_2\n"}
+{"Time":"2025-06-26T10:05:55.714916-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_2","Output":"    sub_test.go:44: This is a static table test test (pass)\n"}
+{"Time":"2025-06-26T10:05:55.714922-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_1"}
+{"Time":"2025-06-26T10:05:55.714927-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_1","Output":"=== CONT  TestSubTestsStatic/subtest_1\n"}
+{"Time":"2025-06-26T10:05:55.714941-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_1","Output":"--- PASS: TestSubTestsTableStatic/subtest_1 (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.714947-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_1","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.714956-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_1","Output":"    sub_test.go:17: This is a static subtest (fail)\n"}
+{"Time":"2025-06-26T10:05:55.714962-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_1","Output":"--- FAIL: TestSubTestsStatic/subtest_1 (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.714967-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_1","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.714974-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_2"}
+{"Time":"2025-06-26T10:05:55.714983-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_2","Output":"=== CONT  TestSubTestsStatic/subtest_2\n"}
+{"Time":"2025-06-26T10:05:55.714989-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_2","Output":"    sub_test.go:23: This is a static subtest (skip)\n"}
+{"Time":"2025-06-26T10:05:55.714995-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_2","Output":"=== PAUSE TestSubTestsTableDynamic/subtest_2\n"}
+{"Time":"2025-06-26T10:05:55.714999-04:00","Action":"pause","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_2"}
+{"Time":"2025-06-26T10:05:55.715003-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_2","Output":"--- PASS: TestSubTestsTableStatic/subtest_2 (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.71501-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic/subtest_2","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.715014-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic","Output":"--- PASS: TestSubTestsTableStatic (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.715017-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableStatic","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.715021-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic","Output":"    sub_test.go:71: This is a parent test of dynamic table tests (fail)\n"}
+{"Time":"2025-06-26T10:05:55.715028-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_1"}
+{"Time":"2025-06-26T10:05:55.715034-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_1","Output":"=== CONT  TestSubTestsTableDynamic/subtest_1\n"}
+{"Time":"2025-06-26T10:05:55.71504-04:00","Action":"cont","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_2"}
+{"Time":"2025-06-26T10:05:55.715044-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_2","Output":"=== CONT  TestSubTestsTableDynamic/subtest_2\n"}
+{"Time":"2025-06-26T10:05:55.715048-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_2","Output":"    sub_test.go:67: This is a dynamic table test (fail)\n"}
+{"Time":"2025-06-26T10:05:55.715053-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_2","Output":"--- FAIL: TestSubTestsTableDynamic/subtest_2 (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.715057-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_2","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.715061-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_1","Output":"    sub_test.go:67: This is a dynamic table test (fail)\n"}
+{"Time":"2025-06-26T10:05:55.715065-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_1","Output":"--- FAIL: TestSubTestsTableDynamic/subtest_1 (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.715069-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic/subtest_1","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.715073-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic","Output":"--- FAIL: TestSubTestsTableDynamic (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.715077-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsTableDynamic","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.715081-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_2","Output":"--- SKIP: TestSubTestsStatic/subtest_2 (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.715085-04:00","Action":"skip","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic/subtest_2","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.715088-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic","Output":"--- FAIL: TestSubTestsStatic (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.715095-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"TestSubTestsStatic","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.715099-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"FuzzExampleProject"}
+{"Time":"2025-06-26T10:05:55.715103-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"FuzzExampleProject","Output":"=== RUN   FuzzExampleProject\n"}
+{"Time":"2025-06-26T10:05:55.715107-04:00","Action":"run","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"FuzzExampleProject/seed#0"}
+{"Time":"2025-06-26T10:05:55.71511-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"FuzzExampleProject/seed#0","Output":"=== RUN   FuzzExampleProject/seed#0\n"}
+{"Time":"2025-06-26T10:05:55.715114-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"FuzzExampleProject/seed#0","Output":"    unusual_test.go:18: This is a fuzz test seed #1 (pass)\n"}
+{"Time":"2025-06-26T10:05:55.715118-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"FuzzExampleProject/seed#0","Output":"--- PASS: FuzzExampleProject/seed#0 (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.715122-04:00","Action":"pass","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"FuzzExampleProject/seed#0","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.715126-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"FuzzExampleProject","Output":"    unusual_test.go:21: This is a fuzz test (fail)\n"}
+{"Time":"2025-06-26T10:05:55.715129-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"FuzzExampleProject","Output":"--- FAIL: FuzzExampleProject (0.00s)\n"}
+{"Time":"2025-06-26T10:05:55.715133-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out-example-project","Test":"FuzzExampleProject","Elapsed":0}
+{"Time":"2025-06-26T10:05:55.715137-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Output":"FAIL\n"}
+{"Time":"2025-06-26T10:05:55.715174-04:00","Action":"output","Package":"github.com/smartcontractkit/branch-out-example-project","Output":"FAIL\tgithub.com/smartcontractkit/branch-out-example-project\t0.180s\n"}
+{"Time":"2025-06-26T10:05:55.715189-04:00","Action":"fail","Package":"github.com/smartcontractkit/branch-out-example-project","Elapsed":0.18}

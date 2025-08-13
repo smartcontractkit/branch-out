@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -120,6 +121,7 @@ func (q QuarantineResults) Markdown(owner, repo, branch string) string {
 // QuarantinePackageResults describes the result of quarantining a list of tests in a package.
 type QuarantinePackageResults struct {
 	Package   string            // Import path of the Go package (redundant, but kept for handy access)
+	GoModDir  string            // Directory containing the go.mod file for the package
 	Successes []QuarantinedFile // Every file where we found and quarantined tests
 	Failures  []string          // Names of the test functions that were not able to be quarantined
 }
@@ -269,7 +271,22 @@ func WriteQuarantineResultsToFiles(l zerolog.Logger, results QuarantineResults) 
 				Strs("quarantined_tests", success.TestNames()).
 				Msg("Wrote quarantine results")
 		}
+
+		// Tidy the go.mod file to ensure the quarantine package is added to the module's dependencies.
+		goTidy := exec.Command("go", "mod", "tidy")
+		goTidy.Dir = result.GoModDir
+		output, err := goTidy.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf(
+				"failed to tidy go.mod file: %w\nCommand: %s\nDirectory: %s\nOutput:\n%s",
+				err,
+				goTidy.String(),
+				goTidy.Dir,
+				string(output),
+			)
+		}
 	}
+
 	return nil
 }
 
@@ -316,6 +333,7 @@ func quarantinePackage(
 		haveQuarantined = make(map[string]bool) // Track which tests we've already quarantined for quick lookup
 		results         = QuarantinePackageResults{
 			Package:   pkg.ImportPath,
+			GoModDir:  pkg.Module.Dir,
 			Successes: make([]QuarantinedFile, 0, len(testsToQuarantine)),
 			Failures:  make([]string, 0, len(testsToQuarantine)),
 		}
@@ -348,7 +366,6 @@ func quarantinePackage(
 		if err != nil {
 			return results, fmt.Errorf("failed to quarantine tests in file %s: %w", testFile, err)
 		}
-
 		l.Debug().Strs("newly_quarantined_tests", foundTestNames).Msg("Successfully quarantined tests in file")
 
 		absRepoPath, err := filepath.Abs(repoPath)
@@ -420,21 +437,15 @@ func isTestFunction(funcDecl *ast.FuncDecl) bool {
 	return false
 }
 
-// skipTests adds conditional quarantine logic to the beginning of the test function
-//
-//	if os.Getenv("RUN_QUARANTINED_TESTS") != "true" {
-//	    t.Skip("Flaky test quarantined. Ticket <Jira ticket>. Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)")
-//	} else {
-//	    t.Logf("'RUN_QUARANTINED_TESTS' set to '%s', running quarantined test", os.Getenv("RUN_QUARANTINED_TESTS"))
-//	}
+// skipTests adds conditional quarantine logic to the beginning of the test function using quarantine.Flaky().
 func skipTests(
 	fset *token.FileSet,
 	node *ast.File,
 	testFuncs []*ast.FuncDecl,
 ) (string, []QuarantinedTest, error) {
-	// Ensure "os" package is imported for the conditional logic
-	if len(testFuncs) > 0 && !hasImport(node, "os") {
-		addImport(node, "os")
+	// Ensure quarantine package is imported for the conditional logic
+	if len(testFuncs) > 0 && !hasImport(node, "github.com/smartcontractkit/branch-out/quarantine") {
+		addImport(node, "github.com/smartcontractkit/branch-out/quarantine")
 	}
 
 	// Store original line numbers and test names
@@ -443,9 +454,9 @@ func skipTests(
 		originalPositions[testFunc.Name.Name] = fset.Position(testFunc.Pos()).Line
 	}
 
-	// Apply modifications (same as existing implementation)
+	// Apply modifications
 	for _, testFunc := range testFuncs {
-		paramName := "t" // default fallback
+		paramName := "t" // default fallback for testing.T param name
 		if testFunc.Type.Params != nil && len(testFunc.Type.Params.List) > 0 {
 			param := testFunc.Type.Params.List[0]
 			if len(param.Names) > 0 && param.Names[0] != nil {
@@ -453,81 +464,18 @@ func skipTests(
 			}
 		}
 
-		conditionalStmt := &ast.IfStmt{
-			Cond: &ast.BinaryExpr{
-				X: &ast.CallExpr{
-					Fun: &ast.SelectorExpr{
-						X:   &ast.Ident{Name: "os"},
-						Sel: &ast.Ident{Name: "Getenv"},
-					},
-					Args: []ast.Expr{
-						&ast.BasicLit{
-							Kind:  token.STRING,
-							Value: fmt.Sprintf(`"%s"`, RunQuarantinedTestsEnvVar),
-						},
-					},
-				},
-				Op: token.NEQ,
-				Y: &ast.BasicLit{
-					Kind:  token.STRING,
-					Value: `"true"`,
-				},
+		quarantineCall := &ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X:   &ast.Ident{Name: "quarantine"},
+				Sel: &ast.Ident{Name: "Flaky"},
 			},
-			Body: &ast.BlockStmt{
-				List: []ast.Stmt{
-					&ast.ExprStmt{
-						X: &ast.CallExpr{
-							Fun: &ast.SelectorExpr{
-								X:   &ast.Ident{Name: paramName},
-								Sel: &ast.Ident{Name: "Skip"},
-							},
-							Args: []ast.Expr{
-								&ast.BasicLit{
-									Kind:  token.STRING,
-									Value: `"Flaky test quarantined. Ticket <Jira ticket>. Done automatically by branch-out (https://github.com/smartcontractkit/branch-out)"`,
-								},
-							},
-						},
-					},
-				},
-			},
-			Else: &ast.BlockStmt{
-				List: []ast.Stmt{
-					&ast.ExprStmt{
-						X: &ast.CallExpr{
-							Fun: &ast.SelectorExpr{
-								X:   &ast.Ident{Name: paramName},
-								Sel: &ast.Ident{Name: "Logf"},
-							},
-							Args: []ast.Expr{
-								&ast.BasicLit{
-									Kind:  token.STRING,
-									Value: `"'` + RunQuarantinedTestsEnvVar + `' set to '%s', running quarantined test"`,
-								},
-								&ast.CallExpr{
-									Fun: &ast.SelectorExpr{
-										X:   &ast.Ident{Name: "os"},
-										Sel: &ast.Ident{Name: "Getenv"},
-									},
-									Args: []ast.Expr{
-										&ast.BasicLit{
-											Kind:  token.STRING,
-											Value: fmt.Sprintf(`"%s"`, RunQuarantinedTestsEnvVar),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
+			Args: []ast.Expr{
+				&ast.BasicLit{Kind: token.STRING, Value: paramName},
+				&ast.BasicLit{Kind: token.STRING, Value: `"JIRA-PLACEHOLDER-123"`}, // TODO: Add Jira ticket
 			},
 		}
 
-		if testFunc.Body != nil && len(testFunc.Body.List) > 0 {
-			testFunc.Body.List = append([]ast.Stmt{conditionalStmt}, testFunc.Body.List...)
-		} else if testFunc.Body != nil {
-			testFunc.Body.List = []ast.Stmt{conditionalStmt}
-		}
+		testFunc.Body.List = append([]ast.Stmt{&ast.ExprStmt{X: quarantineCall}}, testFunc.Body.List...)
 	}
 
 	// Format the modified AST

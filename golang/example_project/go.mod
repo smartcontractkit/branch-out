@@ -1,3 +1,8 @@
-module github.com/smartcontractkit/branch-out/golang/example_project
+module github.com/smartcontractkit/branch-out-example-project
 
-go 1.24.4
+go 1.24.6
+
+replace (
+	// Get proper local version of branch-out
+	github.com/smartcontractkit/branch-out => ../..
+)
