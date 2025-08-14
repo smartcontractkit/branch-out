@@ -61,7 +61,7 @@ func TestGetBranchNames(t *testing.T) {
 			mockOptions: []mock.MockBackendOption{
 				mock.WithRequestMatchHandler(
 					mock.GetReposByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						mock.WriteError(
 							w,
 							http.StatusNotFound,
@@ -145,7 +145,7 @@ func TestGetOrCreateRemoteBranch(t *testing.T) {
 						}
 
 						// Return default branch SHA for branch creation
-						w.Write(mock.MustMarshal(github.Reference{
+						_, _ = w.Write(mock.MustMarshal(github.Reference{
 							Object: &github.GitObject{
 								SHA: github.Ptr("default-branch-sha"),
 							},
@@ -173,7 +173,7 @@ func TestGetOrCreateRemoteBranch(t *testing.T) {
 			mockOptions: []mock.MockBackendOption{
 				mock.WithRequestMatchHandler(
 					mock.GetReposGitRefByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						mock.WriteError(w, http.StatusInternalServerError, "Internal Server Error")
 					}),
 				),
@@ -353,7 +353,7 @@ func TestCreateOrUpdatePullRequest(t *testing.T) {
 			mockOptions: []mock.MockBackendOption{
 				mock.WithRequestMatchHandler(
 					mock.GetReposPullsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						mock.WriteError(w, http.StatusInternalServerError, "Internal Server Error")
 					}),
 				),
@@ -370,7 +370,15 @@ func TestCreateOrUpdatePullRequest(t *testing.T) {
 
 			logger := testhelpers.Logger(t)
 			ctx := context.Background()
-			url, err := client.CreateOrUpdatePullRequest(ctx, logger, tt.owner, tt.repo, tt.prBranch, tt.defaultBranch, tt.results)
+			url, err := client.CreateOrUpdatePullRequest(
+				ctx,
+				logger,
+				tt.owner,
+				tt.repo,
+				tt.prBranch,
+				tt.defaultBranch,
+				tt.results,
+			)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
@@ -503,7 +511,7 @@ func TestGetDefaultBranch(t *testing.T) {
 			mockOptions: []mock.MockBackendOption{
 				mock.WithRequestMatchHandler(
 					mock.GetReposByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						mock.WriteError(w, http.StatusNotFound, "Not Found")
 					}),
 				),
@@ -572,7 +580,7 @@ func TestGetBranchHeadSHA(t *testing.T) {
 			mockOptions: []mock.MockBackendOption{
 				mock.WithRequestMatchHandler(
 					mock.GetReposGitRefByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						mock.WriteError(w, http.StatusNotFound, "Not Found")
 					}),
 				),
@@ -588,7 +596,7 @@ func TestGetBranchHeadSHA(t *testing.T) {
 			mockOptions: []mock.MockBackendOption{
 				mock.WithRequestMatchHandler(
 					mock.GetReposGitRefByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						mock.WriteError(w, http.StatusInternalServerError, "Internal Server Error")
 					}),
 				),
@@ -671,7 +679,7 @@ func TestCreatePullRequest(t *testing.T) {
 			mockOptions: []mock.MockBackendOption{
 				mock.WithRequestMatchHandler(
 					mock.PostReposPullsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						mock.WriteError(w, http.StatusUnprocessableEntity, "Validation Failed")
 					}),
 				),
@@ -687,7 +695,15 @@ func TestCreatePullRequest(t *testing.T) {
 			client := createTestClient(tt.mockOptions...)
 
 			ctx := context.Background()
-			url, err := client.createPullRequest(ctx, tt.owner, tt.repo, tt.headBranch, tt.baseBranch, tt.title, tt.body)
+			url, err := client.createPullRequest(
+				ctx,
+				tt.owner,
+				tt.repo,
+				tt.headBranch,
+				tt.baseBranch,
+				tt.title,
+				tt.body,
+			)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
@@ -759,7 +775,7 @@ func TestFindExistingPR(t *testing.T) {
 			mockOptions: []mock.MockBackendOption{
 				mock.WithRequestMatchHandler(
 					mock.GetReposPullsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						mock.WriteError(w, http.StatusInternalServerError, "Internal Server Error")
 					}),
 				),
@@ -836,7 +852,7 @@ func TestUpdatePullRequest(t *testing.T) {
 			mockOptions: []mock.MockBackendOption{
 				mock.WithRequestMatchHandler(
 					mock.PatchReposPullsByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						mock.WriteError(w, http.StatusNotFound, "Not Found")
 					}),
 				),
