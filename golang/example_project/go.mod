@@ -1,6 +1,6 @@
 module github.com/smartcontractkit/branch-out-example-project
 
-go 1.24.6
+go 1.25.0
 
 replace (
 	// Get proper local version of branch-out

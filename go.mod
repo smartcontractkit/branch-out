@@ -1,6 +1,6 @@
 module github.com/smartcontractkit/branch-out
 
-go 1.24.6
+go 1.25.0
 
 tool (
 	github.com/vektra/mockery/v3
@@ -16,6 +16,7 @@ require (
 	github.com/gofri/go-github-ratelimit/v2 v2.0.2
 	github.com/google/go-github/v73 v73.0.0
 	github.com/jferrl/go-githubauth v1.2.1
+	github.com/migueleliasweb/go-github-mock v1.4.0
 	github.com/rs/zerolog v1.34.0
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
 	github.com/spf13/cobra v1.9.1
@@ -34,7 +35,6 @@ require (
 
 require (
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/migueleliasweb/go-github-mock v1.4.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 )
 
@@ -57,7 +57,7 @@ require (
 	github.com/bitfield/gotestdox v0.2.2 // indirect
 	github.com/brunoga/deep v1.2.4 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
-	github.com/charmbracelet/colorprofile v0.3.1 // indirect
+	github.com/charmbracelet/colorprofile v0.3.2 // indirect
 	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta1 // indirect
 	github.com/charmbracelet/x/ansi v0.10.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
