@@ -75,18 +75,18 @@ func TestQuarantineTests_Integration_EnvVarGate(t *testing.T) {
 						require.Contains(
 							t,
 							pkgResults.Found,
-							test,
+							test.Name,
 							"'%s' in package '%s' was marked as successfully quarantined, but was NOT FOUND AT ALL when tests were run",
-							test,
+							test.Name,
 							successfullyQuarantinedTarget.Package,
 						)
 						if testCase.runQuarantinedTests == "true" {
 							assert.Contains(
 								t,
 								pkgResults.Failed,
-								test,
+								test.Name,
 								"'%s' in package '%s' was marked as successfully quarantined, but when %s='%s' it should have been run and failed",
-								test,
+								test.Name,
 								successfullyQuarantinedTarget.Package,
 								quarantine.RunQuarantinedTestsEnvVar,
 								testCase.runQuarantinedTests,
@@ -95,9 +95,9 @@ func TestQuarantineTests_Integration_EnvVarGate(t *testing.T) {
 							assert.Contains(
 								t,
 								pkgResults.Skipped,
-								test,
+								test.Name,
 								"'%s' in package '%s' was marked as successfully quarantined, but when %s='%s' it should have been skipped",
-								test,
+								test.Name,
 								successfullyQuarantinedTarget.Package,
 								quarantine.RunQuarantinedTestsEnvVar,
 								testCase.runQuarantinedTests,
@@ -221,17 +221,17 @@ func TestQuarantineTests_Integration(t *testing.T) {
 					require.Contains(
 						t,
 						pkgResults.Found,
-						test,
+						test.Name,
 						"'%s' in package '%s' was marked as successfully quarantined, but was NOT FOUND AT ALL when tests were run",
-						test,
+						test.Name,
 						successfullyQuarantinedTarget.Package,
 					)
 					assert.Contains(
 						t,
 						pkgResults.Skipped,
-						test,
+						test.Name,
 						"'%s' in package '%s' was marked as successfully quarantined, but NOT SKIPPED when tests were run",
-						test,
+						test.Name,
 						successfullyQuarantinedTarget.Package,
 					)
 				}
@@ -319,9 +319,17 @@ func quarantineTests(
 	successfullyQuarantinedTests := []golang.QuarantineTarget{}
 	for _, result := range quarantineResults {
 		for _, success := range result.Successes {
+			tests := []golang.TestToQuarantine{}
+			for _, test := range success.Tests {
+				tests = append(tests, golang.TestToQuarantine{
+					Name:       test.Name,
+					JiraTicket: test.JiraTicket,
+				})
+			}
+
 			successfullyQuarantinedTests = append(successfullyQuarantinedTests, golang.QuarantineTarget{
 				Package: success.Package,
-				Tests:   success.TestNames(),
+				Tests:   tests,
 			})
 		}
 		assert.Empty(
@@ -345,27 +353,27 @@ var (
 	nestedProjectTestPackage       = "github.com/smartcontractkit/branch-out-example-project/nested_project/nested_test_package"
 	nestedProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out-example-project/nested_project/nested_oddly_named_package"
 
-	standardTestNames = []string{
-		"TestStandard1",
-		"TestStandard2",
-		"TestStandard3",
+	standardTestNames = []golang.TestToQuarantine{
+		{Name: "TestStandard1", JiraTicket: "JIRA-STANDARD-1"},
+		{Name: "TestStandard2", JiraTicket: "JIRA-STANDARD-2"},
+		{Name: "TestStandard3", JiraTicket: "JIRA-STANDARD-3"},
 	}
-	subTestNames = []string{
-		"TestSubTestsStatic/subtest_1",
-		"TestSubTestsStatic/subtest_2",
-		"TestSubTestsTableStatic/subtest_1",
-		"TestSubTestsTableStatic/subtest_2",
-		"TestSubTestsTableDynamic/subtest_1",
-		"TestSubTestsTableDynamic/subtest_2",
+	subTestNames = []golang.TestToQuarantine{
+		{Name: "TestSubTestsStatic/subtest_1", JiraTicket: "JIRA-SUB-1"},
+		{Name: "TestSubTestsStatic/subtest_2", JiraTicket: "JIRA-SUB-2"},
+		{Name: "TestSubTestsTableStatic/subtest_1", JiraTicket: "JIRA-SUB-3"},
+		{Name: "TestSubTestsTableStatic/subtest_2", JiraTicket: "JIRA-SUB-4"},
+		{Name: "TestSubTestsTableDynamic/subtest_1", JiraTicket: "JIRA-SUB-5"},
+		{Name: "TestSubTestsTableDynamic/subtest_2", JiraTicket: "JIRA-SUB-6"},
 	}
-	unusualTestNames = []string{
-		"FuzzExampleProject",
-		"TestDifferentParam",
+	unusualTestNames = []golang.TestToQuarantine{
+		{Name: "FuzzExampleProject", JiraTicket: "JIRA-UNUSUAL-1"},
+		{Name: "TestDifferentParam", JiraTicket: "JIRA-UNUSUAL-2"},
 	}
-	testPackageTestNames = []string{
-		"TestTestPackage",
+	testPackageTestNames = []golang.TestToQuarantine{
+		{Name: "TestTestPackage", JiraTicket: "JIRA-TEST-PACKAGE"},
 	}
-	oddlyNamedPackageTestNames = []string{
-		"TestOddlyNamedPackage",
+	oddlyNamedPackageTestNames = []golang.TestToQuarantine{
+		{Name: "TestOddlyNamedPackage", JiraTicket: "JIRA-ODDLY-NAMED-PACKAGE"},
 	}
 )

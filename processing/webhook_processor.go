@@ -147,7 +147,7 @@ func (w *WebhookProcessor) handleFlakyTest(l zerolog.Logger, statusChange trunk.
 		[]golang.QuarantineTarget{
 			{
 				Package: testCase.TestSuite,
-				Tests:   []string{testCase.Name},
+				Tests:   []golang.TestToQuarantine{{Name: testCase.Name, JiraTicket: issue.Key}},
 			},
 		},
 	)

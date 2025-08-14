@@ -17,11 +17,24 @@ func TestSanitizeQuarantineTargets(t *testing.T) {
 		{
 			name: "no duplicates",
 			quarantineTargets: []QuarantineTarget{
-				{Package: "github.com/example/pkg", Tests: []string{"TestA", "TestB"}},
-				{Package: "github.com/example/pkg", Tests: []string{"TestB", "TestC"}},
+				{Package: "github.com/example/pkg", Tests: []TestToQuarantine{
+					{Name: "TestA", JiraTicket: "JIRA-A"},
+					{Name: "TestB", JiraTicket: "JIRA-B"},
+				}},
+				{Package: "github.com/example/pkg", Tests: []TestToQuarantine{
+					{Name: "TestB", JiraTicket: "JIRA-B"},
+					{Name: "TestC", JiraTicket: "JIRA-C"},
+				}},
 			},
 			expected: []QuarantineTarget{
-				{Package: "github.com/example/pkg", Tests: []string{"TestA", "TestB", "TestC"}},
+				{
+					Package: "github.com/example/pkg",
+					Tests: []TestToQuarantine{
+						{Name: "TestA", JiraTicket: "JIRA-A"},
+						{Name: "TestB", JiraTicket: "JIRA-B"},
+						{Name: "TestC", JiraTicket: "JIRA-C"},
+					},
+				},
 			},
 		},
 	}

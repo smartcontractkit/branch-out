@@ -21,8 +21,34 @@ import (
 
 // QuarantineTarget describes a package and a list of test functions to quarantine.
 type QuarantineTarget struct {
-	Package string   // Import path of the Go package
-	Tests   []string // Names of the test functions in the package to quarantine
+	Package string             // Import path of the Go package
+	Tests   []TestToQuarantine // Names of the test functions in the package to quarantine
+}
+
+// TestNames returns the names of the test functions to quarantine.
+func (q QuarantineTarget) TestNames() []string {
+	names := make([]string, 0, len(q.Tests))
+	for _, test := range q.Tests {
+		names = append(names, test.Name)
+	}
+	return names
+}
+
+// JiraTicketForTestName returns the test to quarantine with the given name.
+// Returns the empty string if the test is not found.
+func (q QuarantineTarget) JiraTicketForTestName(testName string) string {
+	for _, test := range q.Tests {
+		if test.Name == testName {
+			return test.JiraTicket
+		}
+	}
+	return ""
+}
+
+// TestToQuarantine describes a test to quarantine and the associated Jira ticket.
+type TestToQuarantine struct {
+	Name       string // Name of the test function to quarantine, e.g. "TestFoo"
+	JiraTicket string // Jira ticket of the test function to quarantine, e.g. "JIRA-123"
 }
 
 // QuarantineResults describes the result of quarantining multiple packages.
@@ -218,7 +244,7 @@ func QuarantineTests(
 			if err != nil {
 				return fmt.Errorf("failed to get package %s: %w", target.Package, err)
 			}
-			results, err := quarantinePackage(l, repoPath, pkg, target.Tests)
+			results, err := quarantinePackage(l, repoPath, pkg, target)
 			packageResultsChan <- results
 			return err
 		})
@@ -295,10 +321,10 @@ func WriteQuarantineResultsToFiles(l zerolog.Logger, results QuarantineResults) 
 // sanitizeQuarantineTargets condenses the quarantine targets and removes duplicates.
 func sanitizeQuarantineTargets(quarantineTargets []QuarantineTarget) []QuarantineTarget {
 	// Package -> tests
-	seen := make(map[string][]string)
+	seen := make(map[string][]TestToQuarantine)
 	for _, target := range quarantineTargets {
 		if _, ok := seen[target.Package]; !ok {
-			seen[target.Package] = make([]string, 0, len(target.Tests))
+			seen[target.Package] = make([]TestToQuarantine, 0, len(target.Tests))
 		}
 		for _, test := range target.Tests {
 			if !slices.Contains(seen[target.Package], test) {
@@ -322,12 +348,13 @@ func quarantinePackage(
 	l zerolog.Logger,
 	repoPath string,
 	pkg PackageInfo,
-	testsToQuarantine []string,
+	quarantineTarget QuarantineTarget,
 ) (QuarantinePackageResults, error) {
+	testNames := quarantineTarget.TestNames()
 	l = l.With().
 		Str("package", pkg.ImportPath).
-		Strs("tests_to_quarantine", testsToQuarantine).
 		Strs("test_files", pkg.TestGoFiles).
+		Strs("tests_to_quarantine", testNames).
 		Logger()
 	l.Debug().Msg("Quarantining tests in package")
 
@@ -336,8 +363,8 @@ func quarantinePackage(
 		results         = QuarantinePackageResults{
 			Package:   pkg.ImportPath,
 			GoModDir:  pkg.Module.Dir,
-			Successes: make([]QuarantinedFile, 0, len(testsToQuarantine)),
-			Failures:  make([]string, 0, len(testsToQuarantine)),
+			Successes: make([]QuarantinedFile, 0, len(testNames)),
+			Failures:  make([]string, 0, len(testNames)),
 		}
 	)
 
@@ -357,11 +384,11 @@ func quarantinePackage(
 			)
 		}
 
-		foundTests := testsInFile(node, testsToQuarantine)
+		foundTests := testsInFile(node, quarantineTarget)
 		foundTestNames := make([]string, 0, len(foundTests))
 		for _, test := range foundTests {
-			haveQuarantined[test.Name.Name] = true
-			foundTestNames = append(foundTestNames, test.Name.Name)
+			haveQuarantined[test.Name] = true
+			foundTestNames = append(foundTestNames, test.Name)
 		}
 
 		modifiedSource, quarantinedTests, err := skipTests(fset, node, foundTests)
@@ -386,24 +413,37 @@ func quarantinePackage(
 	}
 
 	// Add any tests that were not found to the failures
-	for _, test := range testsToQuarantine {
-		if !haveQuarantined[test] {
-			results.Failures = append(results.Failures, test)
+	for _, test := range quarantineTarget.Tests {
+		if !haveQuarantined[test.Name] {
+			results.Failures = append(results.Failures, test.Name)
 		}
 	}
 
 	return results, nil
 }
 
+// foundTest describes a test function that was found in a file and matches a test to quarantine.
+type foundTest struct {
+	FuncDecl *ast.FuncDecl
+	TestToQuarantine
+}
+
 // testsInFile searches for all test functions in the Go test file's AST that match the given test names.
-func testsInFile(node *ast.File, testNames []string) []*ast.FuncDecl {
-	found := make([]*ast.FuncDecl, 0, len(node.Decls))
+func testsInFile(node *ast.File, quarantineTarget QuarantineTarget) []foundTest {
+	testNames := quarantineTarget.TestNames()
+	found := make([]foundTest, 0, len(testNames))
 	for _, decl := range node.Decls {
 		// Check if this declaration is a function
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			// Check if it's a test function with the right name
 			if isTestFunction(funcDecl) && slices.Contains(testNames, funcDecl.Name.Name) {
-				found = append(found, funcDecl)
+				found = append(found, foundTest{
+					FuncDecl: funcDecl,
+					TestToQuarantine: TestToQuarantine{
+						Name:       funcDecl.Name.Name,
+						JiraTicket: quarantineTarget.JiraTicketForTestName(funcDecl.Name.Name),
+					},
+				})
 			}
 		}
 	}
@@ -443,24 +483,26 @@ func isTestFunction(funcDecl *ast.FuncDecl) bool {
 func skipTests(
 	fset *token.FileSet,
 	node *ast.File,
-	testFuncs []*ast.FuncDecl,
+	testsToSkip []foundTest,
 ) (string, []QuarantinedTest, error) {
 	// Ensure quarantine package is imported for the conditional logic
-	if len(testFuncs) > 0 && !hasImport(node, "github.com/smartcontractkit/branch-out/quarantine") {
+	if len(testsToSkip) > 0 && !hasImport(node, "github.com/smartcontractkit/branch-out/quarantine") {
 		addImport(node, "github.com/smartcontractkit/branch-out/quarantine")
 	}
 
 	// Store original line numbers and test names
 	originalPositions := make(map[string]int)
-	for _, testFunc := range testFuncs {
-		originalPositions[testFunc.Name.Name] = fset.Position(testFunc.Pos()).Line
+	for _, testToSkip := range testsToSkip {
+		originalPositions[testToSkip.Name] = fset.Position(testToSkip.FuncDecl.Pos()).Line
 	}
 
+	quarantinedTests := make([]QuarantinedTest, 0, len(testsToSkip))
 	// Apply modifications
-	for _, testFunc := range testFuncs {
+	for _, testToSkip := range testsToSkip {
 		paramName := "t" // default fallback for testing.T param name
-		if testFunc.Type.Params != nil && len(testFunc.Type.Params.List) > 0 {
-			param := testFunc.Type.Params.List[0]
+		funcDecl := testToSkip.FuncDecl
+		if funcDecl.Type.Params != nil && len(funcDecl.Type.Params.List) > 0 {
+			param := funcDecl.Type.Params.List[0]
 			if len(param.Names) > 0 && param.Names[0] != nil {
 				paramName = param.Names[0].Name
 			}
@@ -473,11 +515,19 @@ func skipTests(
 			},
 			Args: []ast.Expr{
 				&ast.BasicLit{Kind: token.STRING, Value: paramName},
-				&ast.BasicLit{Kind: token.STRING, Value: `"JIRA-PLACEHOLDER-123"`},
+				&ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf(`"%s"`, testToSkip.JiraTicket)},
 			},
 		}
 
-		testFunc.Body.List = append([]ast.Stmt{&ast.ExprStmt{X: quarantineCall}}, testFunc.Body.List...)
+		funcDecl.Body.List = append(
+			[]ast.Stmt{&ast.ExprStmt{X: quarantineCall}},
+			funcDecl.Body.List...,
+		)
+		quarantinedTests = append(quarantinedTests, QuarantinedTest{
+			Name:         testToSkip.Name,
+			JiraTicket:   testToSkip.JiraTicket,
+			OriginalLine: originalPositions[testToSkip.Name],
+		})
 	}
 
 	// Format the modified AST
@@ -494,17 +544,14 @@ func skipTests(
 		return "", nil, fmt.Errorf("failed to parse modified source: %w", err)
 	}
 
-	// Find the modified line numbers
-	quarantinedTests := make([]QuarantinedTest, 0, len(testFuncs))
+	// Find the modified line numbers and update the quarantinedTests slice
 	for _, decl := range newNode.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			if isTestFunction(funcDecl) {
-				if originalLine, exists := originalPositions[funcDecl.Name.Name]; exists {
-					quarantinedTests = append(quarantinedTests, QuarantinedTest{
-						Name:         funcDecl.Name.Name,
-						OriginalLine: originalLine,
-						ModifiedLine: newFset.Position(funcDecl.Pos()).Line,
-					})
+				for index, quarantinedTest := range quarantinedTests {
+					if quarantinedTest.Name == funcDecl.Name.Name {
+						quarantinedTests[index].ModifiedLine = newFset.Position(funcDecl.Pos()).Line
+					}
 				}
 			}
 		}
