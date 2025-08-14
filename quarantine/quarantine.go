@@ -26,8 +26,7 @@ func Flaky(tb testing.TB, ticket string) {
 		"Known flaky test. Ticket %s.\nClassified by branch-out (https://github.com/smartcontractkit/branch-out)",
 		ticket,
 	)
-	// Add this when we can use Go 1.25.0.
-	// tb.Attr("flaky", "true")
+	tb.Attr("flaky_test", ticket)
 	//nolint:forbidigo // Config doesn't make sense here
 	if os.Getenv(RunQuarantinedTestsEnvVar) != "true" {
 		tb.Skipf(
