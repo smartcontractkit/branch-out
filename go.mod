@@ -23,7 +23,7 @@ require (
 	github.com/spf13/pflag v1.0.7
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
-	github.com/svix/svix-webhooks v1.71.0
+	github.com/svix/svix-webhooks v1.72.0
 	github.com/trivago/tgo v1.0.7
 	go.opentelemetry.io/otel/metric v1.37.0
 	go.opentelemetry.io/otel/sdk v1.37.0
@@ -61,8 +61,8 @@ require (
 	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta1 // indirect
 	github.com/charmbracelet/x/ansi v0.10.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
-	github.com/charmbracelet/x/exp/charmtone v0.0.0-20250812135814-932da4e322f4 // indirect
-	github.com/charmbracelet/x/exp/color v0.0.0-20250812135814-932da4e322f4 // indirect
+	github.com/charmbracelet/x/exp/charmtone v0.0.0-20250814162307-57b675fecd71 // indirect
+	github.com/charmbracelet/x/exp/color v0.0.0-20250814162307-57b675fecd71 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
