@@ -1,6 +1,6 @@
 module github.com/smartcontractkit/branch-out
 
-go 1.24.6
+go 1.25.0
 
 tool (
 	github.com/vektra/mockery/v3
@@ -16,13 +16,14 @@ require (
 	github.com/gofri/go-github-ratelimit/v2 v2.0.2
 	github.com/google/go-github/v73 v73.0.0
 	github.com/jferrl/go-githubauth v1.2.1
+	github.com/migueleliasweb/go-github-mock v1.4.0
 	github.com/rs/zerolog v1.34.0
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.7
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
-	github.com/svix/svix-webhooks v1.71.0
+	github.com/svix/svix-webhooks v1.72.0
 	github.com/trivago/tgo v1.0.7
 	go.opentelemetry.io/otel/metric v1.37.0
 	go.opentelemetry.io/otel/sdk v1.37.0
@@ -34,7 +35,6 @@ require (
 
 require (
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/migueleliasweb/go-github-mock v1.4.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 )
 
@@ -57,12 +57,12 @@ require (
 	github.com/bitfield/gotestdox v0.2.2 // indirect
 	github.com/brunoga/deep v1.2.4 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
-	github.com/charmbracelet/colorprofile v0.3.1 // indirect
+	github.com/charmbracelet/colorprofile v0.3.2 // indirect
 	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta1 // indirect
 	github.com/charmbracelet/x/ansi v0.10.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
-	github.com/charmbracelet/x/exp/charmtone v0.0.0-20250812135814-932da4e322f4 // indirect
-	github.com/charmbracelet/x/exp/color v0.0.0-20250812135814-932da4e322f4 // indirect
+	github.com/charmbracelet/x/exp/charmtone v0.0.0-20250814162307-57b675fecd71 // indirect
+	github.com/charmbracelet/x/exp/color v0.0.0-20250814162307-57b675fecd71 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect

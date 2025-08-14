@@ -153,6 +153,7 @@ func (q QuarantinedFile) TestNames() []string {
 // QuarantinedTest describes a test function that was quarantined.
 type QuarantinedTest struct {
 	Name         string // Name of the test function that was quarantined
+	JiraTicket   string // Jira ticket of the test function that was quarantined
 	OriginalLine int    // Line number of the test function that was quarantined
 	ModifiedLine int    // Line number of the test function that was quarantined after modification of the file
 }
@@ -472,7 +473,7 @@ func skipTests(
 			},
 			Args: []ast.Expr{
 				&ast.BasicLit{Kind: token.STRING, Value: paramName},
-				&ast.BasicLit{Kind: token.STRING, Value: `"JIRA-PLACEHOLDER-123"`}, // TODO: Add Jira ticket
+				&ast.BasicLit{Kind: token.STRING, Value: `"JIRA-PLACEHOLDER-123"`},
 			},
 		}
 

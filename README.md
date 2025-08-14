@@ -1,5 +1,8 @@
 # Branch Out
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/smartcontractkit/branch-out.svg)](https://pkg.go.dev/github.com/smartcontractkit/branch-out)
+[![codecov](https://codecov.io/gh/smartcontractkit/branch-out/graph/badge.svg?token=6W67C75JQX)](https://codecov.io/gh/smartcontractkit/branch-out)
+
 A tool to accentuate the capabilities of [Trunk.io](https://trunk.io/)'s [flaky test tools](https://docs.trunk.io/flaky-tests/overview). When a test is detected as flaky, [Trunk.io sends a webhook](https://docs.trunk.io/flaky-tests/webhooks). From there, we can branch out to different services to customize the flaky test quarantine process.
 
 See the [design doc](./design.md) for a more detailed look at how it works.
