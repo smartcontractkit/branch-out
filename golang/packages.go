@@ -58,14 +58,14 @@ func (p *PackagesInfo) Get(importPath string) (PackageInfo, error) {
 
 // PackageInfo contains comprehensive information about a Go package
 type PackageInfo struct {
-	ImportPath   string   // Package import path (e.g., "github.com/user/repo/pkg")
-	Name         string   // Package name
-	Dir          string   // Directory containing the package
-	GoFiles      []string // .go source files
-	TestGoFiles  []string // _test.go files
-	XTestGoFiles []string // _test.go files with different package names
-	Module       string   // Module path
-	IsCommand    bool     // True if this is a main package
+	ImportPath   string           // Package import path (e.g., "github.com/user/repo/pkg")
+	Name         string           // Package name
+	Dir          string           // Directory containing the package
+	GoFiles      []string         // .go source files
+	TestGoFiles  []string         // _test.go files
+	XTestGoFiles []string         // _test.go files with different package names
+	Module       *packages.Module // Module information for the package
+	IsCommand    bool             // True if this is a main package
 }
 
 func (p *PackageInfo) String() string {
@@ -87,7 +87,7 @@ func (p *PackageInfo) String() string {
 	if len(p.XTestGoFiles) > 0 {
 		str.WriteString(fmt.Sprintf("XTestGoFiles: %v", p.XTestGoFiles))
 	}
-	str.WriteString(fmt.Sprintf("Module: %s", p.Module))
+	str.WriteString(fmt.Sprintf("Module: %s", p.Module.Path))
 	str.WriteString("\n")
 	str.WriteString(fmt.Sprintf("IsCommand: %t", p.IsCommand))
 
@@ -143,7 +143,8 @@ func Packages(l zerolog.Logger, rootDir string, buildFlags []string) (*PackagesI
 			Strs("xTestFiles", pkg.XTestGoFiles).
 			Str("name", pkg.Name).
 			Str("importPath", pkg.ImportPath).
-			Str("module", pkg.Module).
+			Str("module", pkg.Module.Path).
+			Str("goModPath", pkg.Module.Dir).
 			Bool("isCommand", pkg.IsCommand).
 			Str("pkgDir", pkg.Dir).
 			Msg("Found package")
@@ -207,10 +208,7 @@ func loadPackagesFromModule(l zerolog.Logger, moduleDir string, buildFlags []str
 			ImportPath: pkg.PkgPath,
 			Name:       pkg.Name,
 			IsCommand:  pkg.Name == "main",
-		}
-
-		if pkg.Module != nil {
-			info.Module = pkg.Module.Path
+			Module:     pkg.Module,
 		}
 
 		// Separate regular files from test files

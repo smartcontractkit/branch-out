@@ -5,7 +5,7 @@ package package_name_doesnt_match_dir_name
 import (
 	"testing"
 
-	"github.com/smartcontractkit/branch-out/golang/example_project"
+	example_project "github.com/smartcontractkit/branch-out-example-project"
 )
 
 func TestOddlyNamedPackage(t *testing.T) {

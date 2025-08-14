@@ -16,6 +16,7 @@ import (
 
 	"github.com/smartcontractkit/branch-out/golang"
 	"github.com/smartcontractkit/branch-out/internal/testhelpers"
+	"github.com/smartcontractkit/branch-out/quarantine"
 )
 
 var exampleProjectBuildFlags = []string{
@@ -51,11 +52,11 @@ func TestQuarantineTests_Integration_EnvVarGate(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(
-			fmt.Sprintf("%s='%s'", golang.RunQuarantinedTestsEnvVar, testCase.runQuarantinedTests),
+			fmt.Sprintf("%s='%s'", quarantine.RunQuarantinedTestsEnvVar, testCase.runQuarantinedTests),
 			func(t *testing.T) {
 				t.Parallel()
 				env := map[string]string{
-					golang.RunQuarantinedTestsEnvVar: testCase.runQuarantinedTests,
+					quarantine.RunQuarantinedTestsEnvVar: testCase.runQuarantinedTests,
 				}
 
 				baseTestOutput, _ := runExampleTests( //nolint:testifylint // If there's an error here, it's likely because the tests failed, which doesn't stop us from checking the results
@@ -87,7 +88,7 @@ func TestQuarantineTests_Integration_EnvVarGate(t *testing.T) {
 								"'%s' in package '%s' was marked as successfully quarantined, but when %s='%s' it should have been run and failed",
 								test,
 								successfullyQuarantinedTarget.Package,
-								golang.RunQuarantinedTestsEnvVar,
+								quarantine.RunQuarantinedTestsEnvVar,
 								testCase.runQuarantinedTests,
 							)
 						} else {
@@ -98,7 +99,7 @@ func TestQuarantineTests_Integration_EnvVarGate(t *testing.T) {
 								"'%s' in package '%s' was marked as successfully quarantined, but when %s='%s' it should have been skipped",
 								test,
 								successfullyQuarantinedTarget.Package,
-								golang.RunQuarantinedTestsEnvVar,
+								quarantine.RunQuarantinedTestsEnvVar,
 								testCase.runQuarantinedTests,
 							)
 						}
@@ -336,13 +337,13 @@ func quarantineTests(
 }
 
 var (
-	baseProjectPackage           = "github.com/smartcontractkit/branch-out/golang/example_project"
-	baseProjectTestPackage       = "github.com/smartcontractkit/branch-out/golang/example_project/test_package"
-	baseProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package"
+	baseProjectPackage           = "github.com/smartcontractkit/branch-out-example-project"
+	baseProjectTestPackage       = "github.com/smartcontractkit/branch-out-example-project/test_package"
+	baseProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out-example-project/oddly_named_package"
 
-	nestedProjectPackage           = "github.com/smartcontractkit/branch-out/golang/example_project/nested_project"
-	nestedProjectTestPackage       = "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_test_package"
-	nestedProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_oddly_named_package"
+	nestedProjectPackage           = "github.com/smartcontractkit/branch-out-example-project/nested_project"
+	nestedProjectTestPackage       = "github.com/smartcontractkit/branch-out-example-project/nested_project/nested_test_package"
+	nestedProjectOddlyNamedPackage = "github.com/smartcontractkit/branch-out-example-project/nested_project/nested_oddly_named_package"
 
 	standardTestNames = []string{
 		"TestStandard1",

@@ -1,7 +1,11 @@
-module github.com/smartcontractkit/branch-out/golang/example_project/nested_project
+module github.com/smartcontractkit/branch-out-example-project/nested_project
 
-go 1.24.4
+go 1.24.6
 
-replace github.com/smartcontractkit/branch-out/golang/example_project => ../
+replace (
+	github.com/smartcontractkit/branch-out-example-project => ../
+	// Get proper local version of branch-out
+	github.com/smartcontractkit/branch-out => ../../../
+)
 
-require github.com/smartcontractkit/branch-out/golang/example_project v0.0.0-00010101000000-000000000000
+require github.com/smartcontractkit/branch-out-example-project v0.0.0-00010101000000-000000000000

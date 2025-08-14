@@ -17,6 +17,7 @@ Test*/
 !testdata/
 branch-out
 !branch-out/
+json.log
 
 # Common debug file
 x.json

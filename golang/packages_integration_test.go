@@ -14,17 +14,20 @@ const exampleProjectDir = "example_project"
 
 var (
 	exampleProjectPackages = []string{
-		"github.com/smartcontractkit/branch-out/golang/example_project",
-		"github.com/smartcontractkit/branch-out/golang/example_project/oddly_named_package",
-		"github.com/smartcontractkit/branch-out/golang/example_project/test_package_test",
-		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project",
-		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_oddly_named_package",
-		"github.com/smartcontractkit/branch-out/golang/example_project/nested_project/nested_test_package_test",
+		"github.com/smartcontractkit/branch-out-example-project",
+		"github.com/smartcontractkit/branch-out-example-project/oddly_named_package",
+		"github.com/smartcontractkit/branch-out-example-project/test_package_test",
+		"github.com/smartcontractkit/branch-out-example-project/nested_project",
+		"github.com/smartcontractkit/branch-out-example-project/nested_project/nested_oddly_named_package",
+		"github.com/smartcontractkit/branch-out-example-project/nested_project/nested_test_package_test",
 	}
 )
 
 func TestPackages_Integration(t *testing.T) {
 	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 
 	l := testhelpers.Logger(t)
 	packages, err := golang.Packages(l, exampleProjectDir, exampleProjectBuildFlags)

@@ -18,12 +18,6 @@ generate: ## Generate mocks for all interfaces
 test:
 	go tool gotestsum -- -cover ./...
 
-test_coverage:
-	go tool gotestsum -- -coverprofile=./coverage.out ./...
-	-go tool go-test-coverage -config=./.testcoverage.yml -profile=./coverage.out
-	go tool cover -html=coverage.out -o=coverage.html
-	open coverage.html
-
 test_race:
 	go tool gotestsum -- -cover -race ./...
 
