@@ -112,7 +112,7 @@ func (q QuarantineResults) Markdown(owner, repo, branch string) string {
 				// Create individual test links with line numbers
 				var testLinks []string
 				for _, test := range file.Tests {
-					testLink := fmt.Sprintf("[%s](%s#L%d)", test.Name, githubBlobURL, test.OriginalLine)
+					testLink := fmt.Sprintf("[%s](%s#L%d)", test.Name, githubBlobURL, test.ModifiedLine)
 					testLinks = append(testLinks, testLink)
 				}
 
@@ -429,10 +429,10 @@ type foundTest struct {
 }
 
 // testsInFile searches for all test functions in the Go test file's AST that match the given test names.
-func testsInFile(node *ast.File, quarantineTarget QuarantineTarget) []foundTest {
+func testsInFile(fileRootNode *ast.File, quarantineTarget QuarantineTarget) []foundTest {
 	testNames := quarantineTarget.TestNames()
 	found := make([]foundTest, 0, len(testNames))
-	for _, decl := range node.Decls {
+	for _, decl := range fileRootNode.Decls {
 		// Check if this declaration is a function
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			// Check if it's a test function with the right name
