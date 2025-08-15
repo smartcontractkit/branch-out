@@ -1,4 +1,4 @@
-FROM golang:1.25-bullseye AS buildgo
+FROM golang:1.25-bookworm AS buildgo
 RUN go version
 
 WORKDIR /branch-out
@@ -13,7 +13,7 @@ RUN CGO_ENABLED=0 go build \
   -ldflags="-X 'github.com/branch-out/branch-out/cmd.builtBy=docker'" \
   -o /tmp/branch-out/branch-out ./main.go
 
-FROM golang:1.25-bullseye
+FROM golang:1.25-bookworm
 
 HEALTHCHECK --interval=5m --timeout=3s \
   CMD curl -f http://localhost/health || exit 1
