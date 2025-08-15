@@ -112,7 +112,7 @@ func (q QuarantineResults) Markdown(owner, repo, branch string) string {
 				// Create individual test links with line numbers
 				var testLinks []string
 				for _, test := range file.Tests {
-					testLink := fmt.Sprintf("[%s](%s#L%d)", test.Name, githubBlobURL, test.OriginalLine)
+					testLink := fmt.Sprintf("[%s](%s#L%d)", test.Name, githubBlobURL, test.ModifiedLine)
 					testLinks = append(testLinks, testLink)
 				}
 
@@ -482,12 +482,12 @@ func isTestFunction(funcDecl *ast.FuncDecl) bool {
 // skipTests adds conditional quarantine logic to the beginning of the test function using quarantine.Flaky().
 func skipTests(
 	fset *token.FileSet,
-	node *ast.File,
+	fileRootNode *ast.File,
 	testsToSkip []foundTest,
 ) (string, []QuarantinedTest, error) {
 	// Ensure quarantine package is imported for the conditional logic
-	if len(testsToSkip) > 0 && !hasImport(node, "github.com/smartcontractkit/branch-out/quarantine") {
-		addImport(node, "github.com/smartcontractkit/branch-out/quarantine")
+	if len(testsToSkip) > 0 && !hasImport(fileRootNode, "github.com/smartcontractkit/branch-out/quarantine") {
+		addImport(fileRootNode, "github.com/smartcontractkit/branch-out/quarantine")
 	}
 
 	// Store original line numbers and test names
@@ -532,7 +532,7 @@ func skipTests(
 
 	// Format the modified AST
 	var modifiedNode bytes.Buffer
-	if err := format.Node(&modifiedNode, fset, node); err != nil {
+	if err := format.Node(&modifiedNode, fset, fileRootNode); err != nil {
 		return "", nil, fmt.Errorf("failed to format modified source: %w", err)
 	}
 
@@ -571,7 +571,7 @@ func hasImport(node *ast.File, importPath string) bool {
 }
 
 // addImport adds an import to the file's import list
-func addImport(node *ast.File, importPath string) {
+func addImport(fileRootNode *ast.File, importPath string) {
 	// Create the import spec
 	importSpec := &ast.ImportSpec{
 		Path: &ast.BasicLit{
@@ -581,31 +581,33 @@ func addImport(node *ast.File, importPath string) {
 	}
 
 	// If there are no imports yet, create a new import declaration
-	if len(node.Decls) == 0 || node.Imports == nil {
+	if len(fileRootNode.Decls) == 0 || fileRootNode.Imports == nil {
 		importDecl := &ast.GenDecl{
 			Tok:   token.IMPORT,
 			Specs: []ast.Spec{importSpec},
 		}
-		node.Decls = append([]ast.Decl{importDecl}, node.Decls...)
-		node.Imports = []*ast.ImportSpec{importSpec}
+		fileRootNode.Decls = append([]ast.Decl{importDecl}, fileRootNode.Decls...)
+		fileRootNode.Imports = []*ast.ImportSpec{importSpec}
 		return
 	}
 
 	// Find the first import declaration and add to it
-	for i, decl := range node.Decls {
+	for i, decl := range fileRootNode.Decls {
 		if genDecl, ok := decl.(*ast.GenDecl); ok && genDecl.Tok == token.IMPORT {
 			genDecl.Specs = append(genDecl.Specs, importSpec)
-			node.Imports = append(node.Imports, importSpec)
+			fileRootNode.Imports = append(fileRootNode.Imports, importSpec)
 			return
 		}
 		// If we hit a non-import declaration, insert a new import declaration before it
-		if i == 0 || (i == 1 && isPackageDeclaration(node.Decls[0])) {
+		if i == 0 || (i == 1 && isPackageDeclaration(fileRootNode.Decls[0])) {
 			importDecl := &ast.GenDecl{
 				Tok:   token.IMPORT,
 				Specs: []ast.Spec{importSpec},
 			}
-			node.Decls = append(node.Decls[:i], append([]ast.Decl{importDecl}, node.Decls[i:]...)...)
-			node.Imports = append(node.Imports, importSpec)
+			fileRootNode.Decls = append(
+				fileRootNode.Decls[:i],
+				append([]ast.Decl{importDecl}, fileRootNode.Decls[i:]...)...)
+			fileRootNode.Imports = append(fileRootNode.Imports, importSpec)
 			return
 		}
 	}
@@ -615,8 +617,8 @@ func addImport(node *ast.File, importPath string) {
 		Tok:   token.IMPORT,
 		Specs: []ast.Spec{importSpec},
 	}
-	node.Decls = append([]ast.Decl{importDecl}, node.Decls...)
-	node.Imports = append(node.Imports, importSpec)
+	fileRootNode.Decls = append([]ast.Decl{importDecl}, fileRootNode.Decls...)
+	fileRootNode.Imports = append(fileRootNode.Imports, importSpec)
 }
 
 // isPackageDeclaration checks if a declaration is a package declaration
